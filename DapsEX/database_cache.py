@@ -19,6 +19,7 @@ class Database:
                     """
                 CREATE TABLE IF NOT EXISTS file_cache (
                     file_path text PRIMARY KEY,
+                    media_type TEXT, 
                     file_hash TEXT UNIQUE,
                     source_path TEXT,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -27,12 +28,12 @@ class Database:
                 )
                 conn.commit()
 
-    def add_file(self, file_path: str, file_hash: str, source_path: str) -> None:
+    def add_file(self, file_path: str, media_type: str, file_hash: str, source_path: str) -> None:
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
-                    "INSERT OR REPLACE INTO file_cache (file_path, file_hash, source_path) VALUES (?, ?, ?)",
-                    (file_path, file_hash, source_path)
+                    "INSERT OR REPLACE INTO file_cache (file_path, media_type, file_hash, source_path) VALUES (?, ?, ?, ?)",
+                    (file_path, media_type, file_hash, source_path)
                 )
             conn.commit()
 
@@ -74,9 +75,10 @@ class Database:
                 result = cursor.fetchall()
                 return {
                     file_path: {
+                        'media_type': media_type,
                         'file_hash': file_hash,
                         'source_path': source_path,
                         'timestamp': timestamp
                     }
-                    for file_path, file_hash, source_path, timestamp, in result
+                    for file_path, media_type, file_hash, source_path, timestamp, in result
                 }

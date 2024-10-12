@@ -59,7 +59,6 @@ def run_renamer():
         payload = webui_utils.create_poster_renamer_payload(radarr, sonarr, plex)
 
         job_id = progress_instance.add_job()
-        print(f"{job_id}")
 
         renamer = PosterRenamerr(
             payload.target_path, payload.source_dirs, payload.asset_folders

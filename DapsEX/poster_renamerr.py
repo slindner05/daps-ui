@@ -334,7 +334,7 @@ class PosterRenamerr:
                     result = self._handle_movie_asset_folders(asset_folder_names, item)
                     if result:
                         target_dir, file_name_format = result
-                        self._copy_file(item, target_dir, file_name_format)
+                        self._copy_file(item, key, target_dir, file_name_format)
 
             elif key == "collections":
                 for item in items:
@@ -343,14 +343,14 @@ class PosterRenamerr:
                     )
                     if result:
                         target_dir, file_name_format = result
-                        self._copy_file(item, target_dir, file_name_format)
+                        self._copy_file(item, key, target_dir, file_name_format)
 
             elif key == "shows":
                 for item in items:
                     result = self._handle_series_asset_folders(asset_folder_names, item)
                     if result:
                         target_dir, file_name_format = result
-                        self._copy_file(item, target_dir, file_name_format)
+                        self._copy_file(item, key, target_dir, file_name_format)
 
     def _handle_movie_asset_folders(
         self, asset_folder_names: dict[str, list[str]], file_path: Path
@@ -427,7 +427,7 @@ class PosterRenamerr:
                     return target_dir, show_file_name_format
             return None
 
-    def _copy_file(self, file_path: Path, target_dir: Path, new_file_name: str) -> None:
+    def _copy_file(self, file_path: Path, media_type: str, target_dir: Path, new_file_name: str) -> None:
         try:
             target_path = target_dir / new_file_name
             file_hash = self.hash_file(file_path)
@@ -451,7 +451,7 @@ class PosterRenamerr:
             else:
                 shutil.copy2(file_path, target_path)
                 print(f"Copied and renamed: {file_path.name} -> {target_path}")
-                self.db.add_file(str(target_path), file_hash, current_source)
+                self.db.add_file(str(target_path), media_type, file_hash, current_source)
 
         except Exception as e:
             print(f"Error copying file {file_path}: {e}")
@@ -467,21 +467,21 @@ class PosterRenamerr:
                     result = self._handle_movie(item)
                     if result:
                         file_name_format = result
-                        self._copy_file(item, self.target_path, file_name_format)
+                        self._copy_file(item, key, self.target_path, file_name_format)
 
             if key == "collections":
                 for item in items:
                     result = self._handle_collections(collections_dict, item)
                     if result:
                         file_name_format = result
-                        self._copy_file(item, self.target_path, file_name_format)
+                        self._copy_file(item, key, self.target_path, file_name_format)
 
             if key == "shows":
                 for item in items:
                     result = self._handle_series(item)
                     if result:
                         file_name_format = result
-                        self._copy_file(item, self.target_path, file_name_format)
+                        self._copy_file(item, key, self.target_path, file_name_format)
 
     @staticmethod
     def _handle_movie(item: Path) -> str | None:
@@ -547,6 +547,7 @@ class PosterRenamerr:
                 payload, Radarr, Sonarr
             )
             plex_instances = utils.create_plex_instances(payload, Server)
+            print(f"{plex_instances}", flush=True)
             all_movies, all_series = utils.get_combined_media_lists(
                 radarr_instances, sonarr_instances
             )

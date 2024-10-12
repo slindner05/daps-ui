@@ -3,9 +3,7 @@ document.addEventListener("DOMContentLoaded", function() {
     attachNewInstance("sonarr");
     attachNewInstance("plex");
     attachPosterRenamer();
-});
 
-window.addEventListener("DOMContentLoaded", () => {
     fetch("/get-settings")
         .then((response) => response.json())
         .then((data) => {
@@ -20,6 +18,7 @@ window.addEventListener("DOMContentLoaded", () => {
             console.error("Error", error);
         });
 });
+
 
 function createInstanceFromSettings(data, settingsVar, htmlVar) {
     for (let i = 1; i < data[settingsVar].length; i++) {
