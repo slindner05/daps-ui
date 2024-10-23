@@ -5,9 +5,10 @@ import requests
 settings = Blueprint("settings", __name__)
 
 
-@settings.route("/settings", methods = ["GET"])
+@settings.route("/settings", methods=["GET"])
 def settings_route():
     return render_template("settings/settings.html")
+
 
 @settings.route("/get-settings", methods=["GET"])
 def get_settings():
@@ -18,13 +19,25 @@ def get_settings():
         plex_instances = models.PlexInstance.query.all()
 
         data = {
+            "posterRenamerSchedule": getattr(settings, "poster_renamer_schedule", ""),
             "targetPath": getattr(settings, "target_path", ""),
-            "sourceDirs": getattr(settings, "source_dirs", "").split(",") if getattr(settings, "source_dirs", "") else [],
-            "libraryNames": getattr(settings, "library_names", "").split(",") if getattr(settings, "library_names", "") else [],
-            "instances": getattr(settings, "instances", "").split(",") if getattr(settings, "instances", "") else [],
-            "assetFolders": getattr(settings, "asset_folders", False), 
-            "borderReplacer": getattr(settings, "border_replacerr", False), 
-
+            "sourceDirs": (
+                getattr(settings, "source_dirs", "").split(",")
+                if getattr(settings, "source_dirs", "")
+                else []
+            ),
+            "libraryNames": (
+                getattr(settings, "library_names", "").split(",")
+                if getattr(settings, "library_names", "")
+                else []
+            ),
+            "instances": (
+                getattr(settings, "instances", "").split(",")
+                if getattr(settings, "instances", "")
+                else []
+            ),
+            "assetFolders": getattr(settings, "asset_folders", False),
+            "borderReplacer": getattr(settings, "border_replacerr", False),
             "radarrInstances": [
                 {
                     "instanceName": instance.instance_name,
@@ -33,7 +46,6 @@ def get_settings():
                 }
                 for instance in radarr_instances
             ],
-
             "sonarrInstances": [
                 {
                     "instanceName": instance.instance_name,
@@ -42,7 +54,6 @@ def get_settings():
                 }
                 for instance in sonarr_instances
             ],
-
             "plexInstances": [
                 {
                     "instanceName": instance.instance_name,
@@ -56,11 +67,13 @@ def get_settings():
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
+
 @settings.route("/save-settings", methods=["POST"])
 def save_settings():
     try:
         data = request.get_json()
 
+        poster_renamer_schedule = data.get("posterRenamerSchedule", "")
         target_path = data.get("targetPath", "")
         source_dirs = ",".join(data.get("sourceDirs", []))
         library_names = ",".join(data.get("libraryNames", []))
@@ -74,6 +87,7 @@ def save_settings():
         models.Settings.query.delete()
 
         new_settings = models.Settings(
+            poster_renamer_schedule=poster_renamer_schedule,
             target_path=target_path,
             source_dirs=source_dirs,
             library_names=library_names,
@@ -81,7 +95,6 @@ def save_settings():
             asset_folders=asset_folders,
             border_replacerr=border_replacerr,
         )
-        print(f"target path: {target_path}", flush=True)
         db.session.add(new_settings)
 
         models.RadarrInstance.query.delete()

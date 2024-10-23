@@ -1,151 +1,15 @@
 # TODO: add logging
 from pathlib import Path
-from arrapi.apis.sonarr import Series
-from arrapi.objs.reload import Movie
-from plexapi.collection import LibrarySection
 from DapsEX.payload import Payload
+from DapsEX.media import Server, Radarr, Sonarr, Media
 from DapsEX.database_cache import Database
-from plexapi.server import PlexServer
-from arrapi import SonarrAPI, RadarrAPI
 import re
 from tqdm import tqdm
 import shutil
 from pathvalidate import sanitize_filename
 import hashlib
 from progress import *
-
-
-# TODO: remove media class convert to functions in utils module
-class Media:
-    @staticmethod
-    def _get_paths(all_media_objects: list[Movie] | list[Series]) -> list[Path]:
-        """
-        Method to get paths from media objects (movies or series).
-        """
-        return [Path(item.path) for item in all_media_objects]  # type: ignore
-
-    def get_dicts(
-        self,
-        movies_list: list[Path],
-        series_list: list[Path],
-        movies_collection_list: list[str],
-        series_collection_list: list[str],
-    ) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
-        """
-        Combines all unique movies, series and collections into dictionaries.
-        """
-        media_dict = {"movies": [], "shows": []}
-        collections_dict = {"movies": [], "shows": []}
-        movie_name_list = [item.name for item in movies_list]
-        series_name_list = [item.name for item in series_list]
-        unique_movies = set()
-        unique_shows = set()
-        unique_movie_collections = set()
-        unique_show_collections = set()
-
-        for movie in movie_name_list:
-            self._process_list(movie, unique_movies, media_dict, key="movies")
-        for show in series_name_list:
-            self._process_list(show, unique_shows, media_dict, key="shows")
-        for collection in movies_collection_list:
-            self._process_list(
-                collection, unique_movie_collections, collections_dict, key="movies"
-            )
-        for collection in series_collection_list:
-            self._process_list(
-                collection, unique_show_collections, collections_dict, key="shows"
-            )
-        return media_dict, collections_dict
-
-    @staticmethod
-    def _process_list(
-        item: object, unique_set: set, final_dict: dict, key: str
-    ) -> None:
-        if item not in unique_set:
-            unique_set.add(item)
-            final_dict[key].append(item)
-
-
-# TODO: move Radarr, Sonarr, Server to seperate modules
-class Radarr(Media):
-    def __init__(self, base_url: str, api: str):
-        super().__init__()
-        self.radarr = RadarrAPI(base_url, api)
-        self.get_all_movies()
-
-    def get_all_movies(self) -> None:
-        all_movie_objects = self.radarr.all_movies()
-        self.movies = self._get_paths(all_movie_objects)
-
-
-class Sonarr(Media):
-    def __init__(self, base_url: str, api: str):
-        super().__init__()
-        self.sonarr = SonarrAPI(base_url, api)
-        self.get_all_series()
-
-    def get_all_series(self) -> None:
-        all_series_objects = self.sonarr.all_series()
-        self.series = self._get_paths(all_series_objects)
-
-
-class Server:
-    def __init__(self, plex_url: str, plex_token: str, library_names: list[str]):
-        self.plex = PlexServer(plex_url, plex_token)
-        self.library_names = library_names
-        self.get_collections()
-
-    def get_collections(self) -> None:
-        movie_collections_list = []
-        show_collections_list = []
-        unique_collections = set()
-
-        for library_name in self.library_names:
-            try:
-                library = self.plex.library.section(library_name)
-            except Exception as e:
-                print(f"Library '{library_name}' not found: {e}")
-                continue
-
-            if library.type == "movie":
-                self._movie_collection(
-                    library, library_name, unique_collections, movie_collections_list
-                )
-            if library.type == "show":
-                self._show_collection(
-                    library, library_name, unique_collections, show_collections_list
-                )
-        self.movie_collections = movie_collections_list
-        self.series_collections = show_collections_list
-
-    def _movie_collection(
-        self,
-        library: LibrarySection,
-        library_name: str,
-        unique_collections: set,
-        movie_collections_list: list[str],
-    ) -> None:
-        collections = library.collections()
-        print(f"Processing collections from {library_name}")
-        for collection in collections:
-            if collection.title not in unique_collections:
-                unique_collections.add(collection.title)
-                movie_collections_list.append(collection.title)
-
-    def _show_collection(
-        self,
-        library: LibrarySection,
-        library_name: str,
-        unique_collections: set,
-        show_collections_list: list[str],
-    ) -> None:
-        collections = library.collections()
-        print(f"Processing collections from {library_name}")
-        for collection in collections:
-            if collection.title not in unique_collections:
-                unique_collections.add(collection.title)
-                show_collections_list.append(collection.title)
-
+# import pprint
 
 class PosterRenamerr:
     def __init__(
@@ -169,7 +33,7 @@ class PosterRenamerr:
         return sha256_hash.hexdigest()
 
     def clean_cache(self) -> None:
-        asset_files = [str(item) for item in Path(self.target_path).rglob('*')]
+        asset_files = [str(item) for item in Path(self.target_path).rglob("*")]
         cached_file_data = self.db.return_all_files()
         cached_file_paths = list(cached_file_data.keys())
 
@@ -183,8 +47,8 @@ class PosterRenamerr:
         source_files = {}
         unique_files = set()
         for source_dir in source_directories:
-            print(f"Processing source files from {source_dir}")
-            for poster in source_dir.glob("*"):
+            posters = list(source_dir.glob("*"))
+            for poster in tqdm(posters, desc=f"Processing source files from {source_dir}"):
                 if not poster.is_file():
                     continue
                 if poster.suffix.lower() in self.image_exts:
@@ -198,11 +62,12 @@ class PosterRenamerr:
     def match_files_with_media(
         self,
         source_files: dict[str, list[Path]],
-        media_dict: dict[str, list[str]],
+        media_dict: dict[str, list],
         collections_dict: dict[str, list[str]],
         cb: Callable[[str, int, ProgressState], None] | None = None,
         job_id: str | None = None,
     ) -> dict[str, list[Path]]:
+        # fuzzy_threshold = 85
 
         matched_files = {
             "collections": [],
@@ -215,6 +80,7 @@ class PosterRenamerr:
         ]
         append_str = " Collection"
         modified_col_list = [item + append_str for item in flattened_col_list]
+        movies_list = media_dict.get("movies", [])
 
         total_files = sum(len(files) for files in source_files.values())
         processed_files = 0
@@ -222,11 +88,15 @@ class PosterRenamerr:
         for directory, files in source_files.items():
             for file in tqdm(files, desc=f"Matching files in {directory}"):
                 name_without_extension = file.stem
+                sanitized_name_without_extension = self._remove_chars(name_without_extension)
+                # sanitized_name_without_extension_without_year = self._strip_year(sanitized_name_without_extension)
                 matched = False
+                # unmatched_files = []
 
                 for matched_list in matched_files.values():
                     if any(
-                        name_without_extension == matched_file.stem
+                        sanitized_name_without_extension
+                        == self._remove_chars(matched_file.stem)
                         for matched_file in matched_list
                     ):
                         matched = True
@@ -234,38 +104,67 @@ class PosterRenamerr:
 
                 if not matched:
                     for collection_name in modified_col_list:
-                        if name_without_extension in collection_name:
+                        sanitized_collection_name = self._remove_chars(collection_name)
+                        if (
+                            sanitized_name_without_extension
+                            in sanitized_collection_name
+                        ):
                             matched_files["collections"].append(file)
                             matched = True
                             break
 
                 if not matched:
-                    for movie_names in media_dict["movies"]:
-                        if name_without_extension in movie_names:
-                            matched_files["movies"].append(file)
-                            matched = True
-                            break
-
+                    for movie_data in movies_list:
+                            movie_title = movie_data.get("title")
+                            movie_years = movie_data.get("years", [])
+                            sanitized_movie_title = self._remove_chars(movie_title)
+                            if sanitized_name_without_extension in sanitized_movie_title:
+                                matched_files["movies"].append(file)
+                                matched = True
+                                break
+                            if not matched and movie_years:
+                                for year in movie_years:
+                                    sanitized_movie_title_without_year = self._strip_year(sanitized_movie_title)
+                                    sanitized_movie_title_alternate_year = f"{sanitized_movie_title_without_year} ({year})"
+                                    if sanitized_name_without_extension in sanitized_movie_title_alternate_year:
+                                        matched_files["movies"].append(file)
+                                        matched = True
+                                        break
+                                # if not matched:
+                                #     similarity_score = fuzz.partial_ratio(sanitized_name_without_extension, sanitized_movie_name)
+                                #     if similarity_score >= 80:
+                                #         print(f"{similarity_score} between {sanitized_name_without_extension} and {sanitized_movie_name}")
+                                    # print(f"{similarity_score} for {sanitized_name_without_extension_without_year} and {sanitized_movie_name}")
                 if not matched:
                     for show_name in media_dict["shows"]:
-
-                        stripped_name = self._strip_id(show_name)
+                        sanitized_show_name = self._strip_id(
+                            self._remove_chars(show_name)
+                        )
                         if (
-                            name_without_extension == stripped_name
+                            sanitized_name_without_extension == sanitized_show_name
                             or self._match_show_season(
-                                name_without_extension, stripped_name
+                                sanitized_name_without_extension,
+                                sanitized_show_name,
                             )
                             or self._match_show_special(
-                                name_without_extension, stripped_name
+                                sanitized_name_without_extension,
+                                sanitized_show_name,
                             )
                         ):
                             matched_files["shows"].append(file)
                             matched = True
                             break
+                        # if not matched:
+                        #     sanitized_show_name_without_year = self._strip_year(sanitized_show_name)
+                        #     similarity_score = fuzz.partial_ratio(sanitized_name_without_extension_without_year, sanitized_show_name_without_year)
+                        #     if similarity_score >= 80:
+                        #         print(f"{similarity_score} between {sanitized_name_without_extension_without_year} and {sanitized_show_name_without_year}")
+
                 processed_files += 1
                 if job_id and cb:
                     progress = int((processed_files / total_files) * 70)
                     cb(job_id, progress + 10, ProgressState.IN_PROGRESS)
+
         return matched_files
 
     @staticmethod
@@ -295,8 +194,32 @@ class PosterRenamerr:
         """
         return re.sub(r"\s*\{.*\}$", "", name)
 
+    @staticmethod
+    def _remove_emojis(name: str) -> str:
+        emoji_pattern = re.compile(
+            "["
+            "\U0001F600-\U0001F64F"  # emoticons
+            "\U0001F300-\U0001F5FF"  # symbols & pictographs
+            "\U0001F680-\U0001F6FF"  # transport & map symbols
+            "\U0001F700-\U0001F77F"  # alchemical symbols
+            "\U0001F780-\U0001F7FF"  # Geometric Shapes Extended
+            "\U0001F800-\U0001F8FF"  # Supplemental Arrows-C
+            "\U0001F900-\U0001F9FF"  # Supplemental Symbols and Pictographs
+            "\U0001FA00-\U0001FA6F"  # Chess Symbols, etc.
+            "\U0001FA70-\U0001FAFF"  # Symbols and Pictographs Extended-A
+            "\U00002700-\U000027BF"  # Dingbats
+            "\U0001F1E0-\U0001F1FF"  # Flags
+            "]+",
+            flags=re.UNICODE,
+        )
+        return emoji_pattern.sub(r"", name)
+
+    @staticmethod
+    def _strip_year(name: str) -> str:
+        return re.sub(r"\(\d{4}\)", "", name).strip()
+
     def create_asset_directories(
-        self, collections_dict: dict[str, list[str]], media_dict: dict[str, list[str]]
+        self, collections_dict: dict[str, list[str]], media_dict: dict[str, list]
     ) -> dict[str, list[str]]:
         asset_folder_names = {"collections": [], "movies": [], "shows": []}
         self.target_path.mkdir(parents=True, exist_ok=True)
@@ -311,14 +234,17 @@ class PosterRenamerr:
 
         for key, items in media_dict.items():
             for name in items:
-                sanitized_name = sanitize_filename(name)
+                if isinstance(name, dict):
+                    sanitized_name = sanitize_filename(name["title"])
+                else:
+                    sanitized_name = sanitize_filename(name)
                 sub_dir = self.target_path / sanitized_name
                 if not sub_dir.exists():
                     sub_dir.mkdir(exist_ok=True)
                     print(f"Directory created: {sub_dir}")
                 if key == "movies":
                     asset_folder_names["movies"].append(sanitized_name)
-                if key == "shows":
+                elif key == "shows":
                     asset_folder_names["shows"].append(sanitized_name)
 
         return asset_folder_names
@@ -356,7 +282,8 @@ class PosterRenamerr:
         self, asset_folder_names: dict[str, list[str]], file_path: Path
     ) -> tuple[Path, str] | None:
         for name in asset_folder_names["movies"]:
-            if file_path.exists() and file_path.is_file() and file_path.stem == name:
+            asset_folder_name_without_year = self._remove_chars(self._strip_year(name))
+            if file_path.exists() and file_path.is_file() and self._remove_chars(self._strip_year(file_path.stem)) == asset_folder_name_without_year:
                 movie_file_name_format = f"Poster{file_path.suffix}"
                 target_dir = self.target_path / name
                 return target_dir, movie_file_name_format
@@ -366,11 +293,11 @@ class PosterRenamerr:
         self, asset_folder_names: dict[str, list[str]], file_path: Path
     ) -> tuple[Path, str] | None:
         for name in asset_folder_names["collections"]:
-            stripped_file_name = file_path.stem.removesuffix(" Collection")
+            stripped_file_name = self._remove_chars(file_path.stem.removesuffix(" Collection"))
             if (
                 file_path.exists()
                 and file_path.is_file()
-                and stripped_file_name == name
+                and stripped_file_name == self._remove_chars(name)
             ):
                 collection_file_name_format = f"Poster{file_path.suffix}"
                 target_dir = self.target_path / name
@@ -382,16 +309,20 @@ class PosterRenamerr:
     ) -> tuple[Path, str] | None:
         match_season = re.match(r"(.+?) - Season (\d+)", file_path.stem)
         match_specials = re.match(r"(.+?) - Specials", file_path.stem)
+
+        def clean_show_name(show: str) -> str:
+            return self._strip_id(self._remove_chars(show))
+
         if match_season:
             show_name_season = match_season.group(1)
             season_num = int(match_season.group(2))
             formatted_season_num = f"Season{season_num:02}"
             for name in asset_folder_names["shows"]:
-                stripped_name = self._strip_id(name)
+                stripped_name = clean_show_name(name)
                 if (
                     file_path.exists()
                     and file_path.is_file()
-                    and show_name_season == stripped_name
+                    and self._remove_chars(show_name_season) == stripped_name
                 ):
                     target_dir = self.target_path / name
                     show_file_name_season_format = (
@@ -403,11 +334,11 @@ class PosterRenamerr:
         elif match_specials:
             show_name_specials = match_specials.group(1)
             for name in asset_folder_names["shows"]:
-                stripped_name = self._strip_id(name)
+                stripped_name = clean_show_name(name)
                 if (
                     file_path.exists()
                     and file_path.is_file()
-                    and show_name_specials == stripped_name
+                    and self._remove_chars(show_name_specials) == stripped_name
                 ):
                     target_dir = self.target_path / name
                     show_file_name_special_format = f"Season00{file_path.suffix}"
@@ -416,18 +347,20 @@ class PosterRenamerr:
 
         else:
             for name in asset_folder_names["shows"]:
-                stripped_name = self._strip_id(name)
+                stripped_name = clean_show_name(name)
                 if (
                     file_path.exists()
                     and file_path.is_file()
-                    and file_path.stem == stripped_name
+                    and self._remove_chars(file_path.stem) == stripped_name
                 ):
                     target_dir = self.target_path / name
                     show_file_name_format = f"Poster{file_path.suffix}"
                     return target_dir, show_file_name_format
             return None
 
-    def _copy_file(self, file_path: Path, media_type: str, target_dir: Path, new_file_name: str) -> None:
+    def _copy_file(
+        self, file_path: Path, media_type: str, target_dir: Path, new_file_name: str
+    ) -> None:
         try:
             target_path = target_dir / new_file_name
             file_hash = self.hash_file(file_path)
@@ -451,7 +384,9 @@ class PosterRenamerr:
             else:
                 shutil.copy2(file_path, target_path)
                 print(f"Copied and renamed: {file_path.name} -> {target_path}")
-                self.db.add_file(str(target_path), media_type, file_hash, current_source)
+                self.db.add_file(
+                    str(target_path), media_type, file_hash, current_source
+                )
 
         except Exception as e:
             print(f"Error copying file {file_path}: {e}")
@@ -459,78 +394,109 @@ class PosterRenamerr:
     def copy_rename_files(
         self,
         matched_files: dict[str, list[Path]],
+        media_dict: dict[str, list],
         collections_dict: dict[str, list[str]],
     ) -> None:
+        shows_list = media_dict.get("shows", [])
+        movies_list_data = media_dict.get("movies", [])
+        movies_list_titles = [movie["title"] for movie in movies_list_data]
+        collections_list = [
+            item for sublist in collections_dict.values() for item in sublist
+        ]
         for key, items in matched_files.items():
             if key == "movies":
                 for item in items:
-                    result = self._handle_movie(item)
+                    result = self._handle_movie(item, movies_list_titles)
                     if result:
-                        file_name_format = result
+                        file_name_format = sanitize_filename(result)
                         self._copy_file(item, key, self.target_path, file_name_format)
 
             if key == "collections":
                 for item in items:
-                    result = self._handle_collections(collections_dict, item)
+                    result = self._handle_collections(item, collections_list)
                     if result:
-                        file_name_format = result
+                        file_name_format = sanitize_filename(result)
                         self._copy_file(item, key, self.target_path, file_name_format)
 
             if key == "shows":
                 for item in items:
-                    result = self._handle_series(item)
+                    result = self._handle_series(item, shows_list)
                     if result:
-                        file_name_format = result
+                        file_name_format = sanitize_filename(result)
                         self._copy_file(item, key, self.target_path, file_name_format)
 
-    @staticmethod
-    def _handle_movie(item: Path) -> str | None:
-        if item.exists() and item.is_file():
-            file_name_format = f"{item.name}"
-            return file_name_format
+    def _handle_movie(self, item: Path, movies_list: list[str]) -> str | None:
+        movie_matched_without_year = self._remove_chars(self._strip_year(item.stem))
+        for movie in movies_list:
+            movie_clean_without_year = self._remove_chars(self._strip_year(movie))
+            if movie_matched_without_year == movie_clean_without_year:
+                movie_name = movie
+                if item.exists() and item.is_file():
+                    file_name_format = f"{movie_name}{item.suffix}"
+                    return file_name_format
         return None
 
-    @staticmethod
     def _handle_collections(
-        collections_dict: dict[str, list[str]], item: Path
+        self, item: Path, collections_list: list[str]
     ) -> str | None:
-        collections_list = [
-            item for sublist in collections_dict.values() for item in sublist
-        ]
-        stripped_name = item.stem.removesuffix(" Collection")
-        for collection_name in collections_list:
-            if collection_name == stripped_name:
+        collection_name = self._remove_chars(item.stem.removesuffix(" Collection"))
+        for collection in collections_list:
+            collection_clean = self._remove_chars(collection)
+            if collection_name == collection_clean:
+                collection_name = collection
                 if item.exists() and item.is_file():
                     file_name_format = f"{collection_name}{item.suffix}"
                     return file_name_format
         return None
 
-    @staticmethod
-    def _handle_series(item: Path) -> str | None:
+    def _handle_series(self, item: Path, shows_list: list[str]) -> str | None:
         match_season = re.match(r"(.+?) - Season (\d+)", item.stem)
         match_specials = re.match(r"(.+?) - Specials", item.stem)
 
+        def clean_show_name(show: str) -> str:
+            return self._strip_id(self._remove_chars(show))
+
         if match_season:
-            show_name_season = match_season.group(1)
+            show_name_season = self._remove_chars(match_season.group(1))
             season_num = int(match_season.group(2))
             formatted_season_num = f"Season{season_num:02}"
-            if item.exists() and item.is_file():
-                file_name_format = (
-                    f"{show_name_season}_{formatted_season_num}{item.suffix}"
-                )
-                return file_name_format
+            for show in shows_list:
+                show_clean = clean_show_name(show)
+                if show_name_season == show_clean:
+                    show_name_season = show
+                    if item.exists() and item.is_file():
+                        file_name_format = (
+                            f"{show_name_season}_{formatted_season_num}{item.suffix}"
+                        )
+                        return file_name_format
             return None
         elif match_specials:
-            show_name_specials = match_specials.group(1)
-            if item.exists() and item.is_file():
-                file_name_format = f"{show_name_specials}_Season00{item.suffix}"
-                return file_name_format
+            show_name_specials = self._remove_chars(match_specials.group(1))
+            for show in shows_list:
+                show_clean = clean_show_name(show)
+                if show_name_specials == show_clean:
+                    show_name_specials = show
+                    if item.exists() and item.is_file():
+                        file_name_format = f"{show_name_specials}_Season00{item.suffix}"
+                        return file_name_format
             return None
         else:
-            if item.exists() and item.is_file():
-                file_name_format = f"{item.name}"
-                return file_name_format
+            show_name_normal = self._remove_chars(item.stem)
+            for show in shows_list:
+                show_clean = clean_show_name(show)
+                if show_name_normal == show_clean:
+                    show_name_normal = show
+                    if item.exists() and item.is_file():
+                        file_name_format = f"{show_name_normal}{item.suffix}"
+                        return file_name_format
         return None
+
+    def _remove_chars(self, file_name: str) -> str:
+        file_name = re.sub(r"(?<=\w)-\s", " ", file_name)
+        file_name = re.sub(r"(?<=\w)\s-\s", " ", file_name)
+        file_name = re.sub(r"[\*\^;~\\`\[\]'\"\/,.!?:_…]", "", file_name)
+        file_name = self._remove_emojis(file_name)
+        return file_name.strip().replace("&", "and").replace("\u00A0", ' ').lower()
 
     def run(
         self,
@@ -547,7 +513,6 @@ class PosterRenamerr:
                 payload, Radarr, Sonarr
             )
             plex_instances = utils.create_plex_instances(payload, Server)
-            print(f"{plex_instances}", flush=True)
             all_movies, all_series = utils.get_combined_media_lists(
                 radarr_instances, sonarr_instances
             )
@@ -560,6 +525,7 @@ class PosterRenamerr:
                 all_movie_collections,
                 all_series_collections,
             )
+            # pprint.pprint(media_dict, width=120)
             if job_id and cb:
                 cb(job_id, 10, ProgressState.IN_PROGRESS)
             source_files = self.get_source_files()
@@ -572,7 +538,7 @@ class PosterRenamerr:
                 )
                 self.copy_rename_files_asset_folders(matched_files, asset_folder_names)
             else:
-                self.copy_rename_files(matched_files, collections_dict)
+                self.copy_rename_files(matched_files, media_dict, collections_dict)
 
             if job_id and cb:
                 cb(job_id, 100, ProgressState.COMPLETED)
@@ -580,4 +546,3 @@ class PosterRenamerr:
             self.clean_cache()
         except Exception as e:
             print(f"Something went wrong: {e}", flush=True)
-

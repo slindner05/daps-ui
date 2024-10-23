@@ -1,5 +1,5 @@
 from DapsEX import Payload
-from DapsEX.poster_renamerr import Radarr, Server, Sonarr
+from DapsEX.media import Radarr, Server, Sonarr
 
 
 def get_combined_media_lists(

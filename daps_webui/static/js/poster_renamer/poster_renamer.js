@@ -108,36 +108,6 @@ function previewImage(filePath, fileLink, isSeasonLink = false) {
     previewContainer.innerHTML = "";
     previewContainer.classList.add("content-box");
 
-    const imgElement = document.createElement("img");
-    imgElement.src = filePath;
-    imgElement.alt = "Preview Image";
-    previewContainer.appendChild(imgElement);
-
-    const imageSourcePath = document.createElement("p");
-    imageSourcePath.classList.add("image-metadata");
-    const sourcePath = fileLink.dataset.sourcePath;
-    const parts = sourcePath.split("/");
-    const parentDir = parts[parts.length - 2];
-    const fileName = parts[parts.length - 1];
-
-    const firstPart = document.createTextNode(parts.slice(0, -2).join("/") + "/");
-    const parentDirPart = document.createElement("span");
-    parentDirPart.classList.add("red-text");
-    parentDirPart.textContent = parentDir;
-
-    const fileNamePart = document.createTextNode("/" + fileName);
-
-    imageSourcePath.appendChild(firstPart);
-    imageSourcePath.appendChild(parentDirPart);
-    imageSourcePath.appendChild(fileNamePart);
-
-    previewContainer.appendChild(imageSourcePath);
-
-    const imageFileName = document.createElement("p");
-    imageFileName.classList.add("image-metadata");
-    imageFileName.textContent = filePath.split("/").pop();
-    previewContainer.appendChild(imageFileName);
-
     const allLinks = document.querySelectorAll(".file-link");
     allLinks.forEach((link) => {
         link.classList.remove("active");
@@ -149,12 +119,47 @@ function previewImage(filePath, fileLink, isSeasonLink = false) {
             list.classList.remove("active");
         });
     }
+
+    const imageSourcePath = document.createElement("p");
+    imageSourcePath.classList.add("image-metadata");
+
+    if (filePath === "") {
+        imageSourcePath.textContent = "Poster not found";
+        previewContainer.appendChild(imageSourcePath);
+        return;
+    }
+
+    const imgElement = document.createElement("img");
+    imgElement.src = filePath;
+    imgElement.alt = "Preview Image";
+    previewContainer.appendChild(imgElement);
+
+    const sourcePath = fileLink.dataset.sourcePath;
+    const parts = sourcePath.split("/");
+    const parentDir = parts[parts.length - 2];
+    const fileName = parts[parts.length - 1];
+
+    const firstPart = document.createTextNode(parts.slice(0, -2).join("/") + "/");
+    const parentDirPart = document.createElement("span");
+    parentDirPart.classList.add("bold-text");
+    parentDirPart.textContent = parentDir;
+
+    const fileNamePart = document.createTextNode("/" + fileName);
+
+    imageSourcePath.appendChild(firstPart);
+    imageSourcePath.appendChild(parentDirPart);
+    imageSourcePath.appendChild(fileNamePart);
+
+    previewContainer.appendChild(imageSourcePath);
 }
 
 function createTabGroup() {
     const tabContainer = document.createElement("div");
     tabContainer.classList.add("tab-container");
     const tabs = ["all", "movies", "series", "collections"];
+    const tabButtonsContainer = document.createElement("div");
+    tabButtonsContainer.classList.add("tab-buttons-container");
+
     tabs.forEach((tab) => {
         const tabButton = document.createElement("button");
         tabButton.classList.add("tab-links");
@@ -162,10 +167,42 @@ function createTabGroup() {
         tabButton.onclick = function(event) {
             openTab(event, tab);
         };
-        tabContainer.appendChild(tabButton);
+        tabButtonsContainer.appendChild(tabButton);
     });
+    const tabSearchBar = document.createElement("input");
+    tabSearchBar.classList.add("tab-search");
+    tabSearchBar.id = "tab-search"
+    tabSearchBar.type = "text";
+    tabSearchBar.placeholder = "Search...";
+    tabSearchBar.addEventListener("keyup", function() {
+        filterTabContent();
+    });
+
+    tabContainer.appendChild(tabButtonsContainer);
+    tabContainer.appendChild(tabSearchBar);
     return tabContainer;
 }
+
+function filterTabContent() {
+    const searchBar = document.getElementById("tab-search")
+    const filter = searchBar.value.toLowerCase();
+    const activeTabContent = document.querySelector(".tab-content.active");
+    if (activeTabContent) {
+        const items = activeTabContent.querySelectorAll(
+            ".file-link:not(.season-list .file-link)",
+        );
+
+        items.forEach((item) => {
+            const text = item.querySelector("span").textContent;
+            if (text.toLowerCase().indexOf(filter) > -1) {
+                item.style.display = "";
+            } else {
+                item.style.display = "none";
+            }
+        });
+    }
+}
+
 function createTabContent() {
     const tabs = ["all", "movies", "series", "collections"];
     const tabContents = [];
@@ -180,7 +217,6 @@ function createTabContent() {
 }
 
 function openTab(evt, tabName) {
-    console.log(evt.currentTarget);
     const tabContent = document.getElementsByClassName("tab-content");
     for (let i = 0; i < tabContent.length; i++) {
         tabContent[i].classList.remove("active");
@@ -193,6 +229,7 @@ function openTab(evt, tabName) {
     currentTabContent.classList.add("active");
 
     evt.currentTarget.classList.add("active");
+    filterTabContent();
 }
 
 function createPosterRenamerBox() {

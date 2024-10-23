@@ -19,7 +19,6 @@ document.addEventListener("DOMContentLoaded", function() {
         });
 });
 
-
 function createInstanceFromSettings(data, settingsVar, htmlVar) {
     for (let i = 1; i < data[settingsVar].length; i++) {
         attachNewInstance(htmlVar);
@@ -42,7 +41,7 @@ function createInstanceFromSettings(data, settingsVar, htmlVar) {
 }
 function createInputFromSettings(data, settingsVar, htmlVar) {
     for (let i = 1; i < data[settingsVar].length; i++) {
-        createAdditonalInput(htmlVar, placeholders[settingsVar]);
+        createAdditionalInput(htmlVar, placeholders[settingsVar]);
     }
     const dynamicInput = document.querySelectorAll(`input[name="${htmlVar}[]"]`);
     dynamicInput.forEach((input, index) => {
@@ -53,6 +52,8 @@ function createInputFromSettings(data, settingsVar, htmlVar) {
 function preFillForm(data) {
     document.querySelector('input[name="target_path"]').value =
         data.targetPath || "";
+    document.querySelector('input[name="poster_renamer_schedule"]').value =
+        data.posterRenamerSchedule || "";
 
     createInputFromSettings(data, "sourceDirs", "source_dir");
     createInputFromSettings(data, "libraryNames", "library_name");
@@ -158,9 +159,10 @@ let placeholders = {
     sourceDir: "/posters/Drazzilb08",
     libraryName: "Movies (HD)",
     instance: "radarr_1",
+    cronSchedule: "0 */3 * * *",
 };
 
-function createAdditonalInput(inputType, placeholder) {
+function createAdditionalInput(inputType, placeholder) {
     inputCounters[inputType]++;
     const wrapperDiv = document.getElementById(`${inputType}_div`);
     const labelElement = wrapperDiv.querySelector("label");
@@ -200,7 +202,7 @@ function updateSpanId(wrapperDiv, inputType) {
 
 function attachAddButtonListener(button, inputType, placeholder) {
     button.addEventListener("click", function() {
-        createAdditonalInput(inputType, placeholder);
+        createAdditionalInput(inputType, placeholder);
     });
 }
 function createPosterRenamer() {
@@ -216,6 +218,17 @@ function createPosterRenamer() {
     libraryNamesDiv.id = "library_name_div";
     const checkboxDiv = document.createElement("div");
     checkboxDiv.classList.add("form-group-checkbox");
+
+    const cronScheduleInput = document.createElement("input");
+    cronScheduleInput.name = "poster_renamer_schedule";
+    cronScheduleInput.type = "text";
+    cronScheduleInput.classList.add("form-input");
+    cronScheduleInput.placeholder = placeholders["cronSchedule"];
+    const cronScheduleLabel = createLabel(
+        "Schedule",
+        `${cronScheduleInput.name}`,
+    );
+    cronScheduleLabel.appendChild(cronScheduleInput);
 
     const targetPathInput = document.createElement("input");
     targetPathInput.name = "target_path";
@@ -301,6 +314,7 @@ function createPosterRenamer() {
     checkboxDiv.appendChild(assetFoldersCheckbox);
     checkboxDiv.appendChild(borderReplacerCheckbox);
 
+    formGroup.appendChild(cronScheduleLabel);
     formGroup.appendChild(targetPathLabel);
     formGroup.appendChild(sourceDirsDiv);
     formGroup.appendChild(libraryNamesDiv);
@@ -410,7 +424,7 @@ function attachNewInstance(name) {
     if (counters[name] === 1) {
         hideAllRemoveButtons(name);
     } else {
-        removeButtons = wrapperDiv.querySelectorAll(".btn-remove");
+        const removeButtons = wrapperDiv.querySelectorAll(".btn-remove");
         removeButtons.forEach((button) => {
             button.style.display = "block";
         });
@@ -473,6 +487,9 @@ document.getElementById("add-plex").addEventListener("click", function() {
 // Save settings to db
 document.getElementById("save-settings").addEventListener("click", function() {
     const targetPath = document.querySelector('input[name="target_path"]').value;
+    const posterRenamerSchedule = document.querySelector(
+        'input[name="poster_renamer_schedule"]',
+    ).value;
     const sourceDirs = Array.from(
         document.querySelectorAll('input[name="source_dir[]"]'),
     ).map((input) => input.value);
@@ -542,6 +559,7 @@ document.getElementById("save-settings").addEventListener("click", function() {
             "Content-Type": "application/json",
         },
         body: JSON.stringify({
+            posterRenamerSchedule: posterRenamerSchedule,
             targetPath: targetPath,
             sourceDirs: sourceDirs,
             libraryNames: libraryNames,
