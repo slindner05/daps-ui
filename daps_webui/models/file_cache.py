@@ -7,3 +7,41 @@ class FileCache(db.Model):
     file_hash = db.Column(db.String, unique=True)
     source_path = db.Column(db.String)
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
+
+class UnmatchedMovies(db.Model):
+    __tablename__ = "unmatched_movies"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    title = db.Column(db.String, unique=True)
+
+class UnmatchedCollections(db.Model):
+    __tablename__ = "unmatched_collections"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    title = db.Column(db.String, unique=True)
+
+class UnmatchedShows(db.Model):
+    __tablename__ = "unmatched_shows"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    title = db.Column(db.String, unique=True)
+    main_poster_missing = db.Column(db.Boolean, default=None)
+    seasons = db.relationship("UnmatchedSeasons", backref="show", cascade="all, delete-orphan", lazy=True)
+
+class UnmatchedSeasons(db.Model):
+    __tablename__ = "unmatched_seasons"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    show_id = db.Column(db.Integer, db.ForeignKey("unmatched_shows.id", ondelete="CASCADE"), nullable=False)
+    season = db.Column(db.String)
+    __table_args__ = (
+        db.UniqueConstraint('show_id', 'season', name='unique_show_season'),
+    )
+
+class UnmatchedStats(db.Model):
+    __tablename__ = "unmatched_stats"
+    id = db.Column(db.Integer, primary_key=True,)
+    total_movies = db.Column(db.Integer, default=0)
+    total_series = db.Column(db.Integer, default=0)
+    total_seasons = db.Column(db.Integer, default=0)
+    total_collections = db.Column(db.Integer, default=0)
+    unmatched_movies = db.Column(db.Integer, default=0)
+    unmatched_series = db.Column(db.Integer, default=0)
+    unmatched_seasons = db.Column(db.Integer, default=0)
+    unmatched_collections = db.Column(db.Integer, default=0)

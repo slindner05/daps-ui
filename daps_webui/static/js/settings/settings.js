@@ -61,6 +61,8 @@ function preFillForm(data) {
     document.getElementById("asset_folders").checked = data.assetFolders || false;
     document.getElementById("border_replacer").checked =
         data.borderReplacer || false;
+    document.getElementById("unmatched_assets").checked =
+        data.unmatchedAssets || false;
 
     createInstanceFromSettings(data, "radarrInstances", "radarr");
     createInstanceFromSettings(data, "sonarrInstances", "sonarr");
@@ -284,6 +286,10 @@ function createPosterRenamer() {
         "Border Replacerr",
         "border_replacer",
     );
+    const unmatchedAssetsCheckbox = createCheckboxInput(
+        "Unmatched Assets",
+        "unmatched_assets",
+    );
 
     const addSourceDirButton = createAddButton("source_dir", "Add Source Dir");
     attachAddButtonListener(
@@ -313,6 +319,7 @@ function createPosterRenamer() {
 
     checkboxDiv.appendChild(assetFoldersCheckbox);
     checkboxDiv.appendChild(borderReplacerCheckbox);
+    checkboxDiv.appendChild(unmatchedAssetsCheckbox);
 
     formGroup.appendChild(cronScheduleLabel);
     formGroup.appendChild(targetPathLabel);
@@ -501,6 +508,7 @@ document.getElementById("save-settings").addEventListener("click", function() {
     ).map((input) => input.value);
     const assetFolders = document.getElementById("asset_folders").checked;
     const borderReplacerr = document.getElementById("border_replacer").checked;
+    const unmatchedAssets = document.getElementById("unmatched_assets").checked;
 
     // radarr
     const radarrInstanceNames = Array.from(
@@ -565,6 +573,7 @@ document.getElementById("save-settings").addEventListener("click", function() {
             libraryNames: libraryNames,
             instances: instances,
             assetFolders: assetFolders,
+            unmatchedAssets: unmatchedAssets,
             borderReplacerr: borderReplacerr,
             radarrInstances: radarrInstances,
             sonarrInstances: sonarrInstances,

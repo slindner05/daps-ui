@@ -1,5 +1,5 @@
 import sqlite3
-from DapsEX.payload import Settings
+from Payloads.poster_renamerr_payload import Settings
 from contextlib import closing
 
 
@@ -26,14 +26,67 @@ class Database:
                 )
                 """
                 )
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS unmatched_movies (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        title TEXT UNIQUE
+                    )
+                    """
+                )
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS unmatched_collections (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        title TEXT UNIQUE
+                    )
+                    """
+                )
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS unmatched_shows (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        title TEXT UNIQUE,
+                        main_poster_missing BOOLEAN DEFAULT NULL 
+                    )
+                    """
+                )
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS unmatched_seasons (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        show_id INTEGER,
+                        season TEXT,
+                        FOREIGN KEY (show_id) REFERENCES unmatched_shows (id) ON DELETE CASCADE,
+                        UNIQUE (show_id, season)
+                    )
+                    """
+                )
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS unmatched_stats (
+                    id INTEGER PRIMARY KEY,
+                    total_movies INTEGER DEFAULT 0,
+                    total_series INTEGER DEFAULT 0,
+                    total_seasons INTEGER DEFAULT 0,
+                    total_collections INTEGER DEFAULT 0,
+                    unmatched_movies INTEGER DEFAULT 0,
+                    unmatched_series INTEGER DEFAULT 0,
+                    unmatched_seasons INTEGER DEFAULT 0,
+                    unmatched_collections INTEGER DEFAULT 0
+                    )
+                    """
+                )
                 conn.commit()
 
-    def add_file(self, file_path: str, media_type: str, file_hash: str, source_path: str) -> None:
+    def add_file(
+        self, file_path: str, media_type: str, file_hash: str, source_path: str
+    ) -> None:
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
                     "INSERT OR REPLACE INTO file_cache (file_path, media_type, file_hash, source_path) VALUES (?, ?, ?, ?)",
-                    (file_path, media_type, file_hash, source_path)
+                    (file_path, media_type, file_hash, source_path),
                 )
             conn.commit()
 
@@ -42,7 +95,7 @@ class Database:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
                     "UPDATE file_cache SET file_hash = ?, source_path = ? WHERE file_path = ?",
-                    (file_hash, source_path, file_path)
+                    (file_hash, source_path, file_path),
                 )
             conn.commit()
 
@@ -50,21 +103,19 @@ class Database:
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
-                    "SELECT * FROM file_cache WHERE file_path = ?",
-                    (file_path,)
+                    "SELECT * FROM file_cache WHERE file_path = ?", (file_path,)
                 )
                 result = cursor.fetchone()
                 if result:
                     return dict(result)
                 else:
                     return None
-    
+
     def delete_cached_file(self, file_path: str) -> None:
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
-                    "DELETE FROM file_cache WHERE file_path = ?",
-                    (file_path,)
+                    "DELETE FROM file_cache WHERE file_path = ?", (file_path,)
                 )
                 conn.commit()
 
@@ -75,10 +126,196 @@ class Database:
                 result = cursor.fetchall()
                 return {
                     file_path: {
-                        'media_type': media_type,
-                        'file_hash': file_hash,
-                        'source_path': source_path,
-                        'timestamp': timestamp
+                        "media_type": media_type,
+                        "file_hash": file_hash,
+                        "source_path": source_path,
+                        "timestamp": timestamp,
                     }
                     for file_path, media_type, file_hash, source_path, timestamp, in result
                 }
+
+    def add_unmatched_movie(
+        self,
+        title: str,
+    ) -> None:
+        with self.get_db_connection() as conn:
+            with closing(conn.cursor()) as cursor:
+                cursor.execute(
+                    "SELECT id FROM unmatched_movies WHERE title = ?", (title,)
+                )
+                existing = cursor.fetchone()
+                if existing is None:
+                    cursor.execute(
+                        """
+                        INSERT INTO unmatched_movies (title)
+                        VALUES (?)
+                        """,
+                        (title,),
+                    )
+            conn.commit()
+
+    def add_unmatched_collection(
+        self,
+        title: str,
+    ) -> None:
+        with self.get_db_connection() as conn:
+            with closing(conn.cursor()) as cursor:
+                cursor.execute(
+                    "SELECT id FROM unmatched_collections WHERE title = ?", (title,)
+                )
+                existing = cursor.fetchone()
+                if existing is None:
+                    cursor.execute(
+                        """
+                        INSERT INTO unmatched_collections (title)
+                        VALUES (?)
+                        """,
+                        (title,),
+                    )
+            conn.commit()
+
+    def add_unmatched_show(self, title: str, main_poster_missing: bool) -> int:
+        with self.get_db_connection() as conn:
+            with closing(conn.cursor()) as cursor:
+                cursor.execute(
+                    "SELECT id, main_poster_missing FROM unmatched_shows WHERE title = ?",
+                    (title,),
+                )
+                existing = cursor.fetchone()
+                if existing is None:
+                    cursor.execute(
+                        """
+                        INSERT INTO unmatched_shows (title, main_poster_missing)
+                        VALUES (?, ?)
+                        """,
+                        (title, int(main_poster_missing)),
+                    )
+                    show_id = cursor.lastrowid
+                else:
+                    show_id, current_main_poster_missing = existing
+                    if current_main_poster_missing != int(main_poster_missing):
+                        cursor.execute(
+                            """
+                            UPDATE unmatched_shows
+                            SET main_poster_missing = ?
+                            WHERE id = ?
+                            """,
+                            (int(main_poster_missing), show_id),
+                        )
+            conn.commit()
+
+            if show_id is None:
+                raise ValueError("Failed to insert unmatched show into the database.")
+            return show_id
+
+    def add_unmatched_season(self, show_id: int, season: str) -> None:
+        with self.get_db_connection() as conn:
+            with closing(conn.cursor()) as cursor:
+                cursor.execute(
+                    "SELECT id FROM unmatched_seasons WHERE show_id = ? AND season = ?",
+                    (show_id, season),
+                )
+                existing = cursor.fetchone()
+                if existing is None:
+                    cursor.execute(
+                        """
+                        INSERT INTO unmatched_seasons (show_id, season)
+                        VALUES (?, ?)
+                        """,
+                        (show_id, season),
+                    )
+            conn.commit()
+
+    def get_unmatched_assets(self, db_table: str) -> list[dict[str, str]]:
+        with self.get_db_connection() as conn:
+            with closing(conn.cursor()) as cursor:
+                if db_table == "unmatched_shows":
+                    cursor.execute(
+                        """
+                    SELECT unmatched_shows.id, unmatched_shows.title, unmatched_shows.main_poster_missing, unmatched_seasons.season
+                    FROM unmatched_shows
+                    LEFT JOIN unmatched_seasons ON unmatched_shows.id = unmatched_seasons.show_id
+                """
+                    )
+                    results = cursor.fetchall()
+                    unmatched_shows = {}
+                    for row in results:
+                        show_id = row["id"]
+                        if show_id not in unmatched_shows:
+                            unmatched_shows[show_id] = {
+                                "id": show_id,
+                                "title": row["title"],
+                                "main_poster_missing": bool(row["main_poster_missing"]),
+                                "seasons": [],
+                            }
+                        if row["season"]:
+                            unmatched_shows[show_id]["seasons"].append(row["season"])
+                    return list(unmatched_shows.values())
+                else:
+                    cursor.execute(f"SELECT * FROM {db_table}")
+                    results = cursor.fetchall()
+                return [dict(result) for result in results]
+
+    def get_all_unmatched_assets(self):
+        unmatched_media = {
+            "movies": self.get_unmatched_assets("unmatched_movies"),
+            "shows": self.get_unmatched_assets("unmatched_shows"),
+            "collections": self.get_unmatched_assets("unmatched_collections"),
+        }
+        return unmatched_media
+
+    def delete_unmatched_asset(self, db_table, title):
+        with self.get_db_connection() as conn:
+            with closing(conn.cursor()) as cursor:
+                cursor.execute(f"DELETE FROM {db_table} WHERE title = ?", (title,))
+            conn.commit()
+
+    def delete_unmatched_season(self, show_id: int, season: str):
+        with self.get_db_connection() as conn:
+            with closing(conn.cursor()) as cursor:
+                cursor.execute(
+                    """
+                    DELETE FROM unmatched_seasons
+                    WHERE show_id = ? AND season = ?
+                    """,
+                    (show_id, season),
+                )
+                conn.commit()
+
+    def wipe_unmatched_assets(self):
+        with self.get_db_connection() as conn:
+            with closing(conn.cursor()) as cursor:
+                cursor.execute("DELETE FROM unmatched_movies")
+                cursor.execute("DELETE FROM unmatched_collections")
+                cursor.execute("DELETE FROM unmatched_shows")
+                cursor.execute("DELETE FROM unmatched_seasons")
+                conn.commit()
+
+    def initialize_stats(self) -> None:
+        with self.get_db_connection() as conn:
+            with closing(conn.cursor()) as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO unmatched_stats (id, total_movies, total_series, total_seasons, total_collections, unmatched_movies, unmatched_series, unmatched_seasons, unmatched_collections)
+                    VALUES (1, 0, 0, 0, 0, 0, 0, 0, 0)
+                    ON CONFLICT(id) DO NOTHING
+                    """
+                )
+
+    def update_stats(self, stats: dict[str, int]) -> None:
+        with self.get_db_connection() as conn:
+            with closing(conn.cursor()) as cursor:
+                columns = ", ".join(f"{key} = ?" for key in stats.keys())
+                values = tuple(stats.values())
+                full_values = values + values
+
+                cursor.execute(
+                    f"""
+                    INSERT INTO unmatched_stats (id, {", ".join(stats.keys())})
+                    VALUES (1, {", ".join("?" for _ in stats.keys())})
+                    ON CONFLICT(id)
+                    DO UPDATE SET {columns}
+                    """,
+                    full_values
+                )
+                conn.commit()

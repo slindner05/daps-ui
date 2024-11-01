@@ -1,33 +1,63 @@
 from pathlib import Path
-from typing import Any
 from arrapi.apis.sonarr import Series
 from arrapi.objs.reload import Movie
 from plexapi.collection import LibrarySection
 from plexapi.server import PlexServer
 from arrapi import SonarrAPI, RadarrAPI
 import re
+import pprint
 
 class Media:
-    @staticmethod
-    def _get_paths(all_media_objects: list[Movie] | list[Series]) -> list[Path]:
-        """
-        Method to get paths from media objects (movies or series).
-        """
-        return [Path(item.path) for item in all_media_objects]  # type: ignore
+    def get_series_with_seasons(self, all_series_objects: list[Series]):
+        titles_with_seasons = []
+        for media_object in all_series_objects:
+            dict_with_seasons = {
+                "title": "",
+                "seasons": [],
+                "status": ""
+            }
+            path = Path(media_object.path) #type: ignore
+            title = path.name
+            series_status = media_object.status
+            season_object = media_object.seasons
+            dict_with_seasons["title"] = title
+            dict_with_seasons["status"] = series_status 
+
+            for season in season_object:
+                season_dict = {
+                    "season": "",
+                    "has_episodes": True,
+                }
+                season_number = season.seasonNumber
+                episode_count = season.episodeFileCount
+                has_episodes = episode_count > 0
+                formatted_season = f"season{season_number:02}"
+
+                season_dict["season"] = formatted_season
+                season_dict["has_episodes"] = has_episodes
+                dict_with_seasons["seasons"].append(season_dict)
+            titles_with_seasons.append(dict_with_seasons)
+        return titles_with_seasons
+
+    # @staticmethod
+    # def _get_paths(all_media_objects: list[Movie] | list[Series]) -> list[Path]:
+    #     """
+    #     Method to get paths from media objects (movies or series).
+    #     """
+    #     return [Path(item.path) for item in all_media_objects]  # type: ignore
 
     def get_dicts(
         self,
-        movies_list: list[dict[str, Any]],
-        series_list: list[Path],
+        movies_list: list[dict[str, str | list[str]]],
+        series_list: list[dict[str, str | list[str]]],
         movies_collection_list: list[str],
         series_collection_list: list[str],
-    ) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+    ) -> tuple[dict[str, list[dict]], dict[str, list[str]]]:
         """
         Combines all unique movies, series and collections into dictionaries.
         """
         media_dict = {"movies": [], "shows": []}
         collections_dict = {"movies": [], "shows": []}
-        series_name_list = [item.name for item in series_list]
         unique_movies = set()
         unique_shows = set()
         unique_movie_collections = set()
@@ -35,7 +65,7 @@ class Media:
 
         for movie in movies_list:
             self._process_list(movie, unique_movies, media_dict, key="movies")
-        for show in series_name_list:
+        for show in series_list:
             self._process_list(show, unique_shows, media_dict, key="shows")
         for collection in movies_collection_list:
             self._process_list(
@@ -47,7 +77,7 @@ class Media:
             )
         return media_dict, collections_dict
 
-    def get_movies_with_years(self, all_movie_objects: list[Movie]) -> list[dict[str, Any]]:
+    def get_movies_with_years(self, all_movie_objects: list[Movie]) -> list[dict[str, str | list[str]]]:
         titles_with_years = []
         release_years = re.compile(r"^\d{4}")
         def extract_year(date_string):
@@ -59,11 +89,13 @@ class Media:
         for media_object in all_movie_objects:
             dict_with_years = {
                 "title": "",
-                "years": []
+                "years": [],
+                "status": ""
             }
 
             path = Path(media_object.path) #type: ignore
             title = path.name 
+            status = media_object.status
             years = [
                 extract_year(media_object.physicalRelease),
                 extract_year(media_object.digitalRelease),
@@ -75,6 +107,7 @@ class Media:
                     dict_with_years["years"].append(year)
 
             titles_with_years.append(dict_with_years)
+            dict_with_years["status"] = status
         return titles_with_years
 
     @staticmethod
@@ -82,10 +115,11 @@ class Media:
         item: str | dict, unique_set: set, final_dict: dict, key: str
     ) -> None:
         if isinstance(item, dict):
-            if item["title"] not in unique_set:
-                unique_set.add(item["title"])
+            title = item.get("title")
+            if title and item["title"] not in unique_set:
+                unique_set.add(title)
                 final_dict[key].append(item)
-        else:
+        elif isinstance(item, str):
             if item not in unique_set:
                 unique_set.add(item)
                 final_dict[key].append(item)
@@ -106,7 +140,7 @@ class Sonarr(Media):
         super().__init__()
         self.sonarr = SonarrAPI(base_url, api)
         self.all_series_objects = self.get_all_series()
-        self.series = self._get_paths(self.all_series_objects)
+        self.series = self.get_series_with_seasons(self.all_series_objects)
 
     def get_all_series(self) -> list[Series]:
         return self.sonarr.all_series()
@@ -117,7 +151,7 @@ class Server:
         self.library_names = library_names
         self.movie_collections, self.series_collections = self.get_collections()
 
-    def get_collections(self) -> tuple[list, list]:
+    def get_collections(self) -> tuple[list[str], list[str]]:
         movie_collections_list = []
         show_collections_list = []
         unique_collections = set()
@@ -131,23 +165,21 @@ class Server:
 
             if library.type == "movie":
                 self._movie_collection(
-                    library, library_name, unique_collections, movie_collections_list
+                    library, unique_collections, movie_collections_list
                 )
             if library.type == "show":
                 self._show_collection(
-                    library, library_name, unique_collections, show_collections_list
+                    library, unique_collections, show_collections_list
                 )
         return movie_collections_list, show_collections_list
 
     def _movie_collection(
         self,
         library: LibrarySection,
-        library_name: str,
         unique_collections: set,
         movie_collections_list: list[str],
     ) -> None:
         collections = library.collections()
-        print(f"Processing collections from {library_name}")
         for collection in collections:
             if collection.title not in unique_collections:
                 unique_collections.add(collection.title)
@@ -156,12 +188,10 @@ class Server:
     def _show_collection(
         self,
         library: LibrarySection,
-        library_name: str,
         unique_collections: set,
         show_collections_list: list[str],
     ) -> None:
         collections = library.collections()
-        print(f"Processing collections from {library_name}")
         for collection in collections:
             if collection.title not in unique_collections:
                 unique_collections.add(collection.title)

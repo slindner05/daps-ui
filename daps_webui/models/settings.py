@@ -8,5 +8,6 @@ class Settings(db.Model):
     source_dirs = db.Column(db.String)
     library_names = db.Column(db.String)
     instances = db.Column(db.String)
-    asset_folders = db.Column(db.Boolean)
-    border_replacerr = db.Column(db.Boolean)
+    asset_folders = db.Column(db.Boolean, default=False, nullable=False)
+    unmatched_assets = db.Column(db.Boolean, default=True, nullable=False)
+    border_replacerr = db.Column(db.Boolean, default=False, nullable=False)

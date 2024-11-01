@@ -23,6 +23,8 @@ instances:
 
 poster_renamerr:
   asset_folders: # False
+  unmatched_assets: # True
+  border_replacerr: # False
   library_names:
     # - Movies
     # - TV Shows

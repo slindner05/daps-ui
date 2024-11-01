@@ -1,6 +1,21 @@
 document.addEventListener("DOMContentLoaded", function() {
     createPosterRenamerBox();
-    document.querySelector(".tab-links").click();
+    function handleClick() {
+        const firstTabLink = document.querySelector(".tab-links");
+        const firstFileLink = document.querySelector(".file-link");
+        if (firstTabLink && firstFileLink) {
+            setTimeout(() => {
+                firstTabLink.click();
+            }, 100);
+            firstFileLink.click();
+            observer.disconnect();
+        }
+    }
+    const observer = new MutationObserver(handleClick);
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+    });
 });
 
 fetch("/poster-renamer/get-file-paths")
@@ -8,7 +23,7 @@ fetch("/poster-renamer/get-file-paths")
     .then((data) => {
         if (data.success) {
             const sortedFiles = data.sorted_files;
-            console.log(sortedFiles);
+            // console.log(sortedFiles);
             const allFiles = [
                 ...sortedFiles.movies,
                 ...Object.values(sortedFiles.shows),
@@ -26,6 +41,237 @@ fetch("/poster-renamer/get-file-paths")
         console.error("Error:", error);
     });
 
+fetch("/poster-renamer/unmatched")
+    .then((response) => response.json())
+    .then((data) => {
+        if (data.success) {
+            const unmatchedMedia = data.unmatched_media;
+            const unmatchedCounts = data.unmatched_counts;
+            populateUnmatchedAssetsTable(unmatchedMedia, unmatchedCounts);
+            // console.log(unmatchedMedia);
+            // console.log(unmatchedCounts);
+        } else {
+            console.error("Error fetching unmatched media: " + data.message);
+        }
+    })
+    .catch((error) => {
+        console.error("Error", error);
+    });
+
+function createUnmatchedTable(id) {
+    const wrapperDiv = document.createElement("div");
+    wrapperDiv.classList.add("unmatched-wrapper");
+    wrapperDiv.id = id;
+    const table = document.createElement("table");
+    table.classList.add("unmatched-table");
+
+    const tableHead = document.createElement("thead");
+
+    const headings = document.createElement("tr");
+
+    const title = document.createElement("th");
+    if (id === "unmatched-movies") {
+        title.textContent = "Unmatched Movies";
+    } else if (id === "unmatched-series") {
+        title.textContent = "Unmatched Series";
+    } else {
+        title.textContent = "Unmatched Collections";
+    }
+    headings.appendChild(title);
+
+    if (id === "unmatched-series") {
+        const missingAssets = document.createElement("th");
+        missingAssets.textContent = "Missing";
+        headings.appendChild(missingAssets);
+    }
+
+    const tableBody = document.createElement("tbody");
+    tableBody.classList.add("table-body-wrapper");
+
+    tableHead.appendChild(headings);
+    table.appendChild(tableHead);
+    table.appendChild(tableBody);
+    wrapperDiv.appendChild(table);
+    return wrapperDiv;
+}
+
+function createUnmatchedStats() {
+    const wrapperDiv = document.createElement("div");
+    wrapperDiv.classList.add("unmatched-wrapper");
+    wrapperDiv.id = "unmatched-all";
+
+    const table = document.createElement("table");
+    table.classList.add("unmatched-table");
+
+    const tableHead = document.createElement("thead");
+
+    const headings = document.createElement("tr");
+
+    const type = document.createElement("th");
+    type.textContent = "Type";
+    headings.appendChild(type);
+
+    const total = document.createElement("th");
+    total.textContent = "Total";
+    headings.appendChild(total);
+
+    const unmatched = document.createElement("th");
+    unmatched.textContent = "Unmatched";
+    headings.appendChild(unmatched);
+
+    const percentComplete = document.createElement("th");
+    percentComplete.textContent = "Percent Complete";
+    headings.appendChild(percentComplete);
+
+    const tableBody = document.createElement("tbody");
+
+    tableHead.appendChild(headings);
+    table.appendChild(tableHead);
+    table.appendChild(tableBody);
+    wrapperDiv.appendChild(table);
+    return wrapperDiv;
+}
+
+function createAllUnmatchedTables() {
+    const unmatchedContainer = document.getElementById("unmatched-container");
+
+    const moviesTable = createUnmatchedTable("unmatched-movies");
+    const collectionsTable = createUnmatchedTable("unmatched-collections");
+    const seriesTable = createUnmatchedTable("unmatched-series");
+    const statsTable = createUnmatchedStats();
+    unmatchedContainer.appendChild(moviesTable);
+    unmatchedContainer.appendChild(collectionsTable);
+    unmatchedContainer.appendChild(seriesTable);
+    unmatchedContainer.appendChild(statsTable);
+    return unmatchedContainer;
+}
+
+function addTableRow(title, missing = null, seasons = []) {
+    const row = document.createElement("tr");
+
+    const titleCell = document.createElement("td");
+    titleCell.textContent = title;
+    row.appendChild(titleCell);
+
+    if (missing !== null || seasons.length > 0) {
+        const missingCell = document.createElement("td");
+        const contentDiv = document.createElement("div");
+
+        if (missing !== null) {
+            const posterStatus = document.createElement("div");
+            posterStatus.textContent = `- ${missing}`;
+            posterStatus.classList.add("poster-status");
+            contentDiv.appendChild(posterStatus);
+        }
+        if (seasons.length > 0) {
+            seasons.forEach((season) => {
+                const seasonItem = document.createElement("div");
+                seasonItem.classList.add("season-item");
+                seasonItem.textContent = `- ${season}`;
+                contentDiv.appendChild(seasonItem);
+            });
+        }
+        missingCell.appendChild(contentDiv);
+        row.appendChild(missingCell);
+    }
+    return row;
+}
+
+function addStatsTableRow(type, total, unmatchedTotal, percentComplete) {
+    const row = document.createElement("tr");
+
+    const typeCell = document.createElement("td");
+    typeCell.textContent = type;
+    row.appendChild(typeCell);
+
+    const totalCell = document.createElement("td");
+    totalCell.textContent = total;
+    row.appendChild(totalCell);
+
+    const unmatchedTotalCell = document.createElement("td");
+    unmatchedTotalCell.textContent = unmatchedTotal;
+    row.appendChild(unmatchedTotalCell);
+
+    const percentCompleteCell = document.createElement("td");
+    percentCompleteCell.textContent = percentComplete;
+    row.appendChild(percentCompleteCell);
+    return row;
+}
+
+function populateUnmatchedAssetsTable(unmatchedAssets, unmatchedStats) {
+    const movieTableBody = document
+        .getElementById("unmatched-movies")
+        .querySelector("tbody");
+    movieTableBody.innerHTML = "";
+
+    const collectionTableBody = document
+        .getElementById("unmatched-collections")
+        .querySelector("tbody");
+    collectionTableBody.innerHTML = "";
+
+    const seriesTableBody = document
+        .getElementById("unmatched-series")
+        .querySelector("tbody");
+    seriesTableBody.innerHTML = "";
+
+    const statsTableBody = document
+        .getElementById("unmatched-all")
+        .querySelector("tbody");
+    statsTableBody.innerHTML = "";
+
+    const statsMoviesRow = addStatsTableRow(
+        "Movies",
+        unmatchedStats.total_movies,
+        unmatchedStats.unmatched_movies,
+        unmatchedStats.percent_complete_movies,
+    );
+    const statsSeriesRow = addStatsTableRow(
+        "Series",
+        unmatchedStats.total_series,
+        unmatchedStats.unmatched_series,
+        unmatchedStats.percent_complete_series,
+    );
+    const statsSeasonsRow = addStatsTableRow(
+        "Seasons",
+        unmatchedStats.total_seasons,
+        unmatchedStats.unmatched_seasons,
+        unmatchedStats.percent_complete_seasons,
+    );
+    const statsCollectionsRow = addStatsTableRow(
+        "Collections",
+        unmatchedStats.total_collections,
+        unmatchedStats.unmatched_collections,
+        unmatchedStats.percent_complete_collections,
+    );
+    const statsGrandTotalRow = addStatsTableRow(
+        "Grand Total",
+        unmatchedStats.grand_total,
+        unmatchedStats.unmatched_grand_total,
+        unmatchedStats.percent_complete_grand_total,
+    );
+    statsTableBody.appendChild(statsMoviesRow);
+    statsTableBody.appendChild(statsSeriesRow);
+    statsTableBody.appendChild(statsSeasonsRow);
+    statsTableBody.appendChild(statsCollectionsRow);
+    statsTableBody.appendChild(statsGrandTotalRow);
+
+    unmatchedAssets.movies.forEach((movie) => {
+        const row = addTableRow(movie.title);
+        movieTableBody.appendChild(row);
+    });
+
+    unmatchedAssets.collections.forEach((collection) => {
+        const row = addTableRow(collection.title);
+        collectionTableBody.appendChild(row);
+    });
+    unmatchedAssets.shows.forEach((show) => {
+        const mainPosterMissing = show.main_poster_missing ? "poster" : null;
+        const seasonsArray = show.seasons.map((seasonObj) => seasonObj.season);
+        const row = addTableRow(show.title, mainPosterMissing, seasonsArray);
+        seriesTableBody.appendChild(row);
+    });
+}
+
 function toggleSeasonList(seasonList) {
     if (seasonList.classList.contains("active")) {
         seasonList.classList.remove("active");
@@ -37,6 +283,8 @@ function toggleSeasonList(seasonList) {
 function populateTab(tabName, files) {
     const tabContent = document.getElementById(`${tabName}-content`);
     tabContent.innerHTML = "";
+    const tabInner = document.createElement("div");
+    tabInner.classList.add("tab-inner");
     if (typeof files === "object" && !Array.isArray(files)) {
         files = Object.values(files);
     }
@@ -66,16 +314,17 @@ function populateTab(tabName, files) {
             });
             showFile.addEventListener("click", () => toggleSeasonList(seasonList));
             showFile.appendChild(seasonList);
-            tabContent.appendChild(showFile);
+            tabInner.appendChild(showFile);
         } else {
             const mediaFile = createFileLink(
                 file.file_path,
                 file.source_path,
                 file.file_name,
             );
-            tabContent.appendChild(mediaFile);
+            tabInner.appendChild(mediaFile);
         }
     });
+    tabContent.appendChild(tabInner);
 }
 
 function createFileLink(
@@ -171,7 +420,7 @@ function createTabGroup() {
     });
     const tabSearchBar = document.createElement("input");
     tabSearchBar.classList.add("tab-search");
-    tabSearchBar.id = "tab-search"
+    tabSearchBar.id = "tab-search";
     tabSearchBar.type = "text";
     tabSearchBar.placeholder = "Search...";
     tabSearchBar.addEventListener("keyup", function() {
@@ -184,7 +433,7 @@ function createTabGroup() {
 }
 
 function filterTabContent() {
-    const searchBar = document.getElementById("tab-search")
+    const searchBar = document.getElementById("tab-search");
     const filter = searchBar.value.toLowerCase();
     const activeTabContent = document.querySelector(".tab-content.active");
     if (activeTabContent) {
@@ -228,6 +477,21 @@ function openTab(evt, tabName) {
     const currentTabContent = document.getElementById(`${tabName}-content`);
     currentTabContent.classList.add("active");
 
+    const unmatchedTables = document.getElementsByClassName("unmatched-wrapper");
+    for (let i = 0; i < unmatchedTables.length; i++) {
+        unmatchedTables[i].classList.remove("active");
+    }
+
+    const currentUnmatchedContent = document.getElementById(
+        `unmatched-${tabName}`,
+    );
+    if (
+        currentUnmatchedContent &&
+        currentUnmatchedContent.querySelector("tbody").children.length > 0
+    ) {
+        currentUnmatchedContent.classList.add("active");
+    }
+
     evt.currentTarget.classList.add("active");
     filterTabContent();
 }
@@ -240,6 +504,8 @@ function createPosterRenamerBox() {
     imagePreviewDiv.classList.add("preview");
     const progressContainer = document.getElementById("progress-container");
     progressContainer.classList.add("progress");
+    const progressRunDiv = document.createElement("div");
+    progressRunDiv.classList.add("progress-run-div");
 
     const tabGroup = createTabGroup();
     const tabContents = createTabContent();
@@ -255,14 +521,16 @@ function createPosterRenamerBox() {
     progressBar.classList.add("progress-bar");
 
     progressContainer.appendChild(progressBar);
+    progressRunDiv.appendChild(progressContainer);
+    progressRunDiv.appendChild(posterRenamerRunButton);
 
+    createAllUnmatchedTables();
     fileBrowserDiv.appendChild(tabGroup);
     tabContents.forEach((div) => {
         fileBrowserDiv.appendChild(div);
     });
 
-    fileBrowserContentBox.appendChild(progressContainer);
-    fileBrowserContentBox.appendChild(posterRenamerRunButton);
+    fileBrowserContentBox.appendChild(progressRunDiv);
 }
 
 function attachPosterRenamerRunListener(button) {

@@ -34,6 +34,10 @@ RUN poetry install --no-root
 
 # Copy the rest of the application code
 COPY . .
+# COPY config/ config/
+# COPY daps_webui/ daps_webui/
+# COPY DapsEX/ daps_webui/
+# COPY Payloads/ daps_webui/
 
 # Run the Flask app
 CMD ["poetry", "run", "flask", "--app", "daps_webui", "run", "--host=0.0.0.0", "--debug"]

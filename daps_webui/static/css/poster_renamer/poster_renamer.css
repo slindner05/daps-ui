@@ -16,11 +16,81 @@
     flex-direction: column;
     background-color: transparent;
     padding: 20px;
-    border-radius: 10px;
+    border-radius: 4px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     width: auto;
     height: auto;
     min-height: 100px;
+}
+
+.unmatched-wrapper {
+    color: #ffffff;
+    background-color: var(--secondary);
+    max-height: 720px;
+    overflow-y: auto;
+    display: none;
+    width: 100%;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+.progress-run-div {
+    margin-top: 10px;
+    padding: 20px;
+    background-color: var(--secondary);
+    border-radius: 4px;
+}
+.unmatched-wrapper.active {
+    display: block;
+}
+
+.unmatched-table tr:nth-child(even) {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.unmatched-table tr:nth-child(odd) {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.unmatched-table tr:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.unmatched-table table {
+    width: 100%;
+    border-collapse: collapse;
+    color: #ffffff;
+    overflow: hidden;
+    border-radius: 8px;
+}
+
+.unmatched-table th,
+.unmatched-table td {
+    border: 1px solid var(--light);
+    padding: 12px;
+    text-align: left;
+    transition: background-color 0.3s;
+}
+
+.unmatched-table th {
+    background-color: var(--secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: bold;
+}
+.unmatched-table thead {
+    position: sticky;
+    top: 0;
+    background-color: var(--secondary);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.poster-status,
+.season-item {
+    padding-left: 10px;
+    margin-bottom: 4px;
+}
+.season-item {
+    padding-left: 10px;
 }
 
 .btn {
@@ -47,18 +117,20 @@
 
 .btn-run {
     margin-top: 10px;
+    width: 100%;
 }
 
 .progress {
-    margin-top: 10px;
     width: 100%;
     height: 30px;
+    border-radius: 4px;
     background-color: #333;
 }
 
 .progress-bar {
     width: 0%;
     height: 30px;
+    border-radius: 4px;
     background-color: transparent;
     text-align: center;
     line-height: 30px;
@@ -95,9 +167,10 @@
     display: flex;
     flex-direction: column;
     border-bottom: 2px solid var(--dark);
+    border-radius: 4px;
     margin-bottom: 20px;
     background-color: var(--secondary);
-    padding: 10px 10px;
+    padding: 20px 20px;
 }
 
 .tab-buttons-container {
@@ -134,7 +207,7 @@
 
 .tab-links {
     flex: 1;
-    padding: 12px 20px;
+    padding: 12px 15px;
     cursor: pointer;
     background-color: var(--secondary);
     color: var(--light);
@@ -161,13 +234,16 @@
 .tab-content {
     display: none;
     padding: 20px;
-    /* border: 1px solid var(--light); */
     background-color: var(--secondary);
     border-radius: 4px;
     box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
-    overflow-y: auto;
     max-height: 65vh;
 }
+.tab-inner {
+    overflow-y: auto;
+    max-height: calc(65vh - 40px);
+}
+
 
 .tab-content.active {
     display: block;
@@ -180,7 +256,7 @@
 .file-link {
     display: block;
     padding: 10px;
-    margin: 10px, 0;
+    /* margin: 2px 0; */
     background-color: var(--dark);
     color: var(--light);
     /* border: 1px solid var(--light); */
@@ -200,6 +276,8 @@
 }
 
 .preview {
+    margin-top: 20px;
+    background-color: var(--secondary);
     max-width: 450px;
     width: 100%;
     display: flex;

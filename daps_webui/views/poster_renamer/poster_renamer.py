@@ -162,3 +162,104 @@ def get_images():
         return jsonify({"success": True, "sorted_files": sorted_files})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+def fetch_unmatched_stats_from_db() -> dict[str, int | str]:
+
+    stats = models.UnmatchedStats.query.get(1)
+    if stats:
+        grand_total = stats.total_movies + stats.total_series + stats.total_seasons + stats.total_collections
+        unmatched_grand_total = stats.unmatched_movies + stats.unmatched_series + stats.unmatched_seasons + stats.unmatched_collections
+        percent_complete_movies = (
+            100 * (stats.total_movies - stats.unmatched_movies) / stats.total_movies
+            if stats.total_movies
+            else 0
+        )
+        percent_complete_shows = (
+            100 * (stats.total_series - stats.unmatched_series) / stats.total_series
+            if stats.total_series
+            else 0
+        )
+        percent_complete_seasons = (
+            100 * (stats.total_seasons - stats.unmatched_seasons) / stats.total_seasons
+            if stats.total_seasons
+            else 0
+        )
+        percent_complete_collections = (
+            100 * (stats.total_collections - stats.unmatched_collections) / stats.total_collections
+            if stats.total_collections
+            else 0
+        )
+        percent_complete_grand_total = (
+            100 * (grand_total - unmatched_grand_total) / grand_total
+            if grand_total
+            else 0
+        )
+        return {
+            "total_movies": stats.total_movies,
+            "percent_complete_movies": f"{percent_complete_movies:.2f}%",
+            "total_series": stats.total_series,
+            "percent_complete_series": f"{percent_complete_shows:.2f}%",
+            "total_seasons": stats.total_seasons,
+            "percent_complete_seasons": f"{percent_complete_seasons:.2f}%",
+            "total_collections": stats.total_collections,
+            "percent_complete_collections": f"{percent_complete_collections:.2f}%",
+            "grand_total": grand_total,
+            "percent_complete_grand_total": f"{percent_complete_grand_total:.2f}%",
+            "unmatched_movies": stats.unmatched_movies,
+            "unmatched_series": stats.unmatched_series,
+            "unmatched_seasons": stats.unmatched_seasons,
+            "unmatched_collections": stats.unmatched_collections,
+            "unmatched_grand_total": unmatched_grand_total
+        }
+    else:
+        return {
+            "total_movies": 0,
+            "percent_complete_movies": "0%",
+            "total_series": 0,
+            "percent_complete_series": "0%",
+            "total_seasons": 0,
+            "percent_complete_seasons": "0%",
+            "total_collections": 0,
+            "percent_complete_collections": "0%",
+            "grand_total": 0,
+            "percent_complete_grand_total": "0%",
+            "unmatched_movies": 0,
+            "unmatched_series": 0,
+            "unmatched_seasons": 0,
+            "unmatched_collections": 0,
+            "unmatched_grand_total": 0
+        }
+
+def fetch_unmatched_assets_from_db() -> dict[str, list[dict[str, str | list]]]:
+    unmatched_movies = models.UnmatchedMovies.query.all()
+    unmatched_shows = models.UnmatchedShows.query.all()
+    unmatched_collections = models.UnmatchedCollections.query.all()
+
+    movies = sorted([{"id": movie.id, "title": movie.title} for movie in unmatched_movies], key=lambda x: x["title"])
+    collections = sorted([{"id": collection.id, "title": collection.title} for collection in unmatched_collections], key=lambda x: x["title"])
+    shows = []
+    for show in sorted(unmatched_shows, key=lambda x: x.title):
+        seasons = [{"id": seasons.id, "season": seasons.season} for seasons in show.seasons]
+        shows.append({
+            "id": show.id,
+            "title": show.title,
+            "main_poster_missing": show.main_poster_missing,
+            "seasons": seasons
+        })
+
+    return {
+        "movies": movies,
+        "shows": shows,
+        "collections": collections
+    }
+
+
+@poster_renamer.route("/poster-renamer/unmatched", methods=["GET"])
+def fetch_unmatched_assets():
+    try:
+        unmatched_media = fetch_unmatched_assets_from_db()
+        unmatched_counts = fetch_unmatched_stats_from_db()
+        return jsonify({"success": True, "unmatched_media": unmatched_media, "unmatched_counts": unmatched_counts})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500

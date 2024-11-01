@@ -7,6 +7,8 @@ class Payload:
     source_dirs: list[str]
     target_path: str
     asset_folders: bool
+    unmatched_assets: bool
+    border_replacerr: bool
     library_names: list[str]
     instances: list[str]
     radarr: dict[str, dict[str, str]]

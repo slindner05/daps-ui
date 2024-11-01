@@ -1,4 +1,3 @@
-from sqlalchemy import false
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 import logging
@@ -8,6 +7,7 @@ from flask_sqlalchemy import SQLAlchemy
 from daps_webui.config.config import Config
 from concurrent.futures import ThreadPoolExecutor
 from DapsEX.poster_renamerr import PosterRenamerr
+from DapsEX.unmatched_assets import UnmatchedAssets
 from daps_webui.utils import webui_utils
 from daps_webui.utils.webui_utils import *
 from progress import *
@@ -62,14 +62,23 @@ def run_renamer_task():
         radarr = get_instances(RadarrInstance())
         sonarr = get_instances(SonarrInstance())
         plex = get_instances(PlexInstance())
-        payload = webui_utils.create_poster_renamer_payload(radarr, sonarr, plex)
+        poster_renamer_payload = webui_utils.create_poster_renamer_payload(radarr, sonarr, plex)
 
         job_id = progress_instance.add_job()
 
         renamer = PosterRenamerr(
-            payload.target_path, payload.source_dirs, payload.asset_folders
+            poster_renamer_payload.target_path, poster_renamer_payload.source_dirs, poster_renamer_payload.asset_folders, poster_renamer_payload.border_replacerr,
         )
-        future = executor.submit(renamer.run, payload, progress_instance, job_id)
+        if poster_renamer_payload.unmatched_assets:
+            unmatched_assets_payload = webui_utils.create_unmatched_assets_payload(radarr, sonarr, plex)
+            unmatched_assets = UnmatchedAssets(unmatched_assets_payload.target_path, unmatched_assets_payload.asset_folders)
+            future = executor.submit(renamer.run, poster_renamer_payload, progress_instance, job_id)
+
+            def run_unmatched_assets_callback(fut):
+                unmatched_assets.run(unmatched_assets_payload)
+            future.add_done_callback(run_unmatched_assets_callback)
+        else:
+            future = executor.submit(renamer.run, poster_renamer_payload, progress_instance, job_id)
 
         def remove_job_cb(fut):
             sleep(2)

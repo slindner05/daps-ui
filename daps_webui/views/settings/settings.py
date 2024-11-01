@@ -37,6 +37,7 @@ def get_settings():
                 else []
             ),
             "assetFolders": getattr(settings, "asset_folders", False),
+            "unmatchedAssets": getattr(settings, "unmatched_assets", True),
             "borderReplacer": getattr(settings, "border_replacerr", False),
             "radarrInstances": [
                 {
@@ -79,6 +80,7 @@ def save_settings():
         library_names = ",".join(data.get("libraryNames", []))
         instances = ",".join(data.get("instances", []))
         asset_folders = data.get("assetFolders", False)
+        unmatched_assets = data.get("unmatchedAssets", True)
         border_replacerr = data.get("borderReplacerr", False)
         radarr_instances = data.get("radarrInstances", [])
         sonarr_instances = data.get("sonarrInstances", [])
@@ -93,6 +95,7 @@ def save_settings():
             library_names=library_names,
             instances=instances,
             asset_folders=asset_folders,
+            unmatched_assets=unmatched_assets,
             border_replacerr=border_replacerr,
         )
         db.session.add(new_settings)

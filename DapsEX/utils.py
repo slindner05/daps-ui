@@ -1,16 +1,37 @@
-from DapsEX import Payload
+from Payloads.poster_renamerr_payload import Payload as PosterRenamerPayload
+from Payloads.unmatched_assets_payload import Payload as UnmatchedAssetsPayload
 from DapsEX.media import Radarr, Server, Sonarr
+import re
 
 
 def get_combined_media_lists(
     radarr_instances: dict[str, Radarr], sonarr_instances: dict[str, Sonarr]
 ) -> tuple[list, list]:
     all_movies = []
-    all_series = []
+    combined_series_dict = {}
     for radarr in radarr_instances.values():
         all_movies.extend(radarr.movies)
     for sonarr in sonarr_instances.values():
-        all_series.extend(sonarr.series)
+        for series in sonarr.series:
+            series_title = series["title"]
+            if series_title not in combined_series_dict:
+                combined_series_dict[series_title] = series
+            else:
+                existing_series = combined_series_dict[series_title]
+
+                existing_seasons_lookup = {
+                    season['season']: season for season in existing_series.get("seasons", [])
+                }
+                for season in series.get("seasons", []):
+                    season_number = season['season']
+                    if season_number in existing_seasons_lookup:
+                        if season.get("has_episodes", False):
+                            existing_seasons_lookup[season_number]["has_episodes"] = True
+                    else:
+                        existing_seasons_lookup[season_number] = season
+                combined_series_dict[series_title]["seasons"] = list(existing_seasons_lookup.values())
+
+    all_series = list(combined_series_dict.values())
     return all_movies, all_series
 
 
@@ -26,7 +47,7 @@ def get_combined_collections_lists(
 
 
 def create_arr_instances(
-    payload_class: Payload, radarr_class: type[Radarr], sonarr_class: type[Sonarr]
+    payload_class: PosterRenamerPayload | UnmatchedAssetsPayload, radarr_class: type[Radarr], sonarr_class: type[Sonarr]
 ) -> tuple[dict[str, Radarr], dict[str, Sonarr]]:
     radarr_instances: dict[str, Radarr] = {}
     sonarr_instances: dict[str, Sonarr] = {}
@@ -47,7 +68,7 @@ def create_arr_instances(
 
 
 def create_plex_instances(
-    payload: Payload, plex_class: type[Server]
+    payload: PosterRenamerPayload | UnmatchedAssetsPayload, plex_class: type[Server]
 ) -> dict[str, Server]:
     plex_instances = {}
     for key, value in payload.plex.items():
@@ -59,3 +80,38 @@ def create_plex_instances(
                 library_names=payload.library_names,
             )
     return plex_instances
+
+def remove_chars(file_name: str) -> str:
+    file_name = re.sub(r"(?<=\w)-\s", " ", file_name)
+    file_name = re.sub(r"(?<=\w)\s-\s", " ", file_name)
+    file_name = re.sub(r"[\*\^;~\\`\[\]'\"\/,.!?:_…]", "", file_name)
+    file_name = remove_emojis(file_name)
+    return file_name.strip().replace("&", "and").replace("\u00A0", ' ').lower()
+
+def strip_id(name: str) -> str:
+    """
+    Strip tvdb/imdb/tmdb ID from movie title.
+    """
+    return re.sub(r"\s*\{.*\}", "", name)
+
+def remove_emojis(name: str) -> str:
+    emoji_pattern = re.compile(
+        "["
+        "\U0001F600-\U0001F64F"  # emoticons
+        "\U0001F300-\U0001F5FF"  # symbols & pictographs
+        "\U0001F680-\U0001F6FF"  # transport & map symbols
+        "\U0001F700-\U0001F77F"  # alchemical symbols
+        "\U0001F780-\U0001F7FF"  # Geometric Shapes Extended
+        "\U0001F800-\U0001F8FF"  # Supplemental Arrows-C
+        "\U0001F900-\U0001F9FF"  # Supplemental Symbols and Pictographs
+        "\U0001FA00-\U0001FA6F"  # Chess Symbols, etc.
+        "\U0001FA70-\U0001FAFF"  # Symbols and Pictographs Extended-A
+        "\U00002700-\U000027BF"  # Dingbats
+        "\U0001F1E0-\U0001F1FF"  # Flags
+        "]+",
+        flags=re.UNICODE,
+    )
+    return emoji_pattern.sub(r"", name)
+
+def strip_year(name: str) -> str:
+    return re.sub(r"\(\d{4}\)", "", name).strip()

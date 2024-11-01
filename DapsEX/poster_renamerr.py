@@ -1,15 +1,16 @@
 # TODO: add logging
 from pathlib import Path
-from DapsEX.payload import Payload
+from Payloads.poster_renamerr_payload import Payload
 from DapsEX.media import Server, Radarr, Sonarr, Media
 from DapsEX.database_cache import Database
+from DapsEX.border_replacerr import BorderReplacerr
 import re
 from tqdm import tqdm
 import shutil
 from pathvalidate import sanitize_filename
 import hashlib
 from progress import *
-# import pprint
+import pprint
 
 class PosterRenamerr:
     def __init__(
@@ -17,11 +18,14 @@ class PosterRenamerr:
         target_path: str,
         source_directories: list,
         asset_folders: bool,
+        replace_border: bool,
     ):
         self.target_path = Path(target_path)
         self.source_directories = source_directories
         self.asset_folders = asset_folders
+        self.replace_border = replace_border
         self.db = Database()
+        self.border_replacerr = BorderReplacerr()
 
     image_exts = {".png", ".jpg", ".jpeg"}
 
@@ -260,7 +264,7 @@ class PosterRenamerr:
                     result = self._handle_movie_asset_folders(asset_folder_names, item)
                     if result:
                         target_dir, file_name_format = result
-                        self._copy_file(item, key, target_dir, file_name_format)
+                        self._copy_file(item, key, target_dir, file_name_format, self.replace_border)
 
             elif key == "collections":
                 for item in items:
@@ -269,14 +273,14 @@ class PosterRenamerr:
                     )
                     if result:
                         target_dir, file_name_format = result
-                        self._copy_file(item, key, target_dir, file_name_format)
+                        self._copy_file(item, key, target_dir, file_name_format, self.replace_border)
 
             elif key == "shows":
                 for item in items:
                     result = self._handle_series_asset_folders(asset_folder_names, item)
                     if result:
                         target_dir, file_name_format = result
-                        self._copy_file(item, key, target_dir, file_name_format)
+                        self._copy_file(item, key, target_dir, file_name_format, self.replace_border)
 
     def _handle_movie_asset_folders(
         self, asset_folder_names: dict[str, list[str]], file_path: Path
@@ -358,14 +362,24 @@ class PosterRenamerr:
                     return target_dir, show_file_name_format
             return None
 
+    # TODO: Add year check when replacing files, currently if the years mismatch between source dirs priority for files breaks
+
     def _copy_file(
-        self, file_path: Path, media_type: str, target_dir: Path, new_file_name: str
+        self, file_path: Path, media_type: str, target_dir: Path, new_file_name: str, replace_border: bool = False
     ) -> None:
+        temp_path = None
         try:
             target_path = target_dir / new_file_name
             file_hash = self.hash_file(file_path)
             cached_file = self.db.get_cached_file(str(target_path))
             current_source = str(file_path)
+
+            if replace_border:
+                final_image = self.border_replacerr.remove_border(file_path)
+                temp_path = target_dir / f"temp_{new_file_name}"
+                final_image.save(temp_path)
+                file_path = temp_path
+                file_hash = self.hash_file(file_path)
 
             if target_path.exists() and cached_file:
                 cached_hash = cached_file["file_hash"]
@@ -391,6 +405,10 @@ class PosterRenamerr:
         except Exception as e:
             print(f"Error copying file {file_path}: {e}")
 
+        finally:
+            if temp_path is not None and temp_path.exists():
+                temp_path.unlink()
+
     def copy_rename_files(
         self,
         matched_files: dict[str, list[Path]],
@@ -409,21 +427,21 @@ class PosterRenamerr:
                     result = self._handle_movie(item, movies_list_titles)
                     if result:
                         file_name_format = sanitize_filename(result)
-                        self._copy_file(item, key, self.target_path, file_name_format)
+                        self._copy_file(item, key, self.target_path, file_name_format, self.replace_border)
 
             if key == "collections":
                 for item in items:
                     result = self._handle_collections(item, collections_list)
                     if result:
                         file_name_format = sanitize_filename(result)
-                        self._copy_file(item, key, self.target_path, file_name_format)
+                        self._copy_file(item, key, self.target_path, file_name_format, self.replace_border)
 
             if key == "shows":
                 for item in items:
                     result = self._handle_series(item, shows_list)
                     if result:
                         file_name_format = sanitize_filename(result)
-                        self._copy_file(item, key, self.target_path, file_name_format)
+                        self._copy_file(item, key, self.target_path, file_name_format, self.replace_border)
 
     def _handle_movie(self, item: Path, movies_list: list[str]) -> str | None:
         movie_matched_without_year = self._remove_chars(self._strip_year(item.stem))
@@ -525,7 +543,9 @@ class PosterRenamerr:
                 all_movie_collections,
                 all_series_collections,
             )
-            # pprint.pprint(media_dict, width=120)
+            # Re-assign the shows key to just have the titles of the shows
+            media_dict["shows"] = [show["title"] for show in media_dict["shows"]]
+            # pprint.pprint(media_dict["shows"], width=140)
             if job_id and cb:
                 cb(job_id, 10, ProgressState.IN_PROGRESS)
             source_files = self.get_source_files()
