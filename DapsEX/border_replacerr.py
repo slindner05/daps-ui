@@ -1,5 +1,7 @@
-from PIL import Image
 from pathlib import Path
+
+from PIL import Image
+
 
 class BorderReplacerr:
     def __init__(self) -> None:
@@ -11,10 +13,9 @@ class BorderReplacerr:
         crop_area = (25, 25, width - 25, height)
 
         final_image = image.crop(crop_area)
-        bottom_border = Image.new("RGB", (width - 2 * 25, 25), color='black')
+        bottom_border = Image.new("RGB", (width - 2 * 25, 25), color="black")
         bottom_border_position = (0, final_image.size[1] - 25)
         final_image.paste(bottom_border, bottom_border_position)
+        final_image = final_image.resize((1000, 1500)).convert("RGB")
 
         return final_image
-
-

@@ -4,7 +4,11 @@
     --light: #6c7293;
     --dark: #000000;
 }
-
+.row {
+    display: flex;
+    flex-direction: row;
+    gap: 20px;
+}
 .settings-container {
     display: flex;
     flex-direction: column;
@@ -19,6 +23,10 @@
 }
 
 #poster-renamer-form {
+    display: flex;
+    flex-direction: column;
+}
+#log-level-wrapper {
     display: flex;
     flex-direction: column;
 }
@@ -62,7 +70,7 @@
 .form-name {
     font-size: 16px;
     font-weight: bold;
-    margin-bottom: 10px;
+    /* margin-bottom: 10px; */
     color: var(--primary);
 }
 
@@ -201,6 +209,28 @@
     background-color: var(--dark);
     color: white;
 }
+.input-div-group {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 5px;
+}
+.source-item {
+    cursor: grab;
+}
+
+.source-item.dragging {
+    cursor: grabbing;
+}
+.dragging {
+    opacity: 0.5;
+}
+.drag-handle {
+    color: var(--light);
+    font-size: 18px;
+    margin-right: 5px;
+}
+
 .span-group {
     display: flex;
     flex-direction: row;
@@ -247,18 +277,21 @@
     display: flex;
     flex-direction: column;
     margin-bottom: 5px;
+    margin-top: 5px;
 }
 
 #plex-group-wrapper {
     display: flex;
     flex-direction: column;
     margin-bottom: 5px;
+    margin-top: 5px;
 }
 
 #sonarr-group-wrapper {
     display: flex;
     flex-direction: column;
     margin-bottom: 5px;
+    margin-top: 5px;
 }
 
 .separator {

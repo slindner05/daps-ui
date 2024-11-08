@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from enum import Enum
-from collections.abc import Callable
 from threading import Lock
 from uuid import uuid4
 
@@ -34,7 +33,9 @@ class Progress:
         """
         with self.lock:
             job_id = str(uuid4())
-            self.progress_map[job_id] = JobProgress(state=ProgressState.PENDING, value=self.progress_value)
+            self.progress_map[job_id] = JobProgress(
+                state=ProgressState.PENDING, value=self.progress_value
+            )
         return job_id
 
     def start_job(self, job_id: str) -> None:
@@ -59,6 +60,6 @@ class Progress:
                 self.progress_map[job_id].value = value
             else:
                 self.progress_map[job_id] = JobProgress(state=state, value=value)
-        
+
 
 progress_instance = Progress()

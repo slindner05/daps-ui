@@ -1,8 +1,20 @@
-import yaml
+import logging
 from pathlib import Path
+
+import yaml
+
+from DapsEX.settings import Settings
 from Payloads.poster_renamerr_payload import Payload as PosterRenamerPayload
 from Payloads.unmatched_assets_payload import Payload as UnmatchedAssetsPayload
-from DapsEX import Settings
+
+LOG_LEVELS = {
+    "CRITICAL": logging.CRITICAL,
+    "ERROR": logging.ERROR,
+    "WARNING": logging.WARNING,
+    "INFO": logging.INFO,
+    "DEBUG": logging.DEBUG,
+    "NOTSET": logging.NOTSET,
+}
 
 
 class YamlConfig:
@@ -22,6 +34,7 @@ class YamlConfig:
             print(f"Error parsing config file: {e}")
             return
 
+        self.log_level_config = config["log_level"]
         self.instances_config = config["instances"]
         self.script_config = config.get(f"{self.script_name}", "")
         self.radarr_config = self.instances_config.get("radarr", {})
@@ -29,7 +42,11 @@ class YamlConfig:
         self.plex_config = self.instances_config.get("plex", {})
 
     def create_poster_renamer_payload(self) -> PosterRenamerPayload:
+        log_level_str = self.log_level_config.get("poster_renamerr", "INFO").upper()
+        log_level = LOG_LEVELS.get(log_level_str, logging.INFO)
+
         return PosterRenamerPayload(
+            log_level=log_level,
             source_dirs=self.script_config.get("source_directories", []),
             target_path=self.script_config.get("target_directory", ""),
             asset_folders=self.script_config.get("asset_folders", False),
@@ -41,14 +58,18 @@ class YamlConfig:
             sonarr=self.sonarr_config,
             plex=self.plex_config,
         )
-    
+
     def create_unmatched_assets_payload(self) -> UnmatchedAssetsPayload:
+        log_level_str = self.log_level_config.get("unmatched_assets", "INFO").upper()
+        log_level = LOG_LEVELS.get(log_level_str, logging.INFO)
+
         return UnmatchedAssetsPayload(
+            log_level=log_level,
             target_path=self.script_config.get("target_directory", ""),
             asset_folders=self.script_config.get("asset_folders", False),
             library_names=self.script_config.get("library_names", []),
             instances=self.script_config.get("instances", []),
             radarr=self.radarr_config,
             sonarr=self.sonarr_config,
-            plex=self.plex_config
+            plex=self.plex_config,
         )

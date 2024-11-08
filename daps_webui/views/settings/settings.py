@@ -1,6 +1,7 @@
-from flask import Blueprint, render_template, request, jsonify
-from daps_webui import db, models
 import requests
+from flask import Blueprint, jsonify, render_template, request
+
+from daps_webui import db, models
 
 settings = Blueprint("settings", __name__)
 
@@ -19,6 +20,10 @@ def get_settings():
         plex_instances = models.PlexInstance.query.all()
 
         data = {
+            "logLevelUnmatchedAssets": getattr(
+                settings, "log_level_unmatched_assets", ""
+            ),
+            "logLevelPosterRenamer": getattr(settings, "log_level_poster_renamer", ""),
             "posterRenamerSchedule": getattr(settings, "poster_renamer_schedule", ""),
             "targetPath": getattr(settings, "target_path", ""),
             "sourceDirs": (
@@ -73,60 +78,42 @@ def get_settings():
 def save_settings():
     try:
         data = request.get_json()
-
-        poster_renamer_schedule = data.get("posterRenamerSchedule", "")
-        target_path = data.get("targetPath", "")
-        source_dirs = ",".join(data.get("sourceDirs", []))
-        library_names = ",".join(data.get("libraryNames", []))
-        instances = ",".join(data.get("instances", []))
-        asset_folders = data.get("assetFolders", False)
-        unmatched_assets = data.get("unmatchedAssets", True)
-        border_replacerr = data.get("borderReplacerr", False)
-        radarr_instances = data.get("radarrInstances", [])
-        sonarr_instances = data.get("sonarrInstances", [])
-        plex_instances = data.get("plexInstances", [])
+        settings_data = {
+            "log_level_unmatched_assets": data.get("logLevelUnmatchedAssets", ""),
+            "log_level_poster_renamer": data.get("logLevelPosterRenamer", ""),
+            "poster_renamer_schedule": data.get("posterRenamerSchedule", ""),
+            "target_path": data.get("targetPath", ""),
+            "source_dirs": ",".join(data.get("sourceDirs", [])),
+            "library_names": ",".join(data.get("libraryNames", [])),
+            "instances": ",".join(data.get("instances", [])),
+            "asset_folders": data.get("assetFolders", False),
+            "unmatched_assets": data.get("unmatchedAssets", True),
+            "border_replacerr": data.get("borderReplacerr", False),
+        }
 
         models.Settings.query.delete()
-
-        new_settings = models.Settings(
-            poster_renamer_schedule=poster_renamer_schedule,
-            target_path=target_path,
-            source_dirs=source_dirs,
-            library_names=library_names,
-            instances=instances,
-            asset_folders=asset_folders,
-            unmatched_assets=unmatched_assets,
-            border_replacerr=border_replacerr,
-        )
-        db.session.add(new_settings)
-
         models.RadarrInstance.query.delete()
         models.SonarrInstance.query.delete()
         models.PlexInstance.query.delete()
 
-        for instance in radarr_instances:
-            new_instance = models.RadarrInstance(
-                instance_name=instance.get("instanceName"),
-                url=instance.get("url"),
-                api_key=instance.get("apiKey"),
-            )
-            db.session.add(new_instance)
-        for instance in sonarr_instances:
-            new_instance = models.SonarrInstance(
-                instance_name=instance.get("instanceName"),
-                url=instance.get("url"),
-                api_key=instance.get("apiKey"),
-            )
-            db.session.add(new_instance)
-        for instance in plex_instances:
-            new_instance = models.PlexInstance(
-                instance_name=instance.get("instanceName"),
-                url=instance.get("url"),
-                api_key=instance.get("apiKey"),
-            )
-            db.session.add(new_instance)
+        new_settings = models.Settings(**settings_data)
+        db.session.add(new_settings)
+
+        def add_instance(data_key, model):
+            for instance_data in data.get(data_key, []):
+                new_instance = model(
+                    instance_name=instance_data.get("instanceName"),
+                    url=instance_data.get("url"),
+                    api_key=instance_data.get("apiKey"),
+                )
+                db.session.add(new_instance)
+
+        add_instance("radarrInstances", models.RadarrInstance)
+        add_instance("sonarrInstances", models.SonarrInstance)
+        add_instance("plexInstances", models.PlexInstance)
 
         db.session.commit()
+
         return jsonify({"success": True, "message": "Settings saved successfully!"})
 
     except Exception as e:
@@ -136,7 +123,6 @@ def save_settings():
 
 @settings.route("/test-connection", methods=["POST"])
 def test_connection():
-
     data = request.get_json()
 
     url = data.get("url")
@@ -148,6 +134,9 @@ def test_connection():
         headers = {"X-Plex-Token": api_key}
     else:
         return jsonify({"success": False, "message": "Invalid instance type"}), 400
+
+    response = None
+
     try:
         if instance_type == "radarr":
             response = requests.get(
@@ -162,7 +151,7 @@ def test_connection():
                 f"{url}/status/sessions", headers=headers, timeout=5
             )
 
-        if response.status_code == 200:
+        if response and response.status_code == 200:
             return jsonify({"success": True, "message": "Connection successful!"})
         else:
             return jsonify({"success": False, "message": "Failed to connect!"}), 400

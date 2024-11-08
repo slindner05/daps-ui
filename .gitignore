@@ -13,3 +13,4 @@ testing123/
 docker_commands.txt
 .dockerignore
 DapsEX/run_cli.py
+logs/

@@ -1,30 +1,45 @@
+from DapsEX.logger import init_logger
 from DapsEX.media import Server, Radarr, Sonarr, Media
 from DapsEX.database_cache import Database
+from DapsEX.settings import Settings
 from Payloads.unmatched_assets_payload import Payload
 from pathlib import Path
 from DapsEX import utils
-import pprint
 import re
 from tabulate import tabulate
+import logging
+import json
 
 
 class UnmatchedAssets:
-    def __init__(self, assets_dir: str, asset_folders: bool):
-        self.assets_dir = Path(assets_dir)
-        self.asset_folders = asset_folders
-        self.db = Database()
-        self.db.initialize_stats()
+    def __init__(self, assets_dir: str, asset_folders: bool, log_level=logging.info):
+        try:
+            log_dir = Path(Settings.LOG_DIR.value) / "unmatched_assets"
+            self.assets_dir = Path(assets_dir)
+            self.asset_folders = asset_folders
+            self.db = Database()
+            self.db.initialize_stats()
+            self.logger = logging.getLogger("UnmatchedAssets")
+            init_logger(self.logger, log_dir, "unmatched_assets", log_level=log_level)
+            self.logger.info("UnmatchedAssets Initialized")
+        except Exception as e:
+            self.logger.exception("Failed to initialize UnmatchedAssets")
+            raise e
 
     def get_assets(self) -> list[str]:
         if not self.assets_dir.is_dir():
-            raise ValueError(f"{self.assets_dir} is not a directory")
+            self.logger.error(f"{self.assets_dir} is not a directory")
+            raise ValueError
         return [item.stem for item in self.assets_dir.rglob("*") if item.is_file()]
 
     def get_assets_folders(self):
         assets = []
         if not self.assets_dir.is_dir():
-            raise ValueError(f"{self.assets_dir} is not a directory")
-        asset_paths = [Path(item) for item in self.assets_dir.rglob("*") if item.is_file()]
+            self.logger.error(f"{self.assets_dir} is not a directory")
+            raise ValueError
+        asset_paths = [
+            Path(item) for item in self.assets_dir.rglob("*") if item.is_file()
+        ]
         season_pattern = re.compile(r"Season\d{2}")
         for asset in asset_paths:
             if season_pattern.match(asset.stem):
@@ -40,7 +55,9 @@ class UnmatchedAssets:
         return utils.strip_id(utils.remove_chars(name))
 
     def get_show_assets_normalized(
-        self, media_dict: dict[str, list[dict]], assets: list[str],
+        self,
+        media_dict: dict[str, list[dict]],
+        assets: list[str],
     ) -> list[str]:
         shows_dict_list = media_dict.get("shows", [])
         assets_normalized = [self._normalize_name(asset) for asset in assets]
@@ -70,12 +87,16 @@ class UnmatchedAssets:
         for movie in movies_list_dict:
             movie_normalized = self._normalize_name(movie["title"])
             if movie_normalized not in assets_normalized:
-                if movie["status"] in ['released']:
+                if movie["status"] in ["released"]:
                     unmatched_assets["movies"].append(movie["title"])
                     self.db.add_unmatched_movie(title=movie["title"])
-                    # print(f"Added unmatched {movie['title']} to database")
-                # else:
-                #     print(f"Skipping {movie['title']} -> Status: {movie['status']}")
+                    self.logger.debug(
+                        f"Added unmatched movie: {movie['title']} to database"
+                    )
+                else:
+                    self.logger.debug(
+                        f"Skipping {movie['title']} -> Status: {movie['status']}"
+                    )
 
         for key, value_list in collections_dict.items():
             for collection in value_list:
@@ -83,32 +104,47 @@ class UnmatchedAssets:
                 if collection_normalized not in assets_normalized:
                     unmatched_assets["collections"].append(collection)
                     self.db.add_unmatched_collection(title=collection)
-                    # print(f"Added unmatched {collection} to database")
+                    self.logger.debug(
+                        f"Added unmatched collection: {collection} to database"
+                    )
 
         for item in shows_list_dict:
             show_normalized = self._normalize_name(item["title"])
             unmatched_show = {
                 "title": utils.strip_id(item["title"]),
                 "seasons": [],
-                "main_poster_missing": False 
+                "main_poster_missing": False,
             }
             show_id = None
             if show_normalized not in show_assets_normalized:
-                if item["status"] in ['released', 'ended', 'continuing']:
-                    show_id = self.db.add_unmatched_show(title=unmatched_show["title"], main_poster_missing=True)
+                if item["status"] in ["released", "ended", "continuing"]:
+                    show_id = self.db.add_unmatched_show(
+                        title=unmatched_show["title"], main_poster_missing=True
+                    )
                     unmatched_show["main_poster_missing"] = True
-                # else:
-                #     print(f"Skipping {item['title']} -> Status: {item['status']}")
+                else:
+                    self.logger.debug(
+                        f"Skipping show item: {item['title']} -> Status: {item['status']}"
+                    )
 
             for season in item.get("seasons", []):
                 season_asset = f"{show_normalized}{season['season']}"
-                if season_asset not in show_assets_normalized and season.get("has_episodes", False):
+                if season_asset not in show_assets_normalized and season.get(
+                    "has_episodes", False
+                ):
                     unmatched_show["seasons"].append(season["season"])
                     if show_id is None:
-                        show_id = self.db.add_unmatched_show(title=utils.strip_id(item["title"]), main_poster_missing=False)
-                    self.db.add_unmatched_season(show_id=show_id, season=season["season"])
-                # elif not season.get("has_episodes", False):
-                #     print(f"Skipping {utils.strip_id(item['title'])} - {season['season']} -> No episodes on disk")
+                        show_id = self.db.add_unmatched_show(
+                            title=utils.strip_id(item["title"]),
+                            main_poster_missing=False,
+                        )
+                    self.db.add_unmatched_season(
+                        show_id=show_id, season=season["season"]
+                    )
+                elif not season.get("has_episodes", False):
+                    self.logger.debug(
+                        f"Skipping {utils.strip_id(item['title'])} - {season['season']} -> No episodes on disk"
+                    )
             if unmatched_show["seasons"] or unmatched_show["main_poster_missing"]:
                 unmatched_assets["shows"].append(unmatched_show)
 
@@ -117,29 +153,53 @@ class UnmatchedAssets:
     def cleanup_unmatched_media(self, new_unmatched_assets: dict[str, list]):
         current_unmatched_assets = self.db.get_all_unmatched_assets()
 
-        self._cleanup_unmatched_movies(new_unmatched_assets["movies"], current_unmatched_assets["movies"])
-        self._cleanup_unmatched_collections(new_unmatched_assets["collections"], current_unmatched_assets["collections"])
-        self._cleanup_unmatched_show_seasons(new_unmatched_assets["shows"], current_unmatched_assets["shows"])
+        self._cleanup_unmatched_movies(
+            new_unmatched_assets["movies"], current_unmatched_assets["movies"]
+        )
+        self._cleanup_unmatched_collections(
+            new_unmatched_assets["collections"], current_unmatched_assets["collections"]
+        )
+        self._cleanup_unmatched_show_seasons(
+            new_unmatched_assets["shows"], current_unmatched_assets["shows"]
+        )
 
-    def _cleanup_unmatched_movies(self, new_unmatched_movies: list[str], current_unmatched_movies: list[dict]):
+    def _cleanup_unmatched_movies(
+        self, new_unmatched_movies: list[str], current_unmatched_movies: list[dict]
+    ):
         for movie in current_unmatched_movies:
             if movie["title"] not in new_unmatched_movies:
-                self.db.delete_unmatched_asset(db_table="unmatched_movies", title=movie["title"])
-                print(f"Removed {movie['title']} from database")
+                self.db.delete_unmatched_asset(
+                    db_table="unmatched_movies", title=movie["title"]
+                )
+                self.logger.debug(
+                    f"Removed movie: {movie['title']} from unmatched database"
+                )
 
-    def _cleanup_unmatched_collections(self, new_unmatched_collections: list[str], current_unmatched_collections: list[dict]):
+    def _cleanup_unmatched_collections(
+        self,
+        new_unmatched_collections: list[str],
+        current_unmatched_collections: list[dict],
+    ):
         for collection in current_unmatched_collections:
             if collection["title"] not in new_unmatched_collections:
-                self.db.delete_unmatched_asset(db_table="unmatched_collections", title=collection["title"])
-                print(f"Removed {collection['title']} from database")
+                self.db.delete_unmatched_asset(
+                    db_table="unmatched_collections", title=collection["title"]
+                )
+                self.logger.debug(
+                    f"Removed collection: {collection['title']} from unmatched database"
+                )
 
-    def _cleanup_unmatched_show_seasons(self, new_unmatched_shows: list[dict], current_unmatched_shows: list[dict]):
+    def _cleanup_unmatched_show_seasons(
+        self, new_unmatched_shows: list[dict], current_unmatched_shows: list[dict]
+    ):
         new_unmatched_lookup = {show["title"]: show for show in new_unmatched_shows}
         for show in current_unmatched_shows:
             show_title = show["title"]
             if show_title not in new_unmatched_lookup:
-                self.db.delete_unmatched_asset(db_table="unmatched_shows", title=show_title)
-                print(f"Removed {show_title} from unmatched database")
+                self.db.delete_unmatched_asset(
+                    db_table="unmatched_shows", title=show_title
+                )
+                self.logger.debug(f"Removed show: {show_title} from unmatched database")
                 continue
 
             new_unmatched_show = new_unmatched_lookup[show_title]
@@ -149,12 +209,9 @@ class UnmatchedAssets:
 
             for season in seasons_to_delete:
                 self.db.delete_unmatched_season(show_id=show["id"], season=season)
-                print(f"Removed {season} for {show_title} from unmatched database")
-
-                # main_poster_still_missing = new_unmatched_show["main_poster_missing"]
-                # if main_poster_still_missing != show["main_poster_missing"]:
-                #     self.db.update_unmatched_show(title=show_title, main_poster_missing=False)
-                #     print(f"Updated {show_title} main poster to False")
+                self.logger.debug(
+                    f"Removed season: {season} for {show_title} from unmatched database"
+                )
 
     def get_unmatched_count_dict(
         self,
@@ -176,14 +233,28 @@ class UnmatchedAssets:
         shows_list = media_dict.get("shows", [])
         movies_list = media_dict.get("movies", [])
 
-        total_movies = len([movie for movie in movies_list if movie["status"] in ['released']])
+        total_movies = len(
+            [movie for movie in movies_list if movie["status"] in ["released"]]
+        )
         asset_count_dict["total_movies"] = total_movies
 
-        total_shows = len([show for show in shows_list if show["status"] in ['released', 'ended', 'continuing']])
+        total_shows = len(
+            [
+                show
+                for show in shows_list
+                if show["status"] in ["released", "ended", "continuing"]
+            ]
+        )
         asset_count_dict["total_series"] = total_shows
 
         total_seasons = sum(
-            len([season for season in show.get("seasons", []) if season.get("has_episodes", False)])
+            len(
+                [
+                    season
+                    for season in show.get("seasons", [])
+                    if season.get("has_episodes", False)
+                ]
+            )
             for show in shows_list
         )
         asset_count_dict["total_seasons"] = total_seasons
@@ -220,13 +291,11 @@ class UnmatchedAssets:
         self.db.update_stats(asset_count_dict)
         return asset_count_dict
 
-
     def print_output(
         self,
         asset_count_dict: dict[str, int],
         unmatched_assets: dict[str, list],
     ) -> None:
-
         total_movies = asset_count_dict.get("total_movies", 0)
         total_shows = asset_count_dict.get("total_series", 0)
         total_seasons = asset_count_dict.get("total_seasons", 0)
@@ -237,7 +306,12 @@ class UnmatchedAssets:
         unmatched_show_count = asset_count_dict.get("unmatched_series", 0)
         unmatched_season_count = asset_count_dict.get("unmatched_seasons", 0)
         unmatched_collection_count = asset_count_dict.get("unmatched_collections", 0)
-        unmatched_grand_total = unmatched_movie_count + unmatched_show_count + unmatched_season_count + unmatched_collection_count
+        unmatched_grand_total = (
+            unmatched_movie_count
+            + unmatched_show_count
+            + unmatched_season_count
+            + unmatched_collection_count
+        )
 
         percent_complete_movies = (
             100 * (total_movies - unmatched_movie_count) / total_movies
@@ -273,7 +347,9 @@ class UnmatchedAssets:
             table_data = [["UNMATCHED MOVIES", ""]]
             for movie in unmatched_movie_list:
                 table_data.append([movie])
-            print(tabulate(table_data, headers="firstrow", tablefmt="fancy_grid"))
+            self.logger.info(
+                "\n" + tabulate(table_data, headers="firstrow", tablefmt="fancy_grid")
+            )
 
         if unmatched_show_season_list:
             table_data = [["UNMATCHED SHOWS AND SEASONS", ""]]
@@ -287,15 +363,18 @@ class UnmatchedAssets:
                 missing_assets.extend(missing_seasons)
                 missing_assets_str = ", ".join(missing_assets) or "None"
                 table_data.append([show_clean, missing_assets_str])
-                
 
-            print(tabulate(table_data, headers="firstrow", tablefmt="fancy_grid"))
-            
+            self.logger.info(
+                "\n" + tabulate(table_data, headers="firstrow", tablefmt="fancy_grid")
+            )
+
         if unmatched_collection_list:
             table_data = [["UNMATCHED COLLECTIONS", ""]]
             for collection in unmatched_collection_list:
                 table_data.append([collection])
-            print(tabulate(table_data, headers="firstrow", tablefmt="fancy_grid"))
+            self.logger.info(
+                "\n" + tabulate(table_data, headers="firstrow", tablefmt="fancy_grid")
+            )
 
         total_table_data = [
             [
@@ -329,8 +408,9 @@ class UnmatchedAssets:
                 f"{percent_complete_grand_total:.2f}%",
             ],
         ]
-        print(
-            tabulate(
+        self.logger.info(
+            "\n"
+            + tabulate(
                 total_table_data,
                 headers=["Type", "Total", "Unmatched", "Percent Complete"],
                 tablefmt="fancy_grid",
@@ -342,10 +422,14 @@ class UnmatchedAssets:
 
         try:
             media = Media()
+            self.logger.debug("Creating Radarr Sonarr and Plex instances.")
             radarr_instances, sonarr_instances = utils.create_arr_instances(
                 payload, Radarr, Sonarr
             )
             plex_instances = utils.create_plex_instances(payload, Server)
+            self.logger.debug("Successfully created all instances.")
+
+            self.logger.debug("Creating media and collections dict.")
             all_movies, all_series = utils.get_combined_media_lists(
                 radarr_instances, sonarr_instances
             )
@@ -358,19 +442,32 @@ class UnmatchedAssets:
                 all_movie_collections,
                 all_series_collections,
             )
+            self.logger.debug("Created media dict and collections dict")
             if self.asset_folders:
+                self.logger.debug("Getting all assets")
+                self.logger.debug(f"Asset folders: {self.asset_folders}")
                 assets = self.get_assets_folders()
                 show_assets = self.get_show_assets_normalized(media_dict, assets)
             else:
+                self.logger.debug("Getting all assets")
+                self.logger.debug(f"Asset folders: {self.asset_folders}")
                 assets = self.get_assets()
                 show_assets = self.get_show_assets_normalized(media_dict, assets)
 
+            self.logger.debug("Getting all unmatched assets and asset counts")
             unmatched_assets = self.get_unmatched_assets(
                 media_dict, collections_dict, assets, show_assets
             )
-            asset_count_dict = self.get_unmatched_count_dict(unmatched_assets, media_dict, collections_dict)
-            # self.db.wipe_unmatched_assets()
+            self.logger.debug(
+                "Unmatche assets summary:\n%s", json.dumps(unmatched_assets, indent=4)
+            )
+            asset_count_dict = self.get_unmatched_count_dict(
+                unmatched_assets, media_dict, collections_dict
+            )
+            self.logger.debug("Cleaning up database")
+
             self.cleanup_unmatched_media(unmatched_assets)
             self.print_output(asset_count_dict, unmatched_assets)
         except Exception as e:
-            print(f"Something went wrong: {e}")
+            self.logger.exception("Failed to run UnmatchedAssets")
+            raise e

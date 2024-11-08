@@ -1,5 +1,5 @@
 import sqlite3
-from Payloads.poster_renamerr_payload import Settings
+from DapsEX.settings import Settings
 from contextlib import closing
 
 

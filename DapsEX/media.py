@@ -7,21 +7,18 @@ from arrapi import SonarrAPI, RadarrAPI
 import re
 import pprint
 
+
 class Media:
     def get_series_with_seasons(self, all_series_objects: list[Series]):
         titles_with_seasons = []
         for media_object in all_series_objects:
-            dict_with_seasons = {
-                "title": "",
-                "seasons": [],
-                "status": ""
-            }
-            path = Path(media_object.path) #type: ignore
+            dict_with_seasons = {"title": "", "seasons": [], "status": ""}
+            path = Path(media_object.path)  # type: ignore
             title = path.name
             series_status = media_object.status
             season_object = media_object.seasons
             dict_with_seasons["title"] = title
-            dict_with_seasons["status"] = series_status 
+            dict_with_seasons["status"] = series_status
 
             for season in season_object:
                 season_dict = {
@@ -77,9 +74,12 @@ class Media:
             )
         return media_dict, collections_dict
 
-    def get_movies_with_years(self, all_movie_objects: list[Movie]) -> list[dict[str, str | list[str]]]:
+    def get_movies_with_years(
+        self, all_movie_objects: list[Movie]
+    ) -> list[dict[str, str | list[str]]]:
         titles_with_years = []
         release_years = re.compile(r"^\d{4}")
+
         def extract_year(date_string):
             match = release_years.match(str(date_string))
             if match:
@@ -87,19 +87,15 @@ class Media:
             return None
 
         for media_object in all_movie_objects:
-            dict_with_years = {
-                "title": "",
-                "years": [],
-                "status": ""
-            }
+            dict_with_years = {"title": "", "years": [], "status": ""}
 
-            path = Path(media_object.path) #type: ignore
-            title = path.name 
+            path = Path(media_object.path)  # type: ignore
+            title = path.name
             status = media_object.status
             years = [
                 extract_year(media_object.physicalRelease),
                 extract_year(media_object.digitalRelease),
-                extract_year(media_object.inCinemas)
+                extract_year(media_object.inCinemas),
             ]
             dict_with_years["title"] = title
             for year in years:
@@ -135,6 +131,7 @@ class Radarr(Media):
     def get_all_movies(self) -> list[Movie]:
         return self.radarr.all_movies()
 
+
 class Sonarr(Media):
     def __init__(self, base_url: str, api: str):
         super().__init__()
@@ -144,6 +141,7 @@ class Sonarr(Media):
 
     def get_all_series(self) -> list[Series]:
         return self.sonarr.all_series()
+
 
 class Server:
     def __init__(self, plex_url: str, plex_token: str, library_names: list[str]):
@@ -196,4 +194,3 @@ class Server:
             if collection.title not in unique_collections:
                 unique_collections.add(collection.title)
                 show_collections_list.append(collection.title)
-

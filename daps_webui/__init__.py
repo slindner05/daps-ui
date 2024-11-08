@@ -1,27 +1,29 @@
+# import logging
+from concurrent.futures import ThreadPoolExecutor
+from time import sleep
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-import logging
-from time import sleep
 from flask import Flask, jsonify
 from flask_sqlalchemy import SQLAlchemy
+
 from daps_webui.config.config import Config
-from concurrent.futures import ThreadPoolExecutor
+from daps_webui.utils import webui_utils
+from daps_webui.utils.webui_utils import get_instances
 from DapsEX.poster_renamerr import PosterRenamerr
 from DapsEX.unmatched_assets import UnmatchedAssets
-from daps_webui.utils import webui_utils
-from daps_webui.utils.webui_utils import *
-from progress import *
+from progress import progress_instance
 
 # all globals needs to be defined here
 global_config = Config()
 db = SQLAlchemy()
 progress_dict = {}
-executor = ThreadPoolExecutor(max_workers=2)
+executor = ThreadPoolExecutor(max_workers=1)
 scheduler = BackgroundScheduler()
 scheduler.start()
 
 # define all loggers
-daps_logger = logging.getLogger("daps")
+# daps_logger = logging.getLogger("daps")
 
 
 def create_app() -> Flask:
@@ -30,17 +32,17 @@ def create_app() -> Flask:
     app.config.from_object(global_config)
 
     # initiate logger(s)
-    from daps_webui.utils.logger_utils import init_logger
+    # from daps_webui.utils.logger_utils import init_logger
 
-    init_logger(daps_logger, global_config.logs, "daps_log.log", logging.INFO)
+    # init_logger(daps_logger, global_config.logs, "daps_log.log", logging.INFO)
 
     # initiate database
     db.init_app(app)
 
     # import needed blueprints
     from daps_webui.views.home.home import home
-    from daps_webui.views.settings.settings import settings
     from daps_webui.views.poster_renamer.poster_renamer import poster_renamer
+    from daps_webui.views.settings.settings import settings
 
     # register blueprints
     app.register_blueprint(home)
@@ -56,29 +58,46 @@ with app.app_context():
 
 
 def run_renamer_task():
-    from daps_webui.models import RadarrInstance, SonarrInstance, PlexInstance
+    from daps_webui.models import PlexInstance, RadarrInstance, SonarrInstance
 
     try:
         radarr = get_instances(RadarrInstance())
         sonarr = get_instances(SonarrInstance())
         plex = get_instances(PlexInstance())
-        poster_renamer_payload = webui_utils.create_poster_renamer_payload(radarr, sonarr, plex)
+        poster_renamer_payload = webui_utils.create_poster_renamer_payload(
+            radarr, sonarr, plex
+        )
 
         job_id = progress_instance.add_job()
 
         renamer = PosterRenamerr(
-            poster_renamer_payload.target_path, poster_renamer_payload.source_dirs, poster_renamer_payload.asset_folders, poster_renamer_payload.border_replacerr,
+            poster_renamer_payload.target_path,
+            poster_renamer_payload.source_dirs,
+            poster_renamer_payload.asset_folders,
+            poster_renamer_payload.border_replacerr,
+            poster_renamer_payload.log_level,
         )
         if poster_renamer_payload.unmatched_assets:
-            unmatched_assets_payload = webui_utils.create_unmatched_assets_payload(radarr, sonarr, plex)
-            unmatched_assets = UnmatchedAssets(unmatched_assets_payload.target_path, unmatched_assets_payload.asset_folders)
-            future = executor.submit(renamer.run, poster_renamer_payload, progress_instance, job_id)
+            unmatched_assets_payload = webui_utils.create_unmatched_assets_payload(
+                radarr, sonarr, plex
+            )
+            unmatched_assets = UnmatchedAssets(
+                unmatched_assets_payload.target_path,
+                unmatched_assets_payload.asset_folders,
+                unmatched_assets_payload.log_level,
+            )
+            future = executor.submit(
+                renamer.run, poster_renamer_payload, progress_instance, job_id
+            )
 
             def run_unmatched_assets_callback(fut):
                 unmatched_assets.run(unmatched_assets_payload)
+
             future.add_done_callback(run_unmatched_assets_callback)
         else:
-            future = executor.submit(renamer.run, poster_renamer_payload, progress_instance, job_id)
+            future = executor.submit(
+                renamer.run, poster_renamer_payload, progress_instance, job_id
+            )
 
         def remove_job_cb(fut):
             sleep(2)
@@ -112,6 +131,7 @@ def run_renamer_scheduled():
                 f"Scheduled renamer job started successfully with job_id: {result['job_id']}",
                 flush=True,
             )
+
 
 def schedule_poster_renamer():
     from daps_webui.models import Settings
