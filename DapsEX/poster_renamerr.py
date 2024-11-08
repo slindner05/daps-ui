@@ -1,4 +1,7 @@
-# TODO: add logging
+# TODO: add a way to process only new files
+
+# TODO: add a way to clean asset directory when asset folders changes
+
 import hashlib
 import json
 import logging
@@ -26,7 +29,7 @@ class PosterRenamerr:
         source_directories: list,
         asset_folders: bool,
         replace_border: bool,
-        log_level=logging.info,
+        log_level=logging.INFO,
     ):
         try:
             log_dir = Path(Settings.LOG_DIR.value) / "poster_renamerr"
@@ -38,12 +41,16 @@ class PosterRenamerr:
             self.border_replacerr = BorderReplacerr()
             self.logger = logging.getLogger("PosterRenamerr")
             init_logger(self.logger, log_dir, "poster_renamerr", log_level=log_level)
-            self.logger.info("PosterRenamer Initialized")
         except Exception as e:
             self.logger.exception("Failed to initialize PosterRenamerr")
             raise e
 
     image_exts = {".png", ".jpg", ".jpeg"}
+
+    def _log_banner(self):
+        self.logger.info("\n" + "#" * 80)
+        self.logger.info("### New PosterRenamerr Run")
+        self.logger.info("\n" + "#" * 80)
 
     def hash_file(self, file_path: Path) -> str:
         try:
@@ -471,7 +478,7 @@ class PosterRenamerr:
             cached_original_hash = cached_file["original_file_hash"]
             cached_source = cached_file["source_path"]
             cached_border_state = cached_file.get("border_replaced", 0)
-            
+
             # Debugging: Log the current and cached values for comparison
             self.logger.debug(f"Checking skip conditions for file: {file_path}")
             self.logger.debug(f"Original file hash: {original_file_hash}")
@@ -481,7 +488,6 @@ class PosterRenamerr:
             self.logger.debug(f"Cached source: {cached_source}")
             self.logger.debug(f"Replace border (current): {replace_border}")
             self.logger.debug(f"Cached border replaced: {cached_border_state}")
-
 
             if (
                 cached_original_hash == original_file_hash
@@ -682,15 +688,16 @@ class PosterRenamerr:
         cb: Callable[[str, int, ProgressState], None] | None = None,
         job_id: str | None = None,
     ) -> None:
-        try:
-            from DapsEX import utils
+        from DapsEX import utils
 
+        try:
+            self._log_banner()
             media = Media()
             self.logger.debug("Creating Radarr Sonarr and Plex instances.")
             radarr_instances, sonarr_instances = utils.create_arr_instances(
-                payload, Radarr, Sonarr
+                payload, Radarr, Sonarr, self.logger
             )
-            plex_instances = utils.create_plex_instances(payload, Server)
+            plex_instances = utils.create_plex_instances(payload, Server, self.logger)
             self.logger.debug("Successfully created all instances.")
 
             self.logger.debug("Creating media and collections dict.")

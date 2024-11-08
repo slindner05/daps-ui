@@ -1,11 +1,17 @@
+import re
+from logging import Logger
 from pathlib import Path
+
+from arrapi import RadarrAPI, SonarrAPI
 from arrapi.apis.sonarr import Series
+from arrapi.exceptions import ConnectionFailure
+from arrapi.exceptions import Unauthorized as ArrApiUnauthorized
 from arrapi.objs.reload import Movie
 from plexapi.collection import LibrarySection
+from plexapi.exceptions import BadRequest
+from plexapi.exceptions import Unauthorized as PlexApiUnauthorized
+from plexapi.exceptions import UnknownType
 from plexapi.server import PlexServer
-from arrapi import SonarrAPI, RadarrAPI
-import re
-import pprint
 
 
 class Media:
@@ -20,7 +26,7 @@ class Media:
             dict_with_seasons["title"] = title
             dict_with_seasons["status"] = series_status
 
-            for season in season_object:
+            for season in season_object:  # type: ignore
                 season_dict = {
                     "season": "",
                     "has_episodes": True,
@@ -35,13 +41,6 @@ class Media:
                 dict_with_seasons["seasons"].append(season_dict)
             titles_with_seasons.append(dict_with_seasons)
         return titles_with_seasons
-
-    # @staticmethod
-    # def _get_paths(all_media_objects: list[Movie] | list[Series]) -> list[Path]:
-    #     """
-    #     Method to get paths from media objects (movies or series).
-    #     """
-    #     return [Path(item.path) for item in all_media_objects]  # type: ignore
 
     def get_dicts(
         self,
@@ -122,32 +121,68 @@ class Media:
 
 
 class Radarr(Media):
-    def __init__(self, base_url: str, api: str):
+    def __init__(self, base_url: str, api: str, logger: Logger):
         super().__init__()
-        self.radarr = RadarrAPI(base_url, api)
-        self.all_movie_objects = self.get_all_movies()
-        self.movies = self.get_movies_with_years(self.all_movie_objects)
+        self.logger = logger
+        try:
+            self.radarr = RadarrAPI(base_url, api)
+            self.all_movie_objects = self.get_all_movies()
+            self.movies = self.get_movies_with_years(self.all_movie_objects)
+        except ArrApiUnauthorized as e:
+            self.logger.error(
+                "Error: Unauthorized access to Radarr. Please check your API key."
+            )
+            raise e
+        except ConnectionFailure as e:
+            self.logger.error(
+                "Error: Connection to Radarr failed. Please check your base URL or network connection."
+            )
+            raise e
 
     def get_all_movies(self) -> list[Movie]:
         return self.radarr.all_movies()
 
 
 class Sonarr(Media):
-    def __init__(self, base_url: str, api: str):
+    def __init__(self, base_url: str, api: str, logger: Logger):
         super().__init__()
-        self.sonarr = SonarrAPI(base_url, api)
-        self.all_series_objects = self.get_all_series()
-        self.series = self.get_series_with_seasons(self.all_series_objects)
+        self.logger = logger
+        try:
+            self.sonarr = SonarrAPI(base_url, api)
+            self.all_series_objects = self.get_all_series()
+            self.series = self.get_series_with_seasons(self.all_series_objects)
+        except ArrApiUnauthorized as e:
+            self.logger.error(
+                "Error: Unauthorized access to Sonarr. Please check your API key."
+            )
+            raise e
+        except ConnectionFailure as e:
+            self.logger.error(
+                "Error: Connection to Sonarr failed. Please check your base URL or network connection."
+            )
+            raise e
 
     def get_all_series(self) -> list[Series]:
         return self.sonarr.all_series()
 
 
 class Server:
-    def __init__(self, plex_url: str, plex_token: str, library_names: list[str]):
-        self.plex = PlexServer(plex_url, plex_token)
-        self.library_names = library_names
-        self.movie_collections, self.series_collections = self.get_collections()
+    def __init__(
+        self, plex_url: str, plex_token: str, library_names: list[str], logger: Logger
+    ):
+        self.logger = logger
+        try:
+            self.plex = PlexServer(plex_url, plex_token)
+            self.library_names = library_names
+            self.movie_collections, self.series_collections = self.get_collections()
+        except PlexApiUnauthorized as e:
+            self.logger.error(
+                "Error: Unauthorized access to Plex. Please check your API key."
+            )
+            raise e
+        except BadRequest as e:
+            self.logger.error("Error: Bad request from Plex. Please check your config.")
+            raise e
 
     def get_collections(self) -> tuple[list[str], list[str]]:
         movie_collections_list = []
@@ -157,8 +192,8 @@ class Server:
         for library_name in self.library_names:
             try:
                 library = self.plex.library.section(library_name)
-            except Exception as e:
-                print(f"Library '{library_name}' not found: {e}")
+            except UnknownType as e:
+                self.logger.error(f"Library '{library_name}' is invalid: {e}")
                 continue
 
             if library.type == "movie":

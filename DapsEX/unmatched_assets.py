@@ -21,10 +21,14 @@ class UnmatchedAssets:
             self.db.initialize_stats()
             self.logger = logging.getLogger("UnmatchedAssets")
             init_logger(self.logger, log_dir, "unmatched_assets", log_level=log_level)
-            self.logger.info("UnmatchedAssets Initialized")
         except Exception as e:
             self.logger.exception("Failed to initialize UnmatchedAssets")
             raise e
+
+    def _log_banner(self):
+        self.logger.info("\n" + "#" * 80)
+        self.logger.info("### New UnmatchedAssets Run")
+        self.logger.info("\n" + "#" * 80)
 
     def get_assets(self) -> list[str]:
         if not self.assets_dir.is_dir():
@@ -421,12 +425,13 @@ class UnmatchedAssets:
         from DapsEX import utils
 
         try:
+            self._log_banner()
             media = Media()
             self.logger.debug("Creating Radarr Sonarr and Plex instances.")
             radarr_instances, sonarr_instances = utils.create_arr_instances(
-                payload, Radarr, Sonarr
+                payload, Radarr, Sonarr, self.logger
             )
-            plex_instances = utils.create_plex_instances(payload, Server)
+            plex_instances = utils.create_plex_instances(payload, Server, self.logger)
             self.logger.debug("Successfully created all instances.")
 
             self.logger.debug("Creating media and collections dict.")
@@ -459,7 +464,7 @@ class UnmatchedAssets:
                 media_dict, collections_dict, assets, show_assets
             )
             self.logger.debug(
-                "Unmatche assets summary:\n%s", json.dumps(unmatched_assets, indent=4)
+                "Unmatched assets summary:\n%s", json.dumps(unmatched_assets, indent=4)
             )
             asset_count_dict = self.get_unmatched_count_dict(
                 unmatched_assets, media_dict, collections_dict

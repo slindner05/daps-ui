@@ -2,6 +2,7 @@ from Payloads.poster_renamerr_payload import Payload as PosterRenamerPayload
 from Payloads.unmatched_assets_payload import Payload as UnmatchedAssetsPayload
 from DapsEX.media import Radarr, Server, Sonarr
 import re
+from logging import Logger
 
 
 def get_combined_media_lists(
@@ -47,7 +48,7 @@ def get_combined_collections_lists(
 
 
 def create_arr_instances(
-    payload_class: PosterRenamerPayload | UnmatchedAssetsPayload, radarr_class: type[Radarr], sonarr_class: type[Sonarr]
+    payload_class: PosterRenamerPayload | UnmatchedAssetsPayload, radarr_class: type[Radarr], sonarr_class: type[Sonarr], logger: Logger,
 ) -> tuple[dict[str, Radarr], dict[str, Sonarr]]:
     radarr_instances: dict[str, Radarr] = {}
     sonarr_instances: dict[str, Sonarr] = {}
@@ -56,19 +57,19 @@ def create_arr_instances(
         if key in payload_class.instances:
             radarr_name = f"{key}"
             radarr_instances[radarr_name] = radarr_class(
-                base_url=value["url"], api=value["api"]
+                base_url=value["url"], api=value["api"], logger=logger
             )
     for key, value in payload_class.sonarr.items():
         if key in payload_class.instances:
             sonarr_name = f"{key}"
             sonarr_instances[sonarr_name] = sonarr_class(
-                base_url=value["url"], api=value["api"]
+                base_url=value["url"], api=value["api"], logger=logger
             )
     return radarr_instances, sonarr_instances
 
 
 def create_plex_instances(
-    payload: PosterRenamerPayload | UnmatchedAssetsPayload, plex_class: type[Server]
+    payload: PosterRenamerPayload | UnmatchedAssetsPayload, plex_class: type[Server], logger: Logger
 ) -> dict[str, Server]:
     plex_instances = {}
     for key, value in payload.plex.items():
@@ -78,6 +79,7 @@ def create_plex_instances(
                 plex_url=value["url"],
                 plex_token=value["api"],
                 library_names=payload.library_names,
+                logger=logger
             )
     return plex_instances
 
