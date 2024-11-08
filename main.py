@@ -13,10 +13,9 @@ def run_renamer():
 def run_unmatched_assets():
     config = YamlConfig(Settings.POSTER_RENAMERR.value)
     payload = config.create_unmatched_assets_payload()
-    print(f"{payload}")
     unmatched_assets = UnmatchedAssets(payload.target_path, payload.asset_folders, payload.log_level)
     unmatched_assets.run(payload)
 
 if __name__ == "__main__":
-    # run_renamer()
-    run_unmatched_assets()
+    run_renamer()
+    # run_unmatched_assets()

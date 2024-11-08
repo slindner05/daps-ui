@@ -462,9 +462,34 @@ class PosterRenamerr:
     ) -> None:
         temp_path = None
         target_path = target_dir / new_file_name
-        file_hash = self.hash_file(file_path)
+        original_file_hash = self.hash_file(file_path)
         cached_file = self.db.get_cached_file(str(target_path))
         current_source = str(file_path)
+
+        if target_path.exists() and cached_file:
+            cached_hash = cached_file["file_hash"]
+            cached_original_hash = cached_file["original_file_hash"]
+            cached_source = cached_file["source_path"]
+            cached_border_state = cached_file.get("border_replaced", 0)
+            
+            # Debugging: Log the current and cached values for comparison
+            self.logger.debug(f"Checking skip conditions for file: {file_path}")
+            self.logger.debug(f"Original file hash: {original_file_hash}")
+            self.logger.debug(f"Cached hash: {cached_hash}")
+            self.logger.debug(f"Cached original hash: {cached_original_hash}")
+            self.logger.debug(f"Current source: {current_source}")
+            self.logger.debug(f"Cached source: {cached_source}")
+            self.logger.debug(f"Replace border (current): {replace_border}")
+            self.logger.debug(f"Cached border replaced: {cached_border_state}")
+
+
+            if (
+                cached_original_hash == original_file_hash
+                and cached_source == current_source
+                and cached_border_state == replace_border
+            ):
+                self.logger.info(f"⏩ Skipping unchanged file: {file_path}")
+                return
 
         if replace_border:
             try:
@@ -476,40 +501,45 @@ class PosterRenamerr:
                 file_hash = self.hash_file(file_path)
             except Exception as e:
                 self.logger.error(f"Error removing border for {file_path}: {e}")
-
-        if target_path.exists() and cached_file:
-            cached_hash = cached_file["file_hash"]
-            cached_source = cached_file["source_path"]
-
-            if file_hash != cached_hash or cached_source != current_source:
+                file_hash = original_file_hash
+        else:
+            file_hash = original_file_hash
+            if (
+                target_path.exists()
+                and cached_file
+                and cached_file.get("border_replaced", False)
+            ):
                 try:
-                    self.logger.info(
-                        f"Replacing file from {cached_source}: {current_source}\nCopied and renamed: {file_path.name} -> {target_path}"
-                    )
-                    shutil.copy2(file_path, target_path)
-                    self.db.update_file(file_hash, current_source, str(target_path))
+                    target_path.unlink()
+                    self.logger.info(f"Deleted border-replaced file: {target_path}")
                 except Exception as e:
                     self.logger.error(
-                        f"Error replacing file: {cached_source} with {current_source}: {e}"
+                        f"Error deleting border-replaced file {target_path}: {e}"
                     )
-            else:
-                self.logger.info(f"⏩ Skipping unchanged file: {file_path}")
-                if temp_path is not None and temp_path.exists():
-                    temp_path.unlink()
-                return
-
-        else:
-            try:
-                shutil.copy2(file_path, target_path)
-                self.logger.info(
-                    f"Copied and renamed: {file_path.name} -> {target_path}"
+        try:
+            shutil.copy2(file_path, target_path)
+            self.logger.info(f"Copied and renamed: {file_path} -> {target_path}")
+            if cached_file:
+                self.db.update_file(
+                    file_hash,
+                    original_file_hash,
+                    current_source,
+                    str(target_path),
+                    border_replaced=replace_border,
                 )
+                self.logger.debug(f"Replaced cached file: {cached_file} -> {file_path}")
+            else:
                 self.db.add_file(
-                    str(target_path), media_type, file_hash, current_source
+                    str(target_path),
+                    media_type,
+                    file_hash,
+                    original_file_hash,
+                    current_source,
+                    border_replaced=replace_border,
                 )
                 self.logger.debug(f"Adding new file to database cache: {target_path}")
-            except Exception as e:
-                self.logger.error(f"Error copying file {file_path}: {e}")
+        except Exception as e:
+            self.logger.error(f"Error copying file {file_path}: {e}")
 
         if temp_path is not None and temp_path.exists():
             temp_path.unlink()

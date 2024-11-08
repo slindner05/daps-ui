@@ -21,7 +21,9 @@ class Database:
                     file_path text PRIMARY KEY,
                     media_type TEXT, 
                     file_hash TEXT UNIQUE,
+                    original_file_hash TEXT UNIQUE,
                     source_path TEXT,
+                    border_replaced INTEGER DEFAULT 0,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
                 """
@@ -47,7 +49,7 @@ class Database:
                     CREATE TABLE IF NOT EXISTS unmatched_shows (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         title TEXT UNIQUE,
-                        main_poster_missing BOOLEAN DEFAULT NULL 
+                        main_poster_missing INTEGER DEFAULT NULL 
                     )
                     """
                 )
@@ -80,22 +82,22 @@ class Database:
                 conn.commit()
 
     def add_file(
-        self, file_path: str, media_type: str, file_hash: str, source_path: str
+        self, file_path: str, media_type: str, file_hash: str, original_file_hash: str, source_path: str, border_replaced: bool
     ) -> None:
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
-                    "INSERT OR REPLACE INTO file_cache (file_path, media_type, file_hash, source_path) VALUES (?, ?, ?, ?)",
-                    (file_path, media_type, file_hash, source_path),
+                    "INSERT OR REPLACE INTO file_cache (file_path, media_type, file_hash, original_file_hash, source_path, border_replaced) VALUES (?, ?, ?, ?, ?, ?)",
+                    (file_path, media_type, file_hash, original_file_hash, source_path, border_replaced),
                 )
             conn.commit()
 
-    def update_file(self, file_hash: str, source_path: str, file_path: str) -> None:
+    def update_file(self, file_hash: str, original_file_hash: str, source_path: str, file_path: str, border_replaced: bool) -> None:
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
-                    "UPDATE file_cache SET file_hash = ?, source_path = ? WHERE file_path = ?",
-                    (file_hash, source_path, file_path),
+                    "UPDATE file_cache SET file_hash = ?, original_file_hash = ?, source_path = ?, border_replaced = ? WHERE file_path = ?",
+                    (file_hash, original_file_hash, source_path, int(border_replaced), file_path)
                 )
             conn.commit()
 
@@ -128,10 +130,12 @@ class Database:
                     file_path: {
                         "media_type": media_type,
                         "file_hash": file_hash,
+                        "original_file_hash": original_file_hash,
                         "source_path": source_path,
+                        "border_replaced": border_replaced,
                         "timestamp": timestamp,
                     }
-                    for file_path, media_type, file_hash, source_path, timestamp, in result
+                    for file_path, media_type, file_hash, original_file_hash, source_path, border_replaced, timestamp, in result
                 }
 
     def add_unmatched_movie(
@@ -182,6 +186,7 @@ class Database:
                     (title,),
                 )
                 existing = cursor.fetchone()
+                show_id = None
                 if existing is None:
                     cursor.execute(
                         """
@@ -204,9 +209,9 @@ class Database:
                         )
             conn.commit()
 
-            if show_id is None:
-                raise ValueError("Failed to insert unmatched show into the database.")
-            return show_id
+        if show_id is None:
+            raise ValueError("Failed to insert unmatched show into the database.")
+        return show_id
 
     def add_unmatched_season(self, show_id: int, season: str) -> None:
         with self.get_db_connection() as conn:
