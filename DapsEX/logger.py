@@ -22,27 +22,28 @@ def init_logger(
     lgr.setLevel(log_level)
 
     # format the logger
-    formatter = logging.Formatter("[%(name)s][%(asctime)s][%(levelname)s] = %(message)s")
+    if not lgr.hasHandlers():
+        formatter = logging.Formatter("[%(name)s][%(asctime)s][%(levelname)s] = %(message)s")
 
-    if log_level == logging.DEBUG:
-        file_name = f"{file_name}_debug.log"
-    else:
-        file_name = f"{file_name}.log"
+        if log_level == logging.DEBUG:
+            file_name = f"{file_name}_debug.log"
+        else:
+            file_name = f"{file_name}.log"
 
 
-    file_path = log_dir / file_name
+        file_path = log_dir / file_name
 
-    # Configure RotatingFileHandler for the logger
-    file_handler = RotatingFileHandler(file_path, mode="a", maxBytes=10 * 1024 * 1024, backupCount=10)
-    file_handler.setLevel(log_level)
-    file_handler.setFormatter(formatter)
-    lgr.addHandler(file_handler)
+        # Configure RotatingFileHandler for the logger
+        file_handler = RotatingFileHandler(file_path, mode="a", maxBytes=10 * 1024 * 1024, backupCount=10)
+        file_handler.setLevel(log_level)
+        file_handler.setFormatter(formatter)
+        lgr.addHandler(file_handler)
 
-    # Configure a stream handler for console output
-    stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(log_level)
-    stream_handler.setFormatter(formatter)
-    lgr.addHandler(stream_handler)
+        # Configure a stream handler for console output
+        stream_handler = logging.StreamHandler()
+        stream_handler.setLevel(log_level)
+        stream_handler.setFormatter(formatter)
+        lgr.addHandler(stream_handler)
 
     return lgr
 
