@@ -53,9 +53,10 @@ def create_app() -> Flask:
 
 
 app = create_app()
-with app.app_context():
-    db.create_all()
 
+
+def initialize_database():
+    db.create_all()
 
 def run_renamer_task():
     from daps_webui.models import PlexInstance, RadarrInstance, SonarrInstance
@@ -111,12 +112,24 @@ def run_renamer_task():
         return {"success": False, "message": str(e)}
 
 
-@app.route("/run-renamer-job", methods=["POST"])
-def run_renamer():
-    result = run_renamer_task()
-    if result["success"] is False:
-        return jsonify(result), 500
-    return jsonify(result), 202
+def schedule_poster_renamer():
+    from daps_webui.models import Settings
+
+    settings = Settings.query.first()
+    if settings and settings.poster_renamer_schedule:
+        cron_schedule = settings.poster_renamer_schedule
+        scheduler.remove_all_jobs()
+        try:
+            print(f"Scheduling job with cron: {cron_schedule}", flush=True)
+            scheduler.add_job(
+                run_renamer_scheduled,
+                CronTrigger.from_crontab(cron_schedule),
+                id="poster_renamer_job",
+                replace_existing=True,
+            )
+            print(f"Cron job scheduled with {cron_schedule}", flush=True)
+        except Exception as e:
+            print(f"Error scheduling job: {e}", flush=True)
 
 
 def run_renamer_scheduled():
@@ -133,25 +146,17 @@ def run_renamer_scheduled():
             )
 
 
-def schedule_poster_renamer():
-    from daps_webui.models import Settings
+with app.app_context():
+    initialize_database()
+    schedule_poster_renamer()
 
-    with app.app_context():
-        settings = Settings.query.first()
-        if settings and settings.poster_renamer_schedule:
-            cron_schedule = settings.poster_renamer_schedule
-            scheduler.remove_all_jobs()
-            try:
-                print(f"Scheduling job with cron: {cron_schedule}", flush=True)
-                scheduler.add_job(
-                    run_renamer_scheduled,
-                    CronTrigger.from_crontab(cron_schedule),
-                    id="poster_renamer_job",
-                    replace_existing=True,
-                )
-                print(f"Cron job scheduled with {cron_schedule}", flush=True)
-            except Exception as e:
-                print(f"Error scheduling job: {e}", flush=True)
+
+@app.route("/run-renamer-job", methods=["POST"])
+def run_renamer():
+    result = run_renamer_task()
+    if result["success"] is False:
+        return jsonify(result), 500
+    return jsonify(result), 202
 
 
 @app.route("/progress/<job_id>", methods=["GET"])
@@ -162,7 +167,3 @@ def get_progress(job_id):
         return jsonify({"job_id": job_id, "state": state, "value": value})
     else:
         return jsonify({"error": "Job not found"}), 404
-
-
-with app.app_context():
-    schedule_poster_renamer()

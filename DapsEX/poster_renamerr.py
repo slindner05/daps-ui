@@ -32,7 +32,7 @@ class PosterRenamerr:
         log_level=logging.INFO,
     ):
         try:
-            log_dir = Path(Settings.LOG_DIR.value) / "poster_renamerr"
+            log_dir = Path(Settings.LOG_DIR.value) / Settings.POSTER_RENAMERR.value
             self.target_path = Path(target_path)
             self.source_directories = source_directories
             self.asset_folders = asset_folders

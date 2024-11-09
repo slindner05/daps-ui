@@ -2,7 +2,6 @@ import logging
 from DapsEX import PosterRenamerr, UnmatchedAssets, YamlConfig
 from DapsEX.settings import Settings
 
-
 def run_renamer():
     config = YamlConfig(Settings.POSTER_RENAMERR.value, log_level=logging.DEBUG)
     payload = config.create_poster_renamer_payload()
@@ -17,6 +16,10 @@ def run_unmatched_assets():
     unmatched_assets = UnmatchedAssets(payload.target_path, payload.asset_folders, payload.log_level)
     unmatched_assets.run(payload)
 
-if __name__ == "__main__":
+def run_cli():
     run_renamer()
     # run_unmatched_assets()
+
+if __name__ == "__main__":
+    run_cli()
+

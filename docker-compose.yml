@@ -1,15 +1,40 @@
 services:
-  daps_webui:
+  web_dev:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: daps_webui
-    restart: always
+    container_name: daps_web_dev
+    environment:
+      - APP_MODE=WEB
+      - FLASK_ENV=development
     ports:
-      - 5000:5000
-    #  - 8000:8000
+      - "5000:5000"
     volumes:
       - .:/code
-      - ./dev_config:/config
+      - ./config:/config
+      - /mnt/plex-posters:/posters
+      - /home/nick/pmm/sandbox/test:/assets/test
+  web_prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: daps_web_prod
+    environment:
+      - APP_MODE=WEB
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./config:/config
+      - /mnt/plex-posters:/posters
+      - /home/nick/pmm/sandbox/test:/assets/test
+  daps_cli:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: daps_cli
+    environment:
+      - APP_MODE=CLI
+    volumes:
+      - /home/nick/pmm/tower/config/daps-cli:/config
       - /mnt/plex-posters:/posters
       - /home/nick/pmm/sandbox/test:/assets/test

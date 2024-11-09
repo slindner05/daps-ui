@@ -14,7 +14,7 @@ import json
 class UnmatchedAssets:
     def __init__(self, assets_dir: str, asset_folders: bool, log_level=logging.info):
         try:
-            log_dir = Path(Settings.LOG_DIR.value) / "unmatched_assets"
+            log_dir = Path(Settings.LOG_DIR.value) / Settings.UNMATCHED_ASSETS.value
             self.assets_dir = Path(assets_dir)
             self.asset_folders = asset_folders
             self.db = Database()

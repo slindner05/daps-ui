@@ -6,5 +6,4 @@ from DapsEX.border_replacerr import BorderReplacerr
 from DapsEX.media import *
 from DapsEX.utils import *
 from DapsEX.yaml_config import *
-from DapsEX.run_cli import main
 from DapsEX.database_cache import Database

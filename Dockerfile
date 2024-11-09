@@ -1,19 +1,5 @@
 # # syntax=docker/dockerfile:1
 
-# FROM python:3.10-slim
-
-# WORKDIR /code
-
-# RUN apt-get update && apt-get upgrade -y && apt-get install -y
-
-# # COPY (TODO poetry stuff)
-
-# COPY . .
-
-# CMD ["flask", "--app", "daps_webui", "run", "--debug"]
-
-# syntax=docker/dockerfile:1
-
 FROM python:3.10-slim
 
 WORKDIR /code
@@ -34,11 +20,13 @@ RUN poetry install --no-root
 
 # Copy the rest of the application code
 COPY . .
-# COPY config/ config/
-# COPY daps_webui/ daps_webui/
-# COPY DapsEX/ daps_webui/
-# COPY Payloads/ daps_webui/
+
+# Set environment variables to switch between development and production
+ENV APP_MODE=${APP_MODE}
 
 # Run the Flask app
-CMD ["poetry", "run", "flask", "--app", "daps_webui", "run", "--host=0.0.0.0", "--debug"]
+# CMD ["poetry", "run", "flask", "--app", "daps_webui", "run", "--host=0.0.0.0", "--debug"]
 # CMD ["poetry", "run", "gunicorn", "-w", "2", "-b", "0.0.0.0:8000", "daps_webui:app"]
+# CMD ["poetry", "run", "python", "main.py"]
+COPY entrypoint.sh /entrypoint.sh
+ENTRYPOINT [ "/entrypoint.sh" ]
