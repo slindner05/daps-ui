@@ -1,6 +1,8 @@
-# TODO: add a way to process only new files
+# TODO: ADD A WAY TO PROCESS ONLY NEW FILES
 
-# TODO: add a way to clean asset directory when asset folders changes
+# TODO: RUN RENAMER ON NEW ITEM IN PLEX
+
+# TODO: ADD A WAY TO CLEAN ASSET DIRECTORY WHEN ASSET FOLDERS CHANGES
 
 import hashlib
 import json
@@ -38,7 +40,7 @@ class PosterRenamerr:
             self.asset_folders = asset_folders
             self.replace_border = replace_border
             self.db = Database()
-            self.border_replacerr = BorderReplacerr()
+            self.test = BorderReplacerr()
             self.logger = logging.getLogger("PosterRenamerr")
             init_logger(self.logger, log_dir, "poster_renamerr", log_level=log_level)
         except Exception as e:
@@ -457,7 +459,7 @@ class PosterRenamerr:
                     return target_dir, show_file_name_format
             return None
 
-    # TODO: Add year check when replacing files, currently if the years mismatch between source dirs priority for files breaks
+    # TODO: ADD YEAR CHECK WHEN REPLACING FILES, CURRENTLY IF THE YEARS MISMATCH BETWEEN SOURCE DIRS PRIORITY FOR FILES BREAKS
 
     def _copy_file(
         self,
@@ -494,12 +496,12 @@ class PosterRenamerr:
                 and cached_source == current_source
                 and cached_border_state == replace_border
             ):
-                self.logger.info(f"⏩ Skipping unchanged file: {file_path}")
+                self.logger.debug(f"⏩ Skipping unchanged file: {file_path}")
                 return
 
         if replace_border:
             try:
-                final_image = self.border_replacerr.remove_border(file_path)
+                final_image = self.test.remove_border(file_path)
                 temp_path = target_dir / f"temp_{new_file_name}"
                 final_image.save(temp_path)
                 self.logger.info(f"Replaced border on {file_path.name}")
@@ -698,9 +700,9 @@ class PosterRenamerr:
                 payload, Radarr, Sonarr, self.logger
             )
             plex_instances = utils.create_plex_instances(payload, Server, self.logger)
-            self.logger.debug("Successfully created all instances.")
+            self.logger.debug("Successfully created all instances")
 
-            self.logger.debug("Creating media and collections dict.")
+            self.logger.debug("Creating media and collections dict")
             all_movies, all_series = utils.get_combined_media_lists(
                 radarr_instances, sonarr_instances
             )

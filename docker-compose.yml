@@ -7,6 +7,10 @@ services:
     environment:
       - APP_MODE=WEB
       - FLASK_ENV=development
+      - TZ=America/Vancouver
+      - PUID=1000
+      - PGID=1000
+      - MAIN_LOG_LEVEL=DEBUG
     ports:
       - "5000:5000"
     volumes:
@@ -21,10 +25,14 @@ services:
     container_name: daps_web_prod
     environment:
       - APP_MODE=WEB
+      - TZ=America/Vancouver
+      - PUID=1000
+      - PGID=1000
+      - MAIN_LOG_LEVEL=DEBUG
     ports:
       - "8000:8000"
     volumes:
-      - ./config:/config
+      - /home/nick/pmm/tower/config/daps-webui:/config
       - /mnt/plex-posters:/posters
       - /home/nick/pmm/sandbox/test:/assets/test
   daps_cli:
@@ -34,7 +42,11 @@ services:
     container_name: daps_cli
     environment:
       - APP_MODE=CLI
+      - MAIN_LOG_LEVEL=DEBUG
+      - TZ=America/Vancouver
+      - PUID=1000
+      - PGID=1000
     volumes:
-      - /home/nick/pmm/tower/config/daps-cli:/config
+      - ./config:/config
       - /mnt/plex-posters:/posters
       - /home/nick/pmm/sandbox/test:/assets/test

@@ -1,20 +1,23 @@
-from DapsEX.logger import init_logger
-from DapsEX.media import Server, Radarr, Sonarr, Media
+import json
+import logging
+import re
+from pathlib import Path
+
+from tabulate import tabulate
+
+from DapsEX import utils
 from DapsEX.database_cache import Database
+from DapsEX.logger import init_logger
+from DapsEX.media import Media, Radarr, Server, Sonarr
 from DapsEX.settings import Settings
 from Payloads.unmatched_assets_payload import Payload
-from pathlib import Path
-from DapsEX import utils
-import re
-from tabulate import tabulate
-import logging
-import json
 
 
 class UnmatchedAssets:
     def __init__(self, assets_dir: str, asset_folders: bool, log_level=logging.info):
         try:
             log_dir = Path(Settings.LOG_DIR.value) / Settings.UNMATCHED_ASSETS.value
+            print(f"{log_dir}")
             self.assets_dir = Path(assets_dir)
             self.asset_folders = asset_folders
             self.db = Database()

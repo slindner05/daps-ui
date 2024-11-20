@@ -2,31 +2,37 @@
 
 FROM python:3.10-slim
 
-WORKDIR /code
-
+RUN groupadd --gid 1000 appgroup && \
+    useradd --create-home --shell /bin/bash --uid 1000 --gid 1000 appuser
 # Install system dependencies and Poetry
-RUN apt-get update && apt-get upgrade -y && \
-  apt-get install -y curl && \
-  curl -sSL https://install.python-poetry.org | python3 -
 
-# Add Poetry to PATH
-ENV PATH="/root/.local/bin:$PATH"
+ENV POETRY_HOME="/opt/poetry"
+ENV PATH="$POETRY_HOME/bin:$PATH"
+ENV POETRY_VIRTUALENVS_CREATE=false
+
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y curl gosu && \
+    curl -sSL https://install.python-poetry.org | python3 - && \
+    chown -R appuser:appgroup "$POETRY_HOME" && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /code
 
 # Copy the Poetry lock and pyproject files first to cache dependencies
 COPY pyproject.toml poetry.lock ./
 
 # Install dependencies using Poetry
-RUN poetry install --no-root
+RUN poetry install --no-root --no-interaction
 
 # Copy the rest of the application code
 COPY . .
 
-# Set environment variables to switch between development and production
-ENV APP_MODE=${APP_MODE}
-
-# Run the Flask app
-# CMD ["poetry", "run", "flask", "--app", "daps_webui", "run", "--host=0.0.0.0", "--debug"]
-# CMD ["poetry", "run", "gunicorn", "-w", "2", "-b", "0.0.0.0:8000", "daps_webui:app"]
-# CMD ["poetry", "run", "python", "main.py"]
+# Copy the entrypoint script and set it as executable
 COPY entrypoint.sh /entrypoint.sh
+
+# Set environment variables to switch between development and production
+ENV APP_MODE="WEB" 
+ENV MAIN_LOG_LEVEL="INFO"
+
+# Use entrypoint script
 ENTRYPOINT [ "/entrypoint.sh" ]

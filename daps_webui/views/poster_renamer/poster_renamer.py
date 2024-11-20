@@ -1,8 +1,9 @@
-from flask import Blueprint, jsonify, render_template, send_from_directory
-from daps_webui import db, models
-from pathlib import Path
 import re
-import pprint
+from pathlib import Path
+
+from flask import Blueprint, jsonify, render_template, send_from_directory
+
+from daps_webui import db, models
 
 poster_renamer = Blueprint("poster_renamer", __name__)
 
@@ -59,6 +60,7 @@ def get_images():
                 r"^(?P<name>.+ \(\d{4}\) \{.+\})_Season(?P<season>\d{2})\.(?P<ext>\w+)$"
             )
             show_pattern = re.compile(r"^(?P<name>.+ \(\d{4}\) \{.+\})\.(?P<ext>\w+)$")
+
         def strip_id(name: str) -> str:
             return re.sub(r"\{.*?\}", "", name)
 
@@ -68,12 +70,14 @@ def get_images():
             file_name = Path(file.file_path).name
             parent_dir = Path(file.file_path).parent.name
             file_name_without_suffix = Path(file.file_path).stem
-            
+
             file_name_stripped = strip_id(file_name_without_suffix)
             parent_dir_stripped = strip_id(parent_dir)
 
             file_data = {
-                "file_name": parent_dir_stripped if asset_folders else file_name_stripped,
+                "file_name": (
+                    parent_dir_stripped if asset_folders else file_name_stripped
+                ),
                 "file_path": (
                     f"/serve-image/{parent_dir}/{file_name}"
                     if asset_folders
@@ -110,7 +114,9 @@ def get_images():
                     else:
                         if not shows_dict[show_name]["file_path"]:
                             shows_dict[show_name]["file_path"] = (
-                                f"/serve-image/{parent_dir}/{file_name}" if asset_folders else f"/serve-image/{file_name}"
+                                f"/serve-image/{parent_dir}/{file_name}"
+                                if asset_folders
+                                else f"/serve-image/{file_name}"
                             )
                         if not shows_dict[show_name]["source_path"]:
                             shows_dict[show_name]["source_path"] = file.source_path
@@ -168,8 +174,18 @@ def fetch_unmatched_stats_from_db() -> dict[str, int | str]:
 
     stats = models.UnmatchedStats.query.get(1)
     if stats:
-        grand_total = stats.total_movies + stats.total_series + stats.total_seasons + stats.total_collections
-        unmatched_grand_total = stats.unmatched_movies + stats.unmatched_series + stats.unmatched_seasons + stats.unmatched_collections
+        grand_total = (
+            stats.total_movies
+            + stats.total_series
+            + stats.total_seasons
+            + stats.total_collections
+        )
+        unmatched_grand_total = (
+            stats.unmatched_movies
+            + stats.unmatched_series
+            + stats.unmatched_seasons
+            + stats.unmatched_collections
+        )
         percent_complete_movies = (
             100 * (stats.total_movies - stats.unmatched_movies) / stats.total_movies
             if stats.total_movies
@@ -186,7 +202,9 @@ def fetch_unmatched_stats_from_db() -> dict[str, int | str]:
             else 0
         )
         percent_complete_collections = (
-            100 * (stats.total_collections - stats.unmatched_collections) / stats.total_collections
+            100
+            * (stats.total_collections - stats.unmatched_collections)
+            / stats.total_collections
             if stats.total_collections
             else 0
         )
@@ -210,7 +228,7 @@ def fetch_unmatched_stats_from_db() -> dict[str, int | str]:
             "unmatched_series": stats.unmatched_series,
             "unmatched_seasons": stats.unmatched_seasons,
             "unmatched_collections": stats.unmatched_collections,
-            "unmatched_grand_total": unmatched_grand_total
+            "unmatched_grand_total": unmatched_grand_total,
         }
     else:
         return {
@@ -228,31 +246,41 @@ def fetch_unmatched_stats_from_db() -> dict[str, int | str]:
             "unmatched_series": 0,
             "unmatched_seasons": 0,
             "unmatched_collections": 0,
-            "unmatched_grand_total": 0
+            "unmatched_grand_total": 0,
         }
+
 
 def fetch_unmatched_assets_from_db() -> dict[str, list[dict[str, str | list]]]:
     unmatched_movies = models.UnmatchedMovies.query.all()
     unmatched_shows = models.UnmatchedShows.query.all()
     unmatched_collections = models.UnmatchedCollections.query.all()
 
-    movies = sorted([{"id": movie.id, "title": movie.title} for movie in unmatched_movies], key=lambda x: x["title"])
-    collections = sorted([{"id": collection.id, "title": collection.title} for collection in unmatched_collections], key=lambda x: x["title"])
+    movies = sorted(
+        [{"id": movie.id, "title": movie.title} for movie in unmatched_movies],
+        key=lambda x: x["title"],
+    )
+    collections = sorted(
+        [
+            {"id": collection.id, "title": collection.title}
+            for collection in unmatched_collections
+        ],
+        key=lambda x: x["title"],
+    )
     shows = []
     for show in sorted(unmatched_shows, key=lambda x: x.title):
-        seasons = [{"id": seasons.id, "season": seasons.season} for seasons in show.seasons]
-        shows.append({
-            "id": show.id,
-            "title": show.title,
-            "main_poster_missing": show.main_poster_missing,
-            "seasons": seasons
-        })
+        seasons = [
+            {"id": seasons.id, "season": seasons.season} for seasons in show.seasons
+        ]
+        shows.append(
+            {
+                "id": show.id,
+                "title": show.title,
+                "main_poster_missing": show.main_poster_missing,
+                "seasons": seasons,
+            }
+        )
 
-    return {
-        "movies": movies,
-        "shows": shows,
-        "collections": collections
-    }
+    return {"movies": movies, "shows": shows, "collections": collections}
 
 
 @poster_renamer.route("/poster-renamer/unmatched", methods=["GET"])
@@ -260,6 +288,12 @@ def fetch_unmatched_assets():
     try:
         unmatched_media = fetch_unmatched_assets_from_db()
         unmatched_counts = fetch_unmatched_stats_from_db()
-        return jsonify({"success": True, "unmatched_media": unmatched_media, "unmatched_counts": unmatched_counts})
+        return jsonify(
+            {
+                "success": True,
+                "unmatched_media": unmatched_media,
+                "unmatched_counts": unmatched_counts,
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500

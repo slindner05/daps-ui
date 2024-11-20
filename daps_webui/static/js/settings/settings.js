@@ -1,3 +1,4 @@
+// TODO: ADD INFO HOVER TIP FOR SCHEDULES
 document.addEventListener("DOMContentLoaded", function () {
   attachNewInstance("radarr");
   attachNewInstance("sonarr");

@@ -1,4 +1,6 @@
-# import logging
+# TODO: ADD LOGGING TO WEBUI
+import logging
+import os
 from concurrent.futures import ThreadPoolExecutor
 from time import sleep
 
@@ -9,9 +11,11 @@ from flask_sqlalchemy import SQLAlchemy
 
 from daps_webui.config.config import Config
 from daps_webui.utils import webui_utils
+from daps_webui.utils.logger_utils import init_logger
 from daps_webui.utils.webui_utils import get_instances
 from DapsEX.poster_renamerr import PosterRenamerr
 from DapsEX.unmatched_assets import UnmatchedAssets
+from DapsEX.utils import construct_schedule_time, parse_schedule_string
 from progress import progress_instance
 
 # all globals needs to be defined here
@@ -23,18 +27,17 @@ scheduler = BackgroundScheduler()
 scheduler.start()
 
 # define all loggers
-# daps_logger = logging.getLogger("daps")
+daps_logger = logging.getLogger("daps-web")
+log_level_str = getattr(global_config, "MAIN_LOG_LEVEL", "INFO")
+log_level = getattr(logging, log_level_str, logging.INFO)
+init_logger(daps_logger, global_config.logs / "web-ui", "web_ui", log_level)
+daps_logger.info("Logger initialized in main process")
 
 
 def create_app() -> Flask:
     # init flask app
     app = Flask(__name__)
     app.config.from_object(global_config)
-
-    # initiate logger(s)
-    # from daps_webui.utils.logger_utils import init_logger
-
-    # init_logger(daps_logger, global_config.logs, "daps_log.log", logging.INFO)
 
     # initiate database
     db.init_app(app)
@@ -53,10 +56,12 @@ def create_app() -> Flask:
 
 
 app = create_app()
+daps_logger.info("Created app")
 
 
 def initialize_database():
     db.create_all()
+
 
 def run_renamer_task():
     from daps_webui.models import PlexInstance, RadarrInstance, SonarrInstance
@@ -103,7 +108,7 @@ def run_renamer_task():
         def remove_job_cb(fut):
             sleep(2)
             progress_instance.remove_job(job_id)
-            print(f"Job {job_id} has been removed", flush=True)
+            daps_logger.info(f"Job {job_id} has been removed")
 
         future.add_done_callback(remove_job_cb)
 
@@ -112,43 +117,89 @@ def run_renamer_task():
         return {"success": False, "message": str(e)}
 
 
-def schedule_poster_renamer():
+# TODO: ADD SCHEDULE PARSING TO WEBUI SCHEDULE
+
+
+# def schedule_poster_renamer():
+#     from daps_webui.models import Settings
+#
+#     settings = Settings.query.first()
+#     if settings and settings.poster_renamer_schedule:
+#         cron_schedule = settings.poster_renamer_schedule
+#         parsed_schedule = parse_schedule_string
+#         scheduler.remove_all_jobs()
+#         try:
+#             daps_logger.info(f"Scheduling job with cron: {cron_schedule}")
+#             scheduler.add_job(
+#                 run_renamer_scheduled,
+#                 CronTrigger.from_crontab(cron_schedule),
+#                 id="poster_renamer_job",
+#                 replace_existing=True,
+#             )
+#             daps_logger.info(f"Cron job scheduled with {cron_schedule}")
+#         except Exception as e:
+#             daps_logger.error(f"Error scheduling job: {e}")
+def schedule_jobs():
     from daps_webui.models import Settings
 
     settings = Settings.query.first()
-    if settings and settings.poster_renamer_schedule:
-        cron_schedule = settings.poster_renamer_schedule
-        scheduler.remove_all_jobs()
+
+    def add_job_safe(func, job_id, schedule, schedule_name):
+        if not schedule:
+            daps_logger.warning(f"No schedule found for {schedule_name}. Skipping..")
+            return
+
         try:
-            print(f"Scheduling job with cron: {cron_schedule}", flush=True)
-            scheduler.add_job(
-                run_renamer_scheduled,
-                CronTrigger.from_crontab(cron_schedule),
-                id="poster_renamer_job",
-                replace_existing=True,
+            parsed_schedule = parse_schedule_string(schedule, daps_logger)
+            for i, parsed_schedule in enumerate(parsed_schedule):
+                schedule_time = construct_schedule_time(parsed_schedule)
+                unique_job_id = f"{job_id}_{i}"
+                scheduler.add_job(
+                    func,
+                    "cron",
+                    **parsed_schedule,
+                    id=unique_job_id,
+                    replace_existing=True,
+                )
+                daps_logger.info(f"Scheduled job: '{job_id}' {schedule_time}")
+        except ValueError as e:
+            daps_logger.error(
+                f"Failed to schedule job '{job_id}' for {schedule_name}: {e}"
             )
-            print(f"Cron job scheduled with {cron_schedule}", flush=True)
-        except Exception as e:
-            print(f"Error scheduling job: {e}", flush=True)
+
+    job_configs = {
+        "run_renamerr": {
+            "schedule": (
+                getattr(settings, "poster_renamer_schedule", None) if settings else None
+            ),
+            "function": run_renamer_scheduled,
+            "name": "poster_renamerr",
+        },
+    }
+    for job_id, job_config in job_configs.items():
+        add_job_safe(
+            job_config["function"], job_id, job_config["schedule"], job_config["name"]
+        )
 
 
 def run_renamer_scheduled():
     with app.app_context():
         result = run_renamer_task()
         if result["success"] is False:
-            print(
-                f"Error running scheduled renamer job: {result['message']}", flush=True
+            daps_logger.error(
+                f"Error running scheduled renamer job: {result['message']}"
             )
         else:
-            print(
-                f"Scheduled renamer job started successfully with job_id: {result['job_id']}",
-                flush=True,
+            daps_logger.info(
+                f"Scheduled renamer job started successfully with job_id: {result['job_id']}"
             )
 
 
 with app.app_context():
     initialize_database()
-    schedule_poster_renamer()
+    schedule_jobs()
+
+# TODO: ADD UNMATCHED ASSETS RUN ROUTE
 
 
 @app.route("/run-renamer-job", methods=["POST"])
