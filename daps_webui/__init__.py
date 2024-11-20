@@ -1,11 +1,8 @@
-# TODO: ADD LOGGING TO WEBUI
 import logging
-import os
 from concurrent.futures import ThreadPoolExecutor
 from time import sleep
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
 from flask import Flask, jsonify
 from flask_sqlalchemy import SQLAlchemy
 
@@ -117,28 +114,6 @@ def run_renamer_task():
         return {"success": False, "message": str(e)}
 
 
-# TODO: ADD SCHEDULE PARSING TO WEBUI SCHEDULE
-
-
-# def schedule_poster_renamer():
-#     from daps_webui.models import Settings
-#
-#     settings = Settings.query.first()
-#     if settings and settings.poster_renamer_schedule:
-#         cron_schedule = settings.poster_renamer_schedule
-#         parsed_schedule = parse_schedule_string
-#         scheduler.remove_all_jobs()
-#         try:
-#             daps_logger.info(f"Scheduling job with cron: {cron_schedule}")
-#             scheduler.add_job(
-#                 run_renamer_scheduled,
-#                 CronTrigger.from_crontab(cron_schedule),
-#                 id="poster_renamer_job",
-#                 replace_existing=True,
-#             )
-#             daps_logger.info(f"Cron job scheduled with {cron_schedule}")
-#         except Exception as e:
-#             daps_logger.error(f"Error scheduling job: {e}")
 def schedule_jobs():
     from daps_webui.models import Settings
 
