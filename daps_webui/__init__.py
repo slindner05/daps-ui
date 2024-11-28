@@ -20,7 +20,7 @@ from progress import progress_instance
 global_config = Config()
 db = SQLAlchemy()
 progress_dict = {}
-executor = ThreadPoolExecutor(max_workers=4)
+executor = ThreadPoolExecutor(max_workers=2)
 scheduler = BackgroundScheduler()
 scheduler.start()
 
