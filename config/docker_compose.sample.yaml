@@ -1,6 +1,7 @@
 services:
   daps_ui:
     container_name: # daps_ui
+    image: # monster117/daps-ui
     environment:
       # - APP_MODE=WEB
       # - TZ=America/Vancouver
