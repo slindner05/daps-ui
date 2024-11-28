@@ -10,4 +10,4 @@ package.json
 package-lock.json
 eslint.config.mjs
 docker_commands.txt
-.dockerignore
+docker-compose.yml

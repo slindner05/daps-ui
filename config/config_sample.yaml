@@ -1,37 +1,52 @@
 instances:
   radarr:
     radarr_uhd:
-      url: 
-      api: 
-    radarr_hd: 
-      url: 
-      api: 
+      url: # http://127.0.0.1:7878
+      api: # API KEY
+    radarr_hd:
+      url:
+      api:
   sonarr:
-    sonarr_uhd: 
-      url: 
-      api: 
+    sonarr_uhd:
+      url:
+      api:
     sonarr_hd:
       url:
-      api: 
+      api:
     sonarr_anime:
-      url: 
-      api: 
+      url:
+      api:
   plex:
     plex:
-      url: 
-      api:
+      url: # http://127.0.0.1:32400
+      api: # PLEX TOKEN
+
+schedule:
+  poster_renamerr: # daily(13:00)
+  unmatched_assets: # weekly(sunday@12:00)
+  # hourly(30)
+  # monthly(13@05:00)
+  # cron(0 3 * * *)
+
+log_level:
+  unmatched_assets: # INFO
+  poster_renamerr: # DEBUG
 
 poster_renamerr:
-  asset_folders: # False
-  unmatched_assets: # True
-  border_replacerr: # False
+  asset_folders: # False -- must match kometa asset folder configuration
+  unmatched_assets: # True -- run unmatched assets after every renamer run
+  border_replacerr: # False -- only remove borders currently implemented
+  run_on_single_item: # True -- must have ports exposed and instances must be setup in arr settings and match instances in config
   library_names:
-    # - Movies
-    # - TV Shows
+  # must match plex library names
+  # - Movies
+  # - TV Shows
   source_directories:
-      # -  /plex-posters/folder     
-  target_directory: # /assets  
+  # folders containing posters -- TOP is highest priority
+  # -  /posters/folder
+  target_directory: # /assets  -- kometa asset folder
   instances:
-    # - plex
-    # - radarr_uhd
-    # - sonarr_hd
+  # must match instances at top
+  # - plex
+  # - radarr_uhd
+  # - sonarr_hd
