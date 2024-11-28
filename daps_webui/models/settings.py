@@ -7,6 +7,7 @@ class Settings(db.Model):
     log_level_unmatched_assets = db.Column(db.String, default="info")
     log_level_poster_renamer = db.Column(db.String, default="info")
     poster_renamer_schedule = db.Column(db.String)
+    unmatched_assets_schedule = db.Column(db.String)
     target_path = db.Column(db.String)
     source_dirs = db.Column(db.String)
     library_names = db.Column(db.String)

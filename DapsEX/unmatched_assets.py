@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+from collections.abc import Callable
 from pathlib import Path
 
 from tabulate import tabulate
@@ -11,6 +12,7 @@ from DapsEX.logger import init_logger
 from DapsEX.media import Media, Radarr, Server, Sonarr
 from DapsEX.settings import Settings
 from Payloads.unmatched_assets_payload import Payload
+from progress import ProgressState
 
 
 class UnmatchedAssets:
@@ -424,7 +426,12 @@ class UnmatchedAssets:
             )
         )
 
-    def run(self, payload: Payload):
+    def run(
+        self,
+        payload: Payload,
+        cb: Callable[[str, int, ProgressState], None] | None = None,
+        job_id: str | None = None,
+    ):
         from DapsEX import utils
 
         try:
@@ -436,6 +443,9 @@ class UnmatchedAssets:
             )
             plex_instances = utils.create_plex_instances(payload, Server, self.logger)
             self.logger.debug("Successfully created all instances.")
+
+            if job_id and cb:
+                cb(job_id, 20, ProgressState.IN_PROGRESS)
 
             self.logger.debug("Creating media and collections dict.")
             all_movies, all_series = utils.get_combined_media_lists(
@@ -450,6 +460,8 @@ class UnmatchedAssets:
                 all_movie_collections,
                 all_series_collections,
             )
+            if job_id and cb:
+                cb(job_id, 40, ProgressState.IN_PROGRESS)
             self.logger.debug("Created media dict and collections dict")
             if self.asset_folders:
                 self.logger.debug("Getting all assets")
@@ -461,6 +473,8 @@ class UnmatchedAssets:
                 self.logger.debug(f"Asset folders: {self.asset_folders}")
                 assets = self.get_assets()
                 show_assets = self.get_show_assets_normalized(media_dict, assets)
+            if job_id and cb:
+                cb(job_id, 70, ProgressState.IN_PROGRESS)
 
             self.logger.debug("Getting all unmatched assets and asset counts")
             unmatched_assets = self.get_unmatched_assets(
@@ -476,6 +490,8 @@ class UnmatchedAssets:
 
             self.cleanup_unmatched_media(unmatched_assets)
             self.print_output(asset_count_dict, unmatched_assets)
+            if job_id and cb:
+                cb(job_id, 100, ProgressState.COMPLETED)
         except Exception as e:
             self.logger.exception("Failed to run UnmatchedAssets")
             raise e

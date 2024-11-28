@@ -60,8 +60,12 @@ fetch("/poster-renamer/unmatched")
 
 function createUnmatchedTable(id) {
   const wrapperDiv = document.createElement("div");
-  wrapperDiv.classList.add("unmatched-wrapper");
+  wrapperDiv.classList.add("unmatched-wrapper", "content-box");
   wrapperDiv.id = id;
+
+  const innerDiv = document.createElement("div");
+  innerDiv.classList.add("unmatched-inner");
+
   const table = document.createElement("table");
   table.classList.add("unmatched-table");
 
@@ -91,13 +95,14 @@ function createUnmatchedTable(id) {
   tableHead.appendChild(headings);
   table.appendChild(tableHead);
   table.appendChild(tableBody);
-  wrapperDiv.appendChild(table);
+  innerDiv.appendChild(table);
+  wrapperDiv.appendChild(innerDiv);
   return wrapperDiv;
 }
 
 function createUnmatchedStats() {
   const wrapperDiv = document.createElement("div");
-  wrapperDiv.classList.add("unmatched-wrapper");
+  wrapperDiv.classList.add("unmatched-wrapper", "content-box");
   wrapperDiv.id = "unmatched-all";
 
   const table = document.createElement("table");
@@ -485,11 +490,15 @@ function openTab(evt, tabName) {
   const currentUnmatchedContent = document.getElementById(
     `unmatched-${tabName}`,
   );
+  const unmatchedProgressDiv = document.getElementById("unmatchedProgressDiv");
+  unmatchedProgressDiv.classList.remove("active");
+
   if (
     currentUnmatchedContent &&
     currentUnmatchedContent.querySelector("tbody").children.length > 0
   ) {
     currentUnmatchedContent.classList.add("active");
+    unmatchedProgressDiv.classList.add("active");
   }
 
   evt.currentTarget.classList.add("active");
@@ -497,46 +506,80 @@ function openTab(evt, tabName) {
 }
 
 function createPosterRenamerBox() {
-  const fileBrowserContentBox = document.getElementById("content");
   const fileBrowserDiv = document.getElementById("file-browser-container");
   fileBrowserDiv.classList.add("file-browser");
   const imagePreviewDiv = document.getElementById("image-preview-container");
   imagePreviewDiv.classList.add("preview");
-  const progressContainer = document.getElementById("progress-container");
-  progressContainer.classList.add("progress");
-  const progressRunDiv = document.createElement("div");
-  progressRunDiv.classList.add("progress-run-div");
+  const unmatchedContainer = document.getElementById("unmatched-container");
 
   const tabGroup = createTabGroup();
   const tabContents = createTabContent();
 
-  const posterRenamerRunButton = document.createElement("button");
-  posterRenamerRunButton.classList.add("btn", "btn-primary", "btn-run");
-  posterRenamerRunButton.id = "run-renamer";
-  posterRenamerRunButton.textContent = "RUN";
-  attachPosterRenamerRunListener(posterRenamerRunButton);
-
-  const progressBar = document.createElement("div");
-  progressBar.id = "poster-renamer-progress";
-  progressBar.classList.add("progress-bar");
-
-  progressContainer.appendChild(progressBar);
-  progressRunDiv.appendChild(progressContainer);
-  progressRunDiv.appendChild(posterRenamerRunButton);
+  const posterRenamerRunProgress = createRunProgress(
+    "run-renamer",
+    "poster-renamer-progress",
+    "RUN RENAMERR",
+  );
+  const posterRenamerRunButton =
+    posterRenamerRunProgress.querySelector("button");
+  attachRunListener(
+    posterRenamerRunButton,
+    "/run-renamer-job",
+    "POSTER RENAMERR",
+    "poster-renamer-progress",
+  );
 
   createAllUnmatchedTables();
+  const unmatchedRunProgress = createRunProgress(
+    "run-unmatched",
+    "unmatched-progress",
+    "RUN UNMATCHED ASSETS",
+  );
+  unmatchedRunProgress.id = "unmatchedProgressDiv";
+  unmatchedRunProgress.classList.add("unmatched-progress");
+  const unmatchedRunButton = unmatchedRunProgress.querySelector("button");
+  attachRunListener(
+    unmatchedRunButton,
+    "/run-unmatched-job",
+    "UNMATCHED ASSETS",
+    "unmatched-progress",
+  );
+
   fileBrowserDiv.appendChild(tabGroup);
   tabContents.forEach((div) => {
     fileBrowserDiv.appendChild(div);
   });
 
-  fileBrowserContentBox.appendChild(progressRunDiv);
+  fileBrowserDiv.appendChild(posterRenamerRunProgress);
+  unmatchedContainer.appendChild(unmatchedRunProgress);
 }
 
-function attachPosterRenamerRunListener(button) {
+function createRunProgress(buttonId, progressId, buttonText) {
+  const progressRunDiv = document.createElement("div");
+  progressRunDiv.classList.add("progress-run-div");
+  const progressContainer = document.createElement("div");
+  progressContainer.classList.add("progress");
+
+  const runButton = document.createElement("button");
+  runButton.classList.add("btn", "btn-primary", "btn-run");
+  runButton.id = buttonId;
+  runButton.textContent = buttonText;
+
+  const progressBar = document.createElement("div");
+  progressBar.id = progressId;
+  progressBar.classList.add("progress-bar");
+
+  progressContainer.appendChild(progressBar);
+  progressRunDiv.appendChild(progressContainer);
+  progressRunDiv.appendChild(runButton);
+  return progressRunDiv;
+}
+
+function attachRunListener(button, jobRoute, jobName, progressId) {
   button.addEventListener("click", function () {
     button.disabled = true;
-    fetch(`/run-renamer-job`, {
+    button.textContent = "RUNNING";
+    fetch(jobRoute, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -547,26 +590,28 @@ function attachPosterRenamerRunListener(button) {
         if (data.job_id) {
           console.log("Job started", data);
           const jobId = data.job_id;
-          checkProgress(jobId, button);
+          checkProgress(jobId, button, progressId, jobName);
         } else {
           console.error("Job ID missing from response", data);
           button.disabled = false;
+          button.textContent = `RUN ${jobName}`;
         }
       })
       .catch((error) => {
         console.error("Error starting job", error);
         button.disabled = false;
+        button.textContent = `RUN ${jobName}`;
       });
   });
 }
 
-function checkProgress(jobId, button) {
+function checkProgress(jobId, button, progressId, jobName) {
   fetch(`/progress/${jobId}`)
     .then((response) => response.json())
     .then((data) => {
       const progress = data.value || 0;
       const state = data.state || "Pending";
-      const progressBar = document.getElementById("poster-renamer-progress");
+      const progressBar = document.getElementById(progressId);
       progressBar.style.width = progress + "%";
       progressBar.textContent = progress + "%";
 
@@ -577,15 +622,20 @@ function checkProgress(jobId, button) {
       }
 
       if (state !== "Completed") {
-        setTimeout(() => checkProgress(jobId, button), 1000);
+        setTimeout(
+          () => checkProgress(jobId, button, progressId, jobName),
+          1000,
+        );
       } else {
         console.log("Job Complete");
         progressBar.textContent = "100%";
         button.disabled = false;
+        button.textContent = `RUN ${jobName}`;
       }
     })
     .catch((error) => {
       console.error("Error checking progress", error);
       button.disabled = false;
+      button.textContent = `RUN ${jobName}`;
     });
 }

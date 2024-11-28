@@ -25,6 +25,9 @@ def get_settings():
             ),
             "logLevelPosterRenamer": getattr(settings, "log_level_poster_renamer", ""),
             "posterRenamerSchedule": getattr(settings, "poster_renamer_schedule", ""),
+            "unmatchedAssetsSchedule": getattr(
+                settings, "unmatched_assets_schedule", ""
+            ),
             "targetPath": getattr(settings, "target_path", ""),
             "sourceDirs": (
                 getattr(settings, "source_dirs", "").split(",")
@@ -82,6 +85,7 @@ def save_settings():
             "log_level_unmatched_assets": data.get("logLevelUnmatchedAssets", ""),
             "log_level_poster_renamer": data.get("logLevelPosterRenamer", ""),
             "poster_renamer_schedule": data.get("posterRenamerSchedule", ""),
+            "unmatched_assets_schedule": data.get("unmatchedAssetsSchedule", ""),
             "target_path": data.get("targetPath", ""),
             "source_dirs": ",".join(data.get("sourceDirs", [])),
             "library_names": ",".join(data.get("libraryNames", [])),

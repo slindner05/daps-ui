@@ -19,7 +19,7 @@ from progress import progress_instance
 global_config = Config()
 db = SQLAlchemy()
 progress_dict = {}
-executor = ThreadPoolExecutor(max_workers=1)
+executor = ThreadPoolExecutor(max_workers=4)
 scheduler = BackgroundScheduler()
 scheduler.start()
 
@@ -70,6 +70,9 @@ def run_renamer_task():
         poster_renamer_payload = webui_utils.create_poster_renamer_payload(
             radarr, sonarr, plex
         )
+        daps_logger.debug(
+            f"Unmatched assets flag: {poster_renamer_payload.unmatched_assets}"
+        )
 
         job_id = progress_instance.add_job()
 
@@ -80,36 +83,82 @@ def run_renamer_task():
             poster_renamer_payload.border_replacerr,
             poster_renamer_payload.log_level,
         )
+
+        future = executor.submit(
+            renamer.run, poster_renamer_payload, progress_instance, job_id
+        )
+
         if poster_renamer_payload.unmatched_assets:
+            daps_logger.debug("Unmatched assets flag is true, setting up callback...")
+
+            def run_unmatched_assets_callback(fut):
+                handle_unmatched_assets_task(radarr, sonarr, plex)
+
+            future.add_done_callback(run_unmatched_assets_callback)
+
+        def remove_job_cb(fut):
+            sleep(2)
+            progress_instance.remove_job(job_id)
+            daps_logger.info(f"Poster Renamerr Job: {job_id} has been removed")
+
+        future.add_done_callback(remove_job_cb)
+
+        return {
+            "message": "Poster renamer task started",
+            "job_id": job_id,
+            "success": True,
+        }
+    except Exception as e:
+        daps_logger.error(f"Error in Poster Renamer Task: {str(e)}")
+        return {"success": False, "message": str(e)}
+
+
+def handle_unmatched_assets_task(radarr, sonarr, plex):
+    try:
+        with app.app_context():
             unmatched_assets_payload = webui_utils.create_unmatched_assets_payload(
                 radarr, sonarr, plex
             )
+            job_id = progress_instance.add_job()
+
             unmatched_assets = UnmatchedAssets(
                 unmatched_assets_payload.target_path,
                 unmatched_assets_payload.asset_folders,
                 unmatched_assets_payload.log_level,
             )
             future = executor.submit(
-                renamer.run, poster_renamer_payload, progress_instance, job_id
+                unmatched_assets.run,
+                unmatched_assets_payload,
+                progress_instance,
+                job_id,
             )
 
-            def run_unmatched_assets_callback(fut):
-                unmatched_assets.run(unmatched_assets_payload)
+            def remove_job_cb(fut):
+                sleep(2)
+                progress_instance.remove_job(job_id)
+                daps_logger.info(f"Unmatched Assets Job: {job_id} has been removed")
 
-            future.add_done_callback(run_unmatched_assets_callback)
-        else:
-            future = executor.submit(
-                renamer.run, poster_renamer_payload, progress_instance, job_id
-            )
+            future.add_done_callback(remove_job_cb)
+            return {
+                "message": "Unmatched assets task started",
+                "job_id": job_id,
+                "success": True,
+            }
 
-        def remove_job_cb(fut):
-            sleep(2)
-            progress_instance.remove_job(job_id)
-            daps_logger.info(f"Job {job_id} has been removed")
+    except Exception as e:
+        daps_logger.error(f"Error in Unmatched Assets Task: {str(e)}")
+        return {"success": False, "message": str(e)}
 
-        future.add_done_callback(remove_job_cb)
 
-        return {"message": "Poster renamer started", "job_id": job_id, "success": True}
+def run_unmatched_assets_task():
+    from daps_webui.models import PlexInstance, RadarrInstance, SonarrInstance
+
+    try:
+        radarr = get_instances(RadarrInstance())
+        sonarr = get_instances(SonarrInstance())
+        plex = get_instances(PlexInstance())
+
+        return handle_unmatched_assets_task(radarr, sonarr, plex)
     except Exception as e:
         return {"success": False, "message": str(e)}
 
@@ -150,6 +199,15 @@ def schedule_jobs():
             "function": run_renamer_scheduled,
             "name": "poster_renamerr",
         },
+        "run_unmatched_assets": {
+            "schedule": (
+                getattr(settings, "unmatched_assets_schedule", None)
+                if settings
+                else None
+            ),
+            "function": run_unmatched_scheduled,
+            "name": "unmatched_assets",
+        },
     }
     for job_id, job_config in job_configs.items():
         add_job_safe(
@@ -170,11 +228,30 @@ def run_renamer_scheduled():
             )
 
 
+def run_unmatched_scheduled():
+    with app.app_context():
+        result = run_unmatched_assets_task()
+        if result["success"] is False:
+            daps_logger.error(
+                f"Error running scheduled unmatched assets job: {result['message']}"
+            )
+        else:
+            daps_logger.info(
+                f"Scheduled unmatched assets job started successfully with job_id: {result['job_id']}"
+            )
+
+
 with app.app_context():
     initialize_database()
     schedule_jobs()
 
-# TODO: ADD UNMATCHED ASSETS RUN ROUTE
+
+@app.route("/run-unmatched-job", methods=["POST"])
+def run_unmatched():
+    result = run_unmatched_assets_task()
+    if result["success"] is False:
+        return jsonify(result), 500
+    return jsonify(result), 202
 
 
 @app.route("/run-renamer-job", methods=["POST"])

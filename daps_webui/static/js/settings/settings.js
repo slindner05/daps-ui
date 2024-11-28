@@ -4,6 +4,7 @@ document.addEventListener("DOMContentLoaded", function () {
   attachNewInstance("sonarr");
   attachNewInstance("plex");
   attachPosterRenamer();
+  attachUnmatchedAssets();
   attachLogLevel();
 
   fetch("/get-settings")
@@ -112,6 +113,8 @@ function preFillForm(data) {
     data.targetPath || "";
   document.querySelector('input[name="poster_renamer_schedule"]').value =
     data.posterRenamerSchedule || "";
+  document.querySelector('input[name="unmatched_assets_schedule"]').value =
+    data.unmatchedAssetsSchedule || "";
   document.getElementById("poster-renamer_info").checked = true;
   document.getElementById("unmatched-assets_info").checked = true;
 
@@ -156,6 +159,11 @@ function attachLogLevel() {
 
   wrapperDiv.appendChild(posterRenamerLogLevel);
   wrapperDiv.appendChild(unmatchedAssetsLogLevel);
+}
+function attachUnmatchedAssets() {
+  const wrapperDiv = document.getElementById("unmatched-assets-wrapper");
+  const unmatchedAssets = createUnmatchedAssets();
+  wrapperDiv.appendChild(unmatchedAssets);
 }
 
 function createLabel(labelName, inputName) {
@@ -432,11 +440,30 @@ function createPosterRenamer() {
 
   return formGroup;
 }
+
 let counters = {
   sonarr: 0,
   radarr: 0,
   plex: 0,
 };
+
+function createUnmatchedAssets() {
+  const wrapperDiv = document.createElement("div");
+
+  const cronScheduleInput = document.createElement("input");
+  cronScheduleInput.name = "unmatched_assets_schedule";
+  cronScheduleInput.type = "text";
+  cronScheduleInput.classList.add("form-input");
+  cronScheduleInput.placeholder = placeholders["cronSchedule"];
+  const cronScheduleLabel = createLabel(
+    "Schedule",
+    `${cronScheduleInput.name}`,
+  );
+  cronScheduleLabel.appendChild(cronScheduleInput);
+
+  wrapperDiv.appendChild(cronScheduleLabel);
+  return wrapperDiv;
+}
 
 function updateCounter(name) {
   const wrapperDiv = document.getElementById(`${name}-group-wrapper`);
@@ -648,6 +675,9 @@ document.getElementById("save-settings").addEventListener("click", function () {
   const posterRenamerSchedule = document.querySelector(
     'input[name="poster_renamer_schedule"]',
   ).value;
+  const unmatchedAssetsSchedule = document.querySelector(
+    'input[name="unmatched_assets_schedule"]',
+  ).value;
   const sourceDirs = Array.from(
     document.querySelectorAll('input[name="source_dir[]"]'),
   ).map((input) => input.value);
@@ -721,6 +751,7 @@ document.getElementById("save-settings").addEventListener("click", function () {
       logLevelUnmatchedAssets: logLevelUnmatchedAssets,
       logLevelPosterRenamer: logLevelPosterRenamer,
       posterRenamerSchedule: posterRenamerSchedule,
+      unmatchedAssetsSchedule: unmatchedAssetsSchedule,
       targetPath: targetPath,
       sourceDirs: sourceDirs,
       libraryNames: libraryNames,
