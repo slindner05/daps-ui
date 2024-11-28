@@ -1,303 +1,321 @@
 :root {
-    --primary: #eb1616;
-    --secondary: #191c24;
-    --light: #6c7293;
-    --dark: #000000;
+  --primary: #eb1616;
+  --secondary: #191c24;
+  --light: #6c7293;
+  --dark: #000000;
 }
 
 .poster-renamer-container {
-    display: flex;
-    padding: 20px;
-    gap: 20px;
+  display: flex;
+  padding: 20px;
+  gap: 20px;
 }
 
 .content-box {
-    display: flex;
-    flex-direction: column;
-    background-color: transparent;
-    padding: 20px;
-    border-radius: 4px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    width: auto;
-    height: auto;
-    min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  background-color: transparent;
+  padding: 20px;
+  border-radius: 4px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  width: auto;
+  height: auto;
+  min-height: 100px;
 }
 
 .unmatched-wrapper {
-    color: #ffffff;
-    background-color: var(--secondary);
-    max-height: 720px;
-    overflow-y: auto;
-    display: none;
-    width: 100%;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  color: #ffffff;
+  background-color: var(--secondary);
+  overflow: hidden;
+  display: none;
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
+
 .progress-run-div {
-    margin-top: 10px;
-    padding: 20px;
-    background-color: var(--secondary);
-    border-radius: 4px;
+  padding-bottom: 20px;
+  padding-top: 0px;
+  padding-right: 20px;
+  padding-left: 20px;
+  background-color: var(--secondary);
+  border-radius: 0 0 4px 4px;
 }
+
+.unmatched-progress {
+  display: none;
+}
+
+.unmatched-progress.active {
+  display: block;
+}
+
 .unmatched-wrapper.active {
-    display: block;
+  display: block;
 }
 
 .unmatched-table tr:nth-child(even) {
-    background-color: rgba(255, 255, 255, 0.05);
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
 .unmatched-table tr:nth-child(odd) {
-    background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 .unmatched-table tr:hover {
-    background-color: rgba(255, 255, 255, 0.2);
+  background-color: rgba(255, 255, 255, 0.2);
 }
 
 .unmatched-table table {
-    width: 100%;
-    border-collapse: collapse;
-    color: #ffffff;
-    overflow: hidden;
-    border-radius: 8px;
+  width: 100%;
+  border-collapse: collapse;
+  color: #ffffff;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.unmatched-inner {
+  overflow-y: auto;
+  max-height: 720px;
 }
 
 .unmatched-table th,
 .unmatched-table td {
-    border: 1px solid var(--light);
-    padding: 12px;
-    text-align: left;
-    transition: background-color 0.3s;
+  border: 1px solid var(--light);
+  padding: 12px;
+  text-align: left;
+  transition: background-color 0.3s;
 }
 
 .unmatched-table th {
-    background-color: var(--secondary);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    font-weight: bold;
+  background-color: var(--secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: bold;
 }
+
 .unmatched-table thead {
-    position: sticky;
-    top: 0;
-    background-color: var(--secondary);
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  background-color: var(--secondary);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
 .poster-status,
 .season-item {
-    padding-left: 10px;
-    margin-bottom: 4px;
+  padding-left: 10px;
+  margin-bottom: 4px;
 }
+
 .season-item {
-    padding-left: 10px;
+  padding-left: 10px;
 }
 
 .btn {
-    border: none;
-    padding: 10px 15px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 500;
-    transition:
-        background-color 0.3s,
-        transform 0.2s;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition:
+    background-color 0.3s,
+    transform 0.2s;
 }
 
 .btn-primary {
-    color: #fff;
-    background-color: var(--primary);
+  color: #fff;
+  background-color: var(--primary);
 }
 
 .btn:hover {
-    background-color: #c71212;
-    transform: scale(1.05);
+  background-color: #c71212;
+  transform: scale(1.05);
 }
 
 .btn-run {
-    margin-top: 10px;
-    width: 100%;
+  margin-top: 10px;
+  width: 100%;
 }
 
 .progress {
-    width: 100%;
-    height: 30px;
-    border-radius: 4px;
-    background-color: #333;
+  width: 100%;
+  height: 30px;
+  border-radius: 4px;
+  background-color: #333;
 }
 
 .progress-bar {
-    width: 0%;
-    height: 30px;
-    border-radius: 4px;
-    background-color: transparent;
-    text-align: center;
-    line-height: 30px;
-    color: black;
-    font-weight: bold;
-    transition: width 0.5s ease-in-out;
-    padding-left: 10px;
-    box-sizing: border-box;
+  width: 0%;
+  height: 30px;
+  border-radius: 4px;
+  background-color: transparent;
+  text-align: center;
+  line-height: 30px;
+  color: black;
+  font-weight: bold;
+  transition: width 0.5s ease-in-out;
+  padding-left: 10px;
+  box-sizing: border-box;
 }
 
 .season-list {
-    display: none;
+  display: none;
 }
 
 .season-list.active {
-    display: block;
+  display: block;
 }
 
 .season-list li {
-    padding: 8px;
-    margin: 4px 0;
-    background-color: var(--dark);
-    /* border: 1px solid var(--light); */
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
+  padding: 8px;
+  margin: 4px 0;
+  background-color: var(--dark);
+  /* border: 1px solid var(--light); */
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
 }
 
 .season-list li:hover {
-    background-color: var(--light);
+  background-color: var(--light);
 }
 
 .tab-container {
-    display: flex;
-    flex-direction: column;
-    border-bottom: 2px solid var(--dark);
-    border-radius: 4px;
-    margin-bottom: 20px;
-    background-color: var(--secondary);
-    padding: 20px 20px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 4px 4px 0 0;
+  background-color: var(--secondary);
+  padding-top: 20px;
+  padding-bottom: 0px;
+  padding-left: 20px;
+  padding-right: 20px;
 }
 
 .tab-buttons-container {
-    display: flex;
+  display: flex;
 }
 
 .tab-search {
-    padding: 0.375rem 0.75rem;
-    margin-top: 8px;
-    width: 100%;
-    font-size: 16px;
-    border-radius: 4px;
-    background-color: var(--dark);
-    background-clip: padding-box;
-    border: 1px solid #000;
-    appearance: none;
-    border-radius: 5px;
-    transition:
-        border-color 0.15s ease-in-out,
-        box-shadow 0.15s ease-in-out;
-    outline: 0;
-    border-radius: 5px;
-    color: var(--light);
-    box-sizing: border-box;
-}
-.tab-search:focus {
-    color: var(--light);
-    background-color: var(--dark);
-    border-color: #f58b8b;
-    outline: 0;
-    box-shadow: 0 0 0 0.25rem rgba(235, 22, 22, 0.25);
+  padding: 0.375rem 0.75rem;
+  margin-top: 8px;
+  width: 100%;
+  font-size: 16px;
+  border-radius: 4px;
+  background-color: var(--dark);
+  background-clip: padding-box;
+  border: 1px solid #000;
+  appearance: none;
+  border-radius: 5px;
+  transition:
+    border-color 0.15s ease-in-out,
+    box-shadow 0.15s ease-in-out;
+  outline: 0;
+  border-radius: 5px;
+  color: var(--light);
+  box-sizing: border-box;
 }
 
+.tab-search:focus {
+  color: var(--light);
+  background-color: var(--dark);
+  border-color: #f58b8b;
+  outline: 0;
+  box-shadow: 0 0 0 0.25rem rgba(235, 22, 22, 0.25);
+}
 
 .tab-links {
-    flex: 1;
-    padding: 12px 15px;
-    cursor: pointer;
-    background-color: var(--secondary);
-    color: var(--light);
-    border: none;
-    outline: none;
-    text-align: center;
-    font-size: 16px;
-    transition: background-color 0.3s ease;
-    border-bottom: 2px solid transparent;
+  flex: 1;
+  padding: 12px 15px;
+  cursor: pointer;
+  background-color: var(--secondary);
+  color: var(--light);
+  border: none;
+  outline: none;
+  text-align: center;
+  font-size: 16px;
+  transition: background-color 0.3s ease;
+  border-bottom: 2px solid transparent;
 }
 
 .tab-links:hover {
-    background-color: var(--light);
-    color: #f9f9f9;
+  background-color: var(--light);
+  color: #f9f9f9;
 }
 
 .tab-links.active {
-    background-color: var(--light);
-    border-bottom: 2px solid var(--primary);
-    font-weight: bold;
-    color: #f9f9f9;
+  background-color: var(--light);
+  border-bottom: 2px solid var(--primary);
+  font-weight: bold;
+  color: #f9f9f9;
 }
 
 .tab-content {
-    display: none;
-    padding: 20px;
-    background-color: var(--secondary);
-    border-radius: 4px;
-    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
-    max-height: 65vh;
-}
-.tab-inner {
-    overflow-y: auto;
-    max-height: calc(65vh - 40px);
+  display: none;
+  padding: 20px;
+  background-color: var(--secondary);
+  box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
+  max-height: 65vh;
 }
 
+.tab-inner {
+  overflow-y: auto;
+  max-height: calc(65vh - 40px);
+}
 
 .tab-content.active {
-    display: block;
+  display: block;
 }
 
 .file-browser {
-    width: 400px;
+  width: 400px;
 }
 
 .file-link {
-    display: block;
-    padding: 10px;
-    /* margin: 2px 0; */
-    background-color: var(--dark);
-    color: var(--light);
-    /* border: 1px solid var(--light); */
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
+  display: block;
+  padding: 10px;
+  /* margin: 2px 0; */
+  background-color: var(--dark);
+  color: var(--light);
+  /* border: 1px solid var(--light); */
+  /* border-radius: 4px; */
+  cursor: pointer;
+  transition: background-color 0.2s ease;
 }
 
 .file-link:hover {
-    background-color: var(--light);
-    color: #f9f9f9;
+  background-color: var(--light);
+  color: #f9f9f9;
 }
 
 .file-link.active {
-    background-color: var(--light);
-    color: #f9f9f9;
+  background-color: var(--light);
+  color: #f9f9f9;
 }
 
 .preview {
-    margin-top: 20px;
-    background-color: var(--secondary);
-    max-width: 450px;
-    width: 100%;
-    display: flex;
-    height: 100%;
+  margin-top: 20px;
+  background-color: var(--secondary);
+  max-width: 493px;
+  width: 100%;
+  display: flex;
+  height: 100%;
 }
 
 .preview img {
-    width: auto;
-    height: auto;
-    border-radius: 4px;
+  width: auto;
+  height: auto;
+  border-radius: 4px;
 }
 
 .image-metadata {
-    padding: 5px;
-    border-radius: 4px;
-    background-color: var(--secondary);
-    margin-top: 10px;
-    color: #ffffff;
+  padding: 5px;
+  border-radius: 4px;
+  background-color: var(--secondary);
+  margin-top: 10px;
+  color: #ffffff;
 }
 
 .bold-text {
-    font-weight: bold;
+  font-weight: bold;
 }

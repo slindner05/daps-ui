@@ -8,9 +8,9 @@
 }
 
 :root {
-  --primary: #EB1616;
-  --secondary: #191C24;
-  --light: #6C7293;
+  --primary: #eb1616;
+  --secondary: #191c24;
+  --light: #6c7293;
   --dark: #000000;
 }
 
@@ -42,7 +42,7 @@ body {
   padding: 10px;
 }
 
-.layout{
+.layout {
   display: flex;
   flex-grow: 1;
   height: calc(100vh - 60px);
@@ -90,31 +90,31 @@ body {
   margin-left: 250px;
   padding: 20px;
   overflow-y: auto;
-  width: 100% ;
+  width: 100%;
   height: 100%;
 }
 
 /* Responsive adjustments for mobile and tablets */
 @media (max-width: 768px) {
   .sidebar {
-      width: 200px;
+    width: 200px;
   }
 
   #layout-content-div {
-      margin-left: 200px;
+    margin-left: 200px;
   }
 }
 
 @media (max-width: 576px) {
   .sidebar {
-      width: 150px;
+    width: 150px;
   }
 
   #layout-content-div {
-      margin-left: 150px;
+    margin-left: 150px;
   }
 
   .navbar a {
-      font-size: 20px;
+    font-size: 20px;
   }
 }
