@@ -59,6 +59,16 @@ def add_scheduled_jobs(scheduler: BackgroundScheduler, config: YamlConfig):
         if not schedule:
             logger.warning(f"No schedule found for {schedule_name}. Skipping Job")
             return
+        if schedule.lower() == "run":
+            logger.info(
+                f"Schedule for '{schedule_name}' is set to 'run'. Running job immediately."
+            )
+            try:
+                func(config)
+                logger.info(f"Job '{schedule_name}' executed successfully")
+            except Exception as e:
+                logger.error(f"Error executing job '{schedule_name}': {e}")
+            return
         try:
             parsed_schedules = parse_schedule_string(schedule, logger)
             for i, parsed_schedule in enumerate(parsed_schedules):

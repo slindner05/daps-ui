@@ -134,7 +134,6 @@ def strip_year(name: str) -> str:
     return re.sub(r"\(\d{4}\)", "", name).strip()
 
 
-# TODO: ADD RUN TO SCHEDULE
 # TODO: ADD MULTIPLE DAYS AND TIMES TO WEEKLY AND MONTHLY SCHEDULES
 
 
