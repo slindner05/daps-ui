@@ -1,9 +1,10 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from time import sleep
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 
 from daps_webui.config.config import Config
@@ -60,7 +61,7 @@ def initialize_database():
     db.create_all()
 
 
-def run_renamer_task():
+def run_renamer_task(webhook_item: dict | None = None):
     from daps_webui.models import PlexInstance, RadarrInstance, SonarrInstance
 
     try:
@@ -84,9 +85,18 @@ def run_renamer_task():
             poster_renamer_payload.log_level,
         )
 
-        future = executor.submit(
-            renamer.run, poster_renamer_payload, progress_instance, job_id
-        )
+        if webhook_item:
+            future = executor.submit(
+                renamer.run,
+                poster_renamer_payload,
+                progress_instance,
+                job_id,
+                webhook_item,
+            )
+        else:
+            future = executor.submit(
+                renamer.run, poster_renamer_payload, progress_instance, job_id
+            )
 
         if poster_renamer_payload.unmatched_assets:
             daps_logger.debug("Unmatched assets flag is true, setting up callback...")
@@ -244,6 +254,66 @@ def run_unmatched_scheduled():
 with app.app_context():
     initialize_database()
     schedule_jobs()
+
+
+@app.route("/arr-webhook", methods=["POST"])
+def recieve_webhook():
+    from daps_webui.models import Settings
+
+    run_single_item = Settings.query.with_entities(Settings.run_single_item).scalar()
+    if run_single_item is None:
+        daps_logger.error("No settings found or run_single_item is not configured.")
+        return "Settings not configured", 500
+    if not run_single_item:
+        daps_logger.debug("Single item processing is disabled in settings.")
+        return "Single item processing disabled", 403
+
+    data = request.json
+    if not data:
+        daps_logger.error("No data recieved in the webhook")
+        return "No data recieved", 400
+
+    valid_event_types = ["Download", "Grab", "MovieAdded"]
+    webhook_event_type = data.get("eventType", "")
+
+    if webhook_event_type == "Test":
+        daps_logger.info("Test event recived successfully")
+        return "OK", 200
+
+    if webhook_event_type not in valid_event_types:
+        daps_logger.debug(f"'{webhook_event_type}' is not a valid event type")
+        return "Invalid event type", 400
+
+    daps_logger.info(f"Processing event type: {webhook_event_type}")
+    try:
+        item_type = (
+            "movie" if "movie" in data else "series" if "series" in data else None
+        )
+        if not item_type:
+            daps_logger.error("Neither 'movie' nor 'series' found in webhook data")
+            return "Invalid webhook data", 400
+        id = data.get(item_type, {}).get("id", None)
+        id = int(id)
+        if not id:
+            daps_logger.error(f"Item ID not found for {item_type} in webhook data")
+            return "Invalid webhook data", 400
+        instance = data.get("instanceName", "").lower()
+        if not instance:
+            daps_logger.error(
+                "Instance name missing from webhook data, please configure in arr settings."
+            )
+            return "Invalid webhook data", 400
+        new_item = {"type": item_type, "item_id": id, "instance_name": instance}
+        daps_logger.debug(f"Extracted item: {new_item}")
+        run_renamer_task(webhook_item=new_item)
+
+    except Exception as e:
+        daps_logger.error(
+            f"Error retrieving single item from webhook: {e}", exc_info=True
+        )
+        return "Internal server error", 500
+
+    return "OK", 200
 
 
 @app.route("/run-unmatched-job", methods=["POST"])

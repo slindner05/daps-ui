@@ -46,6 +46,8 @@ services:
       - TZ=America/Vancouver
       - PUID=1000
       - PGID=1000
+    ports:
+      - "5000:5000"
     volumes:
       - ./config:/config
       - /mnt/plex-posters:/posters

@@ -1,5 +1,8 @@
+import datetime
 import logging
 import os
+import threading
+import time
 from logging import Logger
 from pathlib import Path
 
@@ -18,13 +21,18 @@ init_logger(logger, log_dir, "main", log_level=log_level)
 logger.info(f"LOG LEVEL: {log_level_env}")
 
 
+def start_cli_listener():
+    from DapsEX.webhook_listener import cli_app
+
+    cli_app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
+
+
 def get_config(logger: Logger):
     config = YamlConfig(logger)
-    logger.info("Yaml config initialized")
     return config
 
 
-def run_renamer(config: YamlConfig):
+def run_renamer(config: YamlConfig, webhook_item: dict | None = None):
     payload = config.create_poster_renamer_payload()
     renamerr = PosterRenamerr(
         payload.target_path,
@@ -37,7 +45,13 @@ def run_renamer(config: YamlConfig):
         logger.info("Running poster renamerr + unmatched assets")
     else:
         logger.info("Running poster renamerr")
-    renamerr.run(payload)
+
+    if webhook_item:
+        logger.info("Poster renamerr triggered on webhook item")
+        renamerr.run(payload, single_item=webhook_item)
+    else:
+        renamerr.run(payload)
+
     logger.info("Finished poster renamerr")
     if payload.unmatched_assets:
         run_unmatched_assets(config)
@@ -111,13 +125,38 @@ def add_scheduled_jobs(scheduler: BackgroundScheduler, config: YamlConfig):
 
 def run_cli():
     config = get_config(logger)
+    run_single_item = config.get_run_single_item()
+    if run_single_item:
+        webhook_thread = threading.Thread(target=start_cli_listener, daemon=True)
+        webhook_thread.start()
+
     scheduler = BackgroundScheduler()
     add_scheduled_jobs(scheduler, config)
     scheduler.start()
     try:
         while True:
-            pass
+            next_run = min(
+                (
+                    job.next_run_time
+                    for job in scheduler.get_jobs()
+                    if job.next_run_time
+                ),
+                default=None,
+            )
+            if next_run:
+                now = datetime.datetime.now(next_run.tzinfo)
+                total_sleep_time = max(1, (next_run - now).total_seconds())
+                logger.debug(
+                    f"Sleeping for {total_sleep_time:.2f} seconds until next job"
+                )
+            else:
+                total_sleep_time = 60
+            slept_time = 0
+            while slept_time < total_sleep_time:
+                time.sleep(min(1, total_sleep_time, slept_time))
+                slept_time += 1
     except (KeyboardInterrupt, SystemExit):
+        logger.info("Shutting down CLI application")
         scheduler.shutdown()
 
 

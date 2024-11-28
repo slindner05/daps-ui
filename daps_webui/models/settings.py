@@ -15,3 +15,4 @@ class Settings(db.Model):
     asset_folders = db.Column(db.Boolean, default=False, nullable=False)
     unmatched_assets = db.Column(db.Boolean, default=True, nullable=False)
     border_replacerr = db.Column(db.Boolean, default=False, nullable=False)
+    run_single_item = db.Column(db.Boolean, default=False, nullable=False)

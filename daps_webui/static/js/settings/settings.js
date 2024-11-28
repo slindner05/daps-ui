@@ -135,6 +135,8 @@ function preFillForm(data) {
     data.borderReplacer || false;
   document.getElementById("unmatched_assets").checked =
     data.unmatchedAssets || false;
+  document.getElementById("run_single_item").checked =
+    data.runSingleItem || false;
 
   createInstanceFromSettings(data, "radarrInstances", "radarr");
   createInstanceFromSettings(data, "sonarrInstances", "sonarr");
@@ -393,6 +395,10 @@ function createPosterRenamer() {
     "Unmatched Assets",
     "unmatched_assets",
   );
+  const runSingleItemCheckbox = createCheckboxInput(
+    "Single run on new item",
+    "run_single_item",
+  );
 
   const addSourceDirButton = createAddButton("source_dir", "Add Source Dir");
   attachAddButtonListener(
@@ -428,6 +434,7 @@ function createPosterRenamer() {
   checkboxDiv.appendChild(assetFoldersCheckbox);
   checkboxDiv.appendChild(borderReplacerCheckbox);
   checkboxDiv.appendChild(unmatchedAssetsCheckbox);
+  checkboxDiv.appendChild(runSingleItemCheckbox);
 
   // formGroup.appendChild(logLevelLabel);
   formGroup.appendChild(cronScheduleLabel);
@@ -690,6 +697,7 @@ document.getElementById("save-settings").addEventListener("click", function () {
   const assetFolders = document.getElementById("asset_folders").checked;
   const borderReplacerr = document.getElementById("border_replacer").checked;
   const unmatchedAssets = document.getElementById("unmatched_assets").checked;
+  const runSingleItem = document.getElementById("run_single_item").checked;
 
   // radarr
   const radarrInstanceNames = Array.from(
@@ -759,6 +767,7 @@ document.getElementById("save-settings").addEventListener("click", function () {
       assetFolders: assetFolders,
       unmatchedAssets: unmatchedAssets,
       borderReplacerr: borderReplacerr,
+      runSingleItem: runSingleItem,
       radarrInstances: radarrInstances,
       sonarrInstances: sonarrInstances,
       plexInstances: plexInstances,

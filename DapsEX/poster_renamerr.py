@@ -1,7 +1,3 @@
-# TODO: ADD A WAY TO PROCESS ONLY NEW FILES
-
-# TODO: RUN RENAMER ON NEW ITEM IN PLEX
-
 # TODO: ADD A WAY TO CLEAN ASSET DIRECTORY WHEN ASSET FOLDERS CHANGES
 
 import hashlib
@@ -684,11 +680,59 @@ class PosterRenamerr:
         file_name = self._remove_emojis(file_name)
         return file_name.strip().replace("&", "and").replace("\u00a0", " ").lower()
 
+    # TODO: ADD CHECK TO SEE IF SINGLE ITEM EXISTS ALREADY
+    # TODO: ADD WAY TO 'QUEUE' MULTIPLE ITEMS
+    def handle_single_item(
+        self,
+        asset_type: str,
+        instances: dict,
+        single_item: dict,
+    ) -> dict[str, list] | None:
+
+        media_dict = {"movies": [], "shows": []}
+        instance_name = single_item.get("instance_name")
+        item_id = single_item.get("item_id")
+        if not instance_name:
+            self.logger.error("Instance name is missing for movie item")
+            return None
+        if not item_id or not isinstance(item_id, int):
+            self.logger.error(
+                f"Invalid item ID: {item_id} for instance: {instance_name}"
+            )
+            return None
+        arr_instance = instances.get(instance_name)
+        if not arr_instance:
+            self.logger.error(f"Arr instance '{instance_name}' not found")
+            return None
+        try:
+            items = (
+                arr_instance.get_movie(item_id)
+                if asset_type == "movie"
+                else arr_instance.get_show(item_id)
+            )
+            if not items:
+                self.logger.error(
+                    f"{asset_type.capitalize()} with ID {item_id} not found in instance {instance_name}"
+                )
+                return None
+            for item in items:
+                media_dict["movies" if asset_type == "movie" else "shows"].append(item)
+            self.logger.debug(f"Fetched {asset_type}: {items}")
+            return media_dict
+
+        except Exception as e:
+            self.logger.error(
+                f"Error fetching {asset_type} from instance {instance_name}: {e}",
+                exc_info=True,
+            )
+            return None
+
     def run(
         self,
         payload: Payload,
         cb: Callable[[str, int, ProgressState], None] | None = None,
         job_id: str | None = None,
+        single_item: dict | None = None,
     ) -> None:
         from DapsEX import utils
 
@@ -702,19 +746,36 @@ class PosterRenamerr:
             plex_instances = utils.create_plex_instances(payload, Server, self.logger)
             self.logger.debug("Successfully created all instances")
 
-            self.logger.debug("Creating media and collections dict")
-            all_movies, all_series = utils.get_combined_media_lists(
-                radarr_instances, sonarr_instances
-            )
-            all_movie_collections, all_series_collections = (
-                utils.get_combined_collections_lists(plex_instances)
-            )
-            media_dict, collections_dict = media.get_dicts(
-                all_movies,
-                all_series,
-                all_movie_collections,
-                all_series_collections,
-            )
+            if single_item:
+                self.logger.info("Run triggered for a single item via webhook")
+                asset_type = single_item.get("type", "")
+                combined_instances_dict = radarr_instances | sonarr_instances
+                collections_dict = {"movies": [], "shows": []}
+
+                media_dict = self.handle_single_item(
+                    asset_type, combined_instances_dict, single_item
+                )
+                if not media_dict:
+                    self.logger.error(
+                        "Failed to create media dictonary for single item.. Exiting."
+                    )
+                    return
+            else:
+                self.logger.debug(
+                    "Creating media and collections dict of all items in library"
+                )
+                all_movies, all_series = utils.get_combined_media_lists(
+                    radarr_instances, sonarr_instances
+                )
+                all_movie_collections, all_series_collections = (
+                    utils.get_combined_collections_lists(plex_instances)
+                )
+                media_dict, collections_dict = media.get_dicts(
+                    all_movies,
+                    all_series,
+                    all_movie_collections,
+                    all_series_collections,
+                )
             self.logger.debug(
                 "Media dict summary:\n%s", json.dumps(media_dict, indent=4)
             )

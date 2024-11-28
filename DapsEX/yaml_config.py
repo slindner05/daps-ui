@@ -89,3 +89,8 @@ class YamlConfig:
         self.logger.debug("===" * 10 + " UnmatchedAssets Payload " + "===" * 10)
         self.logger.debug(json.dumps(payload_data, indent=4))
         return UnmatchedAssetsPayload(**payload_data)
+
+    def get_run_single_item(self) -> bool:
+        return self.config.get(Settings.POSTER_RENAMERR.value).get(
+            "run_single_item", False
+        )

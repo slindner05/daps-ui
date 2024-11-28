@@ -47,6 +47,7 @@ def get_settings():
             "assetFolders": getattr(settings, "asset_folders", False),
             "unmatchedAssets": getattr(settings, "unmatched_assets", True),
             "borderReplacer": getattr(settings, "border_replacerr", False),
+            "runSingleItem": getattr(settings, "run_single_item", False),
             "radarrInstances": [
                 {
                     "instanceName": instance.instance_name,
@@ -93,6 +94,7 @@ def save_settings():
             "asset_folders": data.get("assetFolders", False),
             "unmatched_assets": data.get("unmatchedAssets", True),
             "border_replacerr": data.get("borderReplacerr", False),
+            "run_single_item": data.get("runSingleItem", False),
         }
 
         models.Settings.query.delete()

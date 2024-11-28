@@ -142,6 +142,12 @@ class Radarr(Media):
     def get_all_movies(self) -> list[Movie]:
         return self.radarr.all_movies()
 
+    def get_movie(self, id: int):
+        movie_list = []
+        movie = self.radarr.get_movie(id)
+        movie_list.append(movie)
+        return self.get_movies_with_years(movie_list)
+
 
 class Sonarr(Media):
     def __init__(self, base_url: str, api: str, logger: Logger):
@@ -164,6 +170,12 @@ class Sonarr(Media):
 
     def get_all_series(self) -> list[Series]:
         return self.sonarr.all_series()
+
+    def get_show(self, id: int):
+        show_list = []
+        show = self.sonarr.get_series(id)
+        show_list.append(show)
+        return self.get_series_with_seasons(show_list)
 
 
 class Server:
