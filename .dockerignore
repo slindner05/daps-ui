@@ -1,1 +1,14 @@
+*__pycache__
+.vscode/
+cache.json
+config/config.yaml
+config/db
+config/logs
+lazygit*
+node_modules/
+package.json
+package-lock.json
+eslint.config.mjs
+docker_commands.txt
+docker-compose.yml
 .gitignore
