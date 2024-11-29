@@ -26,7 +26,7 @@ if [ "$APP_MODE" = "WEB" ]; then
 		exec gosu appuser poetry run flask --app daps_webui run --host 0.0.0.0 --port=5000 --debug
 	else
 		echo "Starting Gunicorn in production mode as $PUID:$PGID"
-		exec gosu appuser poetry run gunicorn -w 4 -b 0.0.0.0:8000 daps_webui:app
+		exec gosu appuser poetry run gunicorn -w 1 -b 0.0.0.0:8000 daps_webui:app
 	fi
 else
 	echo "Running main.py as $PUID:$PGID"
