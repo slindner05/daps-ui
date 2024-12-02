@@ -474,21 +474,21 @@ class PosterRenamerr:
         current_source = str(file_path)
 
         if target_path.exists() and cached_file:
-            cached_hash = cached_file["file_hash"]
+            # cached_hash = cached_file["file_hash"]
             cached_original_hash = cached_file["original_file_hash"]
             cached_source = cached_file["source_path"]
             cached_border_state = cached_file.get("border_replaced", 0)
 
             # Debugging: Log the current and cached values for comparison
-            self.logger.debug(f"Checking skip conditions for file: {file_path}")
-            self.logger.debug(f"File name: {file_name_without_extension}")
-            self.logger.debug(f"Original file hash: {original_file_hash}")
-            self.logger.debug(f"Cached hash: {cached_hash}")
-            self.logger.debug(f"Cached original hash: {cached_original_hash}")
-            self.logger.debug(f"Current source: {current_source}")
-            self.logger.debug(f"Cached source: {cached_source}")
-            self.logger.debug(f"Replace border (current): {replace_border}")
-            self.logger.debug(f"Cached border replaced: {cached_border_state}")
+            # self.logger.debug(f"Checking skip conditions for file: {file_path}")
+            # self.logger.debug(f"File name: {file_name_without_extension}")
+            # self.logger.debug(f"Original file hash: {original_file_hash}")
+            # self.logger.debug(f"Cached hash: {cached_hash}")
+            # self.logger.debug(f"Cached original hash: {cached_original_hash}")
+            # self.logger.debug(f"Current source: {current_source}")
+            # self.logger.debug(f"Cached source: {cached_source}")
+            # self.logger.debug(f"Replace border (current): {replace_border}")
+            # self.logger.debug(f"Cached border replaced: {cached_border_state}")
 
             if (
                 cached_original_hash == original_file_hash
@@ -672,23 +672,23 @@ class PosterRenamerr:
                 item = item_list[0]
                 if collection:
                     item_name = self._remove_chars(item.title)
-                    self.logger.debug(
-                        f"Comparing cached file '{file_name}' with Plex collection '{item_name}'"
-                    )
+                    # self.logger.debug(
+                    #     f"Comparing cached file '{file_name}' with Plex collection '{item_name}'"
+                    # )
                     if file_name == item_name:
                         return item_list
                 elif show:
                     item_name = self._remove_chars(item.path)
-                    self.logger.debug(
-                        f"Comparing cached file '{file_name}' with Plex show '{item_name}'"
-                    )
+                    # self.logger.debug(
+                    #     f"Comparing cached file '{file_name}' with Plex show '{item_name}'"
+                    # )
                     if file_name == item_name:
                         return item_list
                 else:
                     item_name = self._remove_chars(item.path)
-                    self.logger.debug(
-                        f"Comparing cached file '{file_name}' with Plex movie '{item_name}'"
-                    )
+                    # self.logger.debug(
+                    #     f"Comparing cached file '{file_name}' with Plex movie '{item_name}'"
+                    # )
                     if file_name == item_name:
                         return item_list
 
@@ -725,12 +725,12 @@ class PosterRenamerr:
                 file_name = self._remove_chars(asset_file_path.parent.name)
             else:
                 file_name = self._remove_chars(file_info["file_name"])
-            self.logger.info(
+            self.logger.debug(
                 f"Processing cached movie file: {file_path}, Normalized title: {file_name}"
             )
             movie_list = find_match(file_name, plex_movie_dict["movie"])
             if movie_list:
-                self.logger.info(
+                self.logger.debug(
                     f"Match found for file '{file_path}' -> Plex movie '{movie_list[0].title}'"
                 )
                 add_poster_to_plex(movie_list, file_path)
@@ -750,7 +750,7 @@ class PosterRenamerr:
                 else:
                     file_name = self._remove_chars(f"{season_match.group(1)}")
                     season_num = int(season_match.group(2))
-                self.logger.info(
+                self.logger.debug(
                     f"Processing cached show file: {file_path}, Normalized title: {file_name}"
                 )
                 show_list = find_match(
@@ -768,7 +768,7 @@ class PosterRenamerr:
                         if season:
                             matching_seasons.append(season)
                         if matching_seasons:
-                            self.logger.info(
+                            self.logger.debug(
                                 f"Match found for Season {season_num} for Show {show.title}"
                             )
                             add_poster_to_plex(matching_seasons, file_path)
@@ -784,12 +784,12 @@ class PosterRenamerr:
                 else:
                     file_name = self._remove_chars(file_info["file_name"])
 
-                self.logger.info(
+                self.logger.debug(
                     f"Processing cached show file: {file_path}, Normalized title: {file_name}"
                 )
                 show_list = find_match(file_name, plex_show_dict["show"], show=True)
                 if show_list:
-                    self.logger.info(
+                    self.logger.debug(
                         f"Match found for file '{file_path}' -> Plex show '{show_list[0].title}'"
                     )
                     add_poster_to_plex(show_list, file_path)
@@ -800,14 +800,14 @@ class PosterRenamerr:
                 file_name = self._remove_chars(asset_file_path.parent.name)
             else:
                 file_name = self._remove_chars(file_info["file_name"])
-            self.logger.info(
+            self.logger.debug(
                 f"Processing cached collection file: {file_path}, Normalized title: {file_name}"
             )
             collection_list = find_match(
                 file_name, combined_collection_dict, collection=True
             )
             if collection_list:
-                self.logger.info(
+                self.logger.debug(
                     f"Match found for file '{file_path}' -> Plex collection '{collection_list[0].title}'"
                 )
                 add_poster_to_plex(collection_list, file_path)
