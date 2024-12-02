@@ -242,14 +242,9 @@ class Server:
                 unique_collections.add(collection.title)
                 show_collections_list.append(collection.title)
 
-    def get_media(self) -> tuple[dict[str, list], dict[str, list]]:
-        movie_dict = {"movie": [], "collections": []}
-        show_dict = {"show": [], "collections": []}
-
-        unique_movies = set()
-        unique_shows = set()
-        unique_movie_collections = set()
-        unique_show_collections = set()
+    def get_media(self) -> tuple[dict[str, dict], dict[str, dict]]:
+        movie_dict = {"movie": {}, "collections": {}}
+        show_dict = {"show": {}, "collections": {}}
 
         for library_name in self.library_names:
             try:
@@ -259,29 +254,25 @@ class Server:
                 continue
 
             if library.type == "movie":
-                self._process_library(
-                    library, unique_movies, unique_movie_collections, movie_dict
-                )
+                self._process_library(library, movie_dict)
             if library.type == "show":
-                self._process_library(
-                    library, unique_shows, unique_show_collections, show_dict
-                )
+                self._process_library(library, show_dict)
         return movie_dict, show_dict
 
     def _process_library(
         self,
         library: LibrarySection,
-        unique_media_items: set,
-        unique_collections: set,
-        item_dict: dict[str, list],
+        item_dict: dict[str, dict],
     ) -> None:
         all_items = library.all()
         all_collections = library.collections()
         for item in all_items:
-            if item.title not in unique_media_items:
-                unique_media_items.add(item.title)
-                item_dict[library.type].append(item)
+            title_key = item.title
+            if title_key not in item_dict[library.type]:
+                item_dict[library.type][title_key] = []
+            item_dict[library.type][title_key].append(item)
         for collection in all_collections:
-            if collection.title not in unique_collections:
-                unique_collections.add(collection.title)
-                item_dict["collections"].append(collection)
+            collection_key = collection.title
+            if collection_key not in item_dict["collections"]:
+                item_dict["collections"][collection_key] = []
+            item_dict["collections"][collection_key].append(collection)

@@ -629,7 +629,8 @@ class PosterRenamerr:
             }
 
         def add_show_paths(plex_show_dict):
-            for show in plex_show_dict["show"]:
+            for _, show_list in plex_show_dict["show"].items():
+                show = show_list[0]
                 try:
                     first_season = show.seasons()[0]
                     first_episode = first_season.episodes()[0]
@@ -644,61 +645,79 @@ class PosterRenamerr:
                     show.path = "Unknown"
             return plex_show_dict
 
+        def add_movie_paths(plex_movie_dict):
+            for _, movie_list in plex_movie_dict["movie"].items():
+                movie = movie_list[0]
+                try:
+                    for media in movie.media:
+                        for part in media.parts:
+                            item_path = Path(part.file)
+                            movie.path = item_path.parent.name
+                            break
+                        break
+                except Exception as e:
+                    self.logger.warning(
+                        f"Could not determine path for movie: {movie.title}. Error: {e}"
+                    )
+                    movie.path = "Unknown"
+            return plex_movie_dict
+
         def find_match(
             file_name,
             plex_items,
             collection: bool = False,
             show: bool = False,
         ):
-            for item in plex_items:
+            for _, item_list in plex_items.items():
+                item = item_list[0]
                 if collection:
                     item_name = self._remove_chars(item.title)
                     self.logger.debug(
                         f"Comparing cached file '{file_name}' with Plex collection '{item_name}'"
                     )
                     if file_name == item_name:
-                        return item
+                        return item_list
                 elif show:
                     item_name = self._remove_chars(item.path)
                     self.logger.debug(
                         f"Comparing cached file '{file_name}' with Plex show '{item_name}'"
                     )
                     if file_name == item_name:
-                        return item
+                        return item_list
                 else:
-                    for media in item.media:
-                        for part in media.parts:
-                            item_path = Path(part.file)
-                            item_name = self._remove_chars(item_path.parent.name)
-                            self.logger.debug(
-                                f"Comparing cached file '{file_name}' with Plex movie '{item_name}'"
-                            )
-                            if file_name == item_name:
-                                return item
+                    item_name = self._remove_chars(item.path)
+                    self.logger.debug(
+                        f"Comparing cached file '{file_name}' with Plex movie '{item_name}'"
+                    )
+                    if file_name == item_name:
+                        return item_list
 
             self.logger.warning(f"No match found for file: {file_name}")
             return None
 
-        def add_poster_to_plex(plex_media_object, file_path):
+        def add_poster_to_plex(plex_media_objects: list, file_path: str):
             try:
-                plex_media_object.uploadPoster(filepath=file_path)
+                for item in plex_media_objects:
+                    item.uploadPoster(filepath=file_path)
                 self.db.update_uploaded_to_plex(file_path, self.logger)
                 self.logger.info(
-                    f"Successfully uploaded poster for item {plex_media_object.title}"
+                    f"Successfully uploaded poster for item {plex_media_objects[0].title}"
                 )
             except Exception as e:
                 self.logger.error(
-                    f"Error uploading poster for item: {plex_media_object}: {e}"
+                    f"Error uploading poster for item: {plex_media_objects[0].title}: {e}"
                 )
 
         movies_only = filter_cached_files_by_type(new_files, "movies")
         collections_only = filter_cached_files_by_type(new_files, "collections")
         shows_only = filter_cached_files_by_type(new_files, "shows")
 
-        combined_collection_list = (
-            plex_movie_dict["collections"] + plex_show_dict["collections"]
-        )
+        combined_collection_dict = {
+            **plex_movie_dict["collections"],
+            **plex_show_dict["collections"],
+        }
         plex_show_dict = add_show_paths(plex_show_dict)
+        plex_movie_dict = add_movie_paths(plex_movie_dict)
 
         for file_path, file_info in movies_only.items():
             if asset_folders:
@@ -709,12 +728,12 @@ class PosterRenamerr:
             self.logger.info(
                 f"Processing cached movie file: {file_path}, Normalized title: {file_name}"
             )
-            movie = find_match(file_name, plex_movie_dict["movie"])
-            if movie:
+            movie_list = find_match(file_name, plex_movie_dict["movie"])
+            if movie_list:
                 self.logger.info(
-                    f"Match found for file '{file_path}' -> Plex movie '{movie.title}'"
+                    f"Match found for file '{file_path}' -> Plex movie '{movie_list[0].title}'"
                 )
-                add_poster_to_plex(movie, file_path)
+                add_poster_to_plex(movie_list, file_path)
 
         for file_path, file_info in shows_only.items():
             if asset_folders:
@@ -734,24 +753,30 @@ class PosterRenamerr:
                 self.logger.info(
                     f"Processing cached show file: {file_path}, Normalized title: {file_name}"
                 )
-                show = find_match(
+                show_list = find_match(
                     file_name,
                     plex_show_dict["show"],
                     show=True,
                 )
-                if show:
-                    season = next(
-                        (s for s in show.seasons() if s.index == season_num), None
-                    )
-                    if season:
-                        self.logger.info(
-                            f"Match found for Season {season.index}: {season.title}"
+                if show_list:
+                    matching_seasons = []
+                    for show in show_list:
+                        season = next(
+                            (s for s in show.seasons() if s.index == season_num),
+                            None,
                         )
-                        add_poster_to_plex(season, file_path)
-                    else:
-                        self.logger.warning(
-                            f"Season {season_num} not found for show '{show.title}'"
-                        )
+                        if season:
+                            matching_seasons.append(season)
+                        if matching_seasons:
+                            self.logger.info(
+                                f"Match found for Season {season_num} for Show {show.title}"
+                            )
+                            add_poster_to_plex(matching_seasons, file_path)
+                        else:
+                            self.logger.warning(
+                                f"Season {season_num} not found for show '{show.title}'"
+                            )
+                            break
             else:
                 if asset_folders:
                     asset_file_path = Path(file_path)
@@ -762,12 +787,12 @@ class PosterRenamerr:
                 self.logger.info(
                     f"Processing cached show file: {file_path}, Normalized title: {file_name}"
                 )
-                show = find_match(file_name, plex_show_dict["show"], show=True)
-                if show:
+                show_list = find_match(file_name, plex_show_dict["show"], show=True)
+                if show_list:
                     self.logger.info(
-                        f"Match found for file '{file_path}' -> Plex show '{show.title}'"
+                        f"Match found for file '{file_path}' -> Plex show '{show_list[0].title}'"
                     )
-                    add_poster_to_plex(show, file_path)
+                    add_poster_to_plex(show_list, file_path)
 
         for file_path, file_info in collections_only.items():
             if asset_folders:
@@ -778,14 +803,14 @@ class PosterRenamerr:
             self.logger.info(
                 f"Processing cached collection file: {file_path}, Normalized title: {file_name}"
             )
-            collection = find_match(
-                file_name, combined_collection_list, collection=True
+            collection_list = find_match(
+                file_name, combined_collection_dict, collection=True
             )
-            if collection:
+            if collection_list:
                 self.logger.info(
-                    f"Match found for file '{file_path}' -> Plex collection '{collection.title}'"
+                    f"Match found for file '{file_path}' -> Plex collection '{collection_list[0].title}'"
                 )
-                add_poster_to_plex(collection, file_path)
+                add_poster_to_plex(collection_list, file_path)
 
     def _handle_movie(self, item: Path, movies_list: list[str]) -> str | None:
         movie_matched_without_year = self._remove_chars(self._strip_year(item.stem))
