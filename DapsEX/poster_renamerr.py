@@ -734,7 +734,11 @@ class PosterRenamerr:
                 self.logger.info(
                     f"Processing cached show file: {file_path}, Normalized title: {file_name}"
                 )
-                show = find_match(file_name, plex_show_dict["show"], show=True)
+                show = find_match(
+                    file_name,
+                    plex_show_dict["show"],
+                    show=True,
+                )
                 if show:
                     season = next(
                         (s for s in show.seasons() if s.index == season_num), None
@@ -743,7 +747,7 @@ class PosterRenamerr:
                         self.logger.info(
                             f"Match found for Season {season.index}: {season.title}"
                         )
-                        add_poster_to_plex(show, file_path)
+                        add_poster_to_plex(season, file_path)
                     else:
                         self.logger.warning(
                             f"Season {season_num} not found for show '{show.title}'"
@@ -911,7 +915,6 @@ class PosterRenamerr:
             return None
 
     # TODO: CREATE FUNCTION TO ADD has_episodes ATTRIBUTE TO PLEX MEDIA DICT FROM ARR MEDIA DICT
-    # TODO: CREATE UPLOAD POSTER TO PLEX FUNCTION FOR ASSET FOLDERS
     def run(
         self,
         payload: Payload,
