@@ -7,6 +7,7 @@ import re
 import shutil
 from collections.abc import Callable
 from pathlib import Path
+from pprint import pformat
 
 from pathvalidate import sanitize_filename
 from tqdm import tqdm
@@ -467,6 +468,7 @@ class PosterRenamerr:
     ) -> None:
         temp_path = None
         target_path = target_dir / new_file_name
+        file_name_without_extension = target_path.stem
         original_file_hash = self.hash_file(file_path)
         cached_file = self.db.get_cached_file(str(target_path))
         current_source = str(file_path)
@@ -479,6 +481,7 @@ class PosterRenamerr:
 
             # Debugging: Log the current and cached values for comparison
             self.logger.debug(f"Checking skip conditions for file: {file_path}")
+            self.logger.debug(f"File name: {file_name_without_extension}")
             self.logger.debug(f"Original file hash: {original_file_hash}")
             self.logger.debug(f"Cached hash: {cached_hash}")
             self.logger.debug(f"Cached original hash: {cached_original_hash}")
@@ -535,6 +538,7 @@ class PosterRenamerr:
             else:
                 self.db.add_file(
                     str(target_path),
+                    file_name_without_extension,
                     media_type,
                     file_hash,
                     original_file_hash,
@@ -599,6 +603,161 @@ class PosterRenamerr:
                             file_name_format,
                             self.replace_border,
                         )
+
+    def upload_poster(self, plex_movie_dict, plex_show_dict) -> None:
+        cached_files = self.db.return_all_files()
+        for file_path, file_info in cached_files.items():
+            self.logger.info(
+                f"{file_path}: uploaded_to_plex={file_info.get('uploaded_to_plex')}"
+            )
+        new_files = {
+            file_path: file_info
+            for file_path, file_info in cached_files.items()
+            if file_info.get("uploaded_to_plex") in (None, 0)
+        }
+        self.logger.debug(f"Total cached files: {len(cached_files)}")
+        self.logger.debug(f"New files to process: {len(new_files)}")
+
+        def filter_cached_files_by_type(cached_files, media_type):
+            return {
+                file_path: file_info
+                for file_path, file_info in cached_files.items()
+                if file_info.get("media_type") == media_type
+            }
+
+        def add_show_paths(plex_show_dict):
+            for show in plex_show_dict["show"]:
+                try:
+                    first_season = show.seasons()[0]
+                    first_episode = first_season.episodes()[0]
+                    first_media = first_episode.media[0]
+                    first_part = first_media.parts[0]
+                    item_path = Path(first_part.file)
+                    show.path = item_path.parent.parent.name
+                except Exception as e:
+                    self.logger.warning(
+                        f"Could not determine path for show: {show.title}. Error: {e}"
+                    )
+                    show.path = "Unknown"
+            return plex_show_dict
+
+        def find_match(
+            file_name,
+            plex_items,
+            collection: bool = False,
+            show: bool = False,
+        ):
+            for item in plex_items:
+                if collection:
+                    item_name = self._remove_chars(item.title)
+                    self.logger.debug(
+                        f"Comparing cached file '{file_name}' with Plex collection '{item_name}'"
+                    )
+                    if file_name == item_name:
+                        return item
+                elif show:
+                    item_name = self._remove_chars(item.path)
+                    self.logger.debug(
+                        f"Comparing cached file '{file_name}' with Plex show '{item_name}'"
+                    )
+                    if file_name == item_name:
+                        return item
+                else:
+                    for media in item.media:
+                        for part in media.parts:
+                            item_path = Path(part.file)
+                            item_name = self._remove_chars(item_path.parent.name)
+                            self.logger.debug(
+                                f"Comparing cached file '{file_name}' with Plex movie '{item_name}'"
+                            )
+                            if file_name == item_name:
+                                return item
+
+            self.logger.warning(f"No match found for file: {file_name}")
+            return None
+
+        def add_poster_to_plex(plex_media_object, file_path):
+            try:
+                plex_media_object.uploadPoster(filepath=file_path)
+                self.db.update_uploaded_to_plex(file_path, self.logger)
+                self.logger.info(
+                    f"Successfully uploaded poster for item {plex_media_object.title}"
+                )
+            except Exception as e:
+                self.logger.error(
+                    f"Error uploading poster for item: {plex_media_object}: {e}"
+                )
+
+        movies_only = filter_cached_files_by_type(new_files, "movies")
+        collections_only = filter_cached_files_by_type(new_files, "collections")
+        shows_only = filter_cached_files_by_type(new_files, "shows")
+
+        combined_collection_list = (
+            plex_movie_dict["collections"] + plex_show_dict["collections"]
+        )
+        plex_show_dict = add_show_paths(plex_show_dict)
+
+        for file_path, file_info in movies_only.items():
+            file_name = self._remove_chars(file_info["file_name"])
+            self.logger.info(
+                f"Processing cached movie file: {file_path}, Normalized title: {file_name}"
+            )
+            movie = find_match(file_name, plex_movie_dict["movie"])
+            if movie:
+                self.logger.info(
+                    f"Match found for file '{file_path}' -> Plex movie '{movie.title}'"
+                )
+                add_poster_to_plex(movie, file_path)
+
+        for file_path, file_info in shows_only.items():
+            season_match = re.match(
+                r"^(.*\s\(\d{4}\)\s.*)_Season(\d{2}).*$", file_info["file_name"]
+            )
+            if season_match:
+                file_name = self._remove_chars(f"{season_match.group(1)}")
+                season_num = int(season_match.group(2))
+                self.logger.info(
+                    f"Processing cached show file: {file_path}, Normalized title: {file_name}"
+                )
+                show = find_match(file_name, plex_show_dict["show"], show=True)
+                if show:
+                    season = next(
+                        (s for s in show.seasons() if s.index == season_num), None
+                    )
+                    if season:
+                        self.logger.info(
+                            f"Match found for Season {season.index}: {season.title}"
+                        )
+                        add_poster_to_plex(show, file_path)
+                    else:
+                        self.logger.warning(
+                            f"Season {season_num} not found for show '{show.title}'"
+                        )
+            else:
+                file_name = self._remove_chars(file_info["file_name"])
+                self.logger.info(
+                    f"Processing cached show file: {file_path}, Normalized title: {file_name}"
+                )
+                show = find_match(file_name, plex_show_dict["show"], show=True)
+                if show:
+                    self.logger.info(
+                        f"Match found for file '{file_path}' -> Plex show '{show.title}'"
+                    )
+                    add_poster_to_plex(show, file_path)
+
+        for file_path, file_info in collections_only.items():
+            file_name = self._remove_chars(file_info["file_name"])
+            self.logger.info(
+                f"Processing cached collection file: {file_path}, Normalized title: {file_name}"
+            )
+            collection = find_match(
+                file_name, combined_collection_list, collection=True
+            )
+            if collection:
+                self.logger.info(
+                    f"Match found for file '{file_path}' -> Plex collection '{collection.title}'"
+                )
+                add_poster_to_plex(collection, file_path)
 
     def _handle_movie(self, item: Path, movies_list: list[str]) -> str | None:
         movie_matched_without_year = self._remove_chars(self._strip_year(item.stem))
@@ -727,6 +886,8 @@ class PosterRenamerr:
             )
             return None
 
+    # TODO: CREATE FUNCTION TO ADD has_episodes ATTRIBUTE TO PLEX MEDIA DICT FROM ARR MEDIA DICT
+    # TODO: CREATE UPLOAD POSTER TO PLEX FUNCTION FOR ASSET FOLDERS
     def run(
         self,
         payload: Payload,
@@ -809,10 +970,28 @@ class PosterRenamerr:
                 self.logger.debug(f"Asset Folders: {self.asset_folders}")
                 self.logger.debug("Starting file copying and renaming")
                 self.copy_rename_files(matched_files, media_dict, collections_dict)
+                if payload.upload_to_plex:
+                    media_dict = {}
+                    for name, server in plex_instances.items():
+                        try:
+                            plex_movie_dict, plex_show_dict = server.get_media()
+                            media_dict[name] = {
+                                "movies": plex_movie_dict,
+                                "shows": plex_show_dict,
+                            }
+                        except Exception as e:
+                            self.logger.error(
+                                f"Error retrieving media for Plex instance '{name}': {e}"
+                            )
+                            media_dict[name] = {"movies": {}, "shows": {}}
+                    for server_name, item_dict in media_dict.items():
+                        self.logger.info(
+                            f"Uploading posters for Plex instance: {server_name}"
+                        )
+                        self.upload_poster(item_dict["movies"], item_dict["shows"])
 
             if job_id and cb:
                 cb(job_id, 100, ProgressState.COMPLETED)
-
             self.clean_cache()
         except Exception as e:
             self.logger.critical("Unexpected error occured.", exc_info=True)

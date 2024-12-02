@@ -1,6 +1,7 @@
 import sqlite3
-from DapsEX.settings import Settings
 from contextlib import closing
+
+from DapsEX.settings import Settings
 
 
 class Database:
@@ -18,12 +19,14 @@ class Database:
                 cursor.execute(
                     """
                 CREATE TABLE IF NOT EXISTS file_cache (
-                    file_path text PRIMARY KEY,
+                    file_path TEXT PRIMARY KEY,
+                    file_name TEXT,
                     media_type TEXT, 
                     file_hash TEXT UNIQUE,
                     original_file_hash TEXT UNIQUE,
                     source_path TEXT,
                     border_replaced INTEGER DEFAULT 0,
+                    uploaded_to_plex INTEGER DEFAULT 0,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
                 """
@@ -82,24 +85,70 @@ class Database:
                 conn.commit()
 
     def add_file(
-        self, file_path: str, media_type: str, file_hash: str, original_file_hash: str, source_path: str, border_replaced: bool
+        self,
+        file_path: str,
+        file_name: str,
+        media_type: str,
+        file_hash: str,
+        original_file_hash: str,
+        source_path: str,
+        border_replaced: bool,
     ) -> None:
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
-                    "INSERT OR REPLACE INTO file_cache (file_path, media_type, file_hash, original_file_hash, source_path, border_replaced) VALUES (?, ?, ?, ?, ?, ?)",
-                    (file_path, media_type, file_hash, original_file_hash, source_path, border_replaced),
+                    "INSERT OR REPLACE INTO file_cache (file_path, file_name, media_type, file_hash, original_file_hash, source_path, border_replaced, uploaded_to_plex) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        file_path,
+                        file_name,
+                        media_type,
+                        file_hash,
+                        original_file_hash,
+                        source_path,
+                        border_replaced,
+                        0,
+                    ),
                 )
             conn.commit()
 
-    def update_file(self, file_hash: str, original_file_hash: str, source_path: str, file_path: str, border_replaced: bool) -> None:
+    def update_file(
+        self,
+        file_hash: str,
+        original_file_hash: str,
+        source_path: str,
+        file_path: str,
+        border_replaced: bool,
+    ) -> None:
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
-                    "UPDATE file_cache SET file_hash = ?, original_file_hash = ?, source_path = ?, border_replaced = ? WHERE file_path = ?",
-                    (file_hash, original_file_hash, source_path, int(border_replaced), file_path)
+                    "UPDATE file_cache SET file_hash = ?, original_file_hash = ?, source_path = ?, border_replaced = ?, uploaded_to_plex = 0 WHERE file_path = ?",
+                    (
+                        file_hash,
+                        original_file_hash,
+                        source_path,
+                        int(border_replaced),
+                        file_path,
+                    ),
                 )
             conn.commit()
+
+    def update_uploaded_to_plex(self, file_path: str, logger):
+        with self.get_db_connection() as conn:
+            with closing(conn.cursor()) as cursor:
+                try:
+                    cursor.execute(
+                        "UPDATE file_cache SET uploaded_to_plex = 1 WHERE file_path = ?",
+                        (file_path,),
+                    )
+                    conn.commit()
+                    logger.debug(
+                        f"Succesfully updated 'uploaded_to_plex' to 1 for {file_path}"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Failed to update 'uploaded_to_plex' for {file_path}: {e}"
+                    )
 
     def get_cached_file(self, file_path: str) -> dict[str, str] | None:
         with self.get_db_connection() as conn:
@@ -128,14 +177,16 @@ class Database:
                 result = cursor.fetchall()
                 return {
                     file_path: {
+                        "file_name": file_name,
                         "media_type": media_type,
                         "file_hash": file_hash,
                         "original_file_hash": original_file_hash,
                         "source_path": source_path,
                         "border_replaced": border_replaced,
+                        "uploaded_to_plex": uploaded_to_plex,
                         "timestamp": timestamp,
                     }
-                    for file_path, media_type, file_hash, original_file_hash, source_path, border_replaced, timestamp, in result
+                    for file_path, file_name, media_type, file_hash, original_file_hash, source_path, border_replaced, uploaded_to_plex, timestamp, in result
                 }
 
     def add_unmatched_movie(
@@ -321,6 +372,6 @@ class Database:
                     ON CONFLICT(id)
                     DO UPDATE SET {columns}
                     """,
-                    full_values
+                    full_values,
                 )
                 conn.commit()

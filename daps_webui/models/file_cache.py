@@ -4,11 +4,13 @@ from daps_webui import db
 class FileCache(db.Model):
     __tablename__ = "file_cache"
     file_path = db.Column(db.String, primary_key=True)
+    file_name = db.Column(db.String)
     media_type = db.Column(db.String)
     file_hash = db.Column(db.String, unique=True)
     original_file_hash = db.Column(db.String, unique=True)
     source_path = db.Column(db.String)
     border_replaced = db.Column(db.Boolean, default=False)
+    uploaded_to_plex = db.Column(db.Boolean, default=False)
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
 
 

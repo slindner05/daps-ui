@@ -39,6 +39,7 @@ def create_poster_renamer_payload(radarr, sonarr, plex) -> PosterRenamerPayload:
         asset_folders=getattr(settings, "asset_folders", False),
         unmatched_assets=getattr(settings, "unmatched_assets", True),
         border_replacerr=getattr(settings, "border_replacerr", False),
+        upload_to_plex=getattr(settings, "upload_to_plex", False),
         library_names=(
             getattr(settings, "library_names", "").split(",")
             if getattr(settings, "library_names", None)

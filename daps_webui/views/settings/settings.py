@@ -48,6 +48,7 @@ def get_settings():
             "unmatchedAssets": getattr(settings, "unmatched_assets", True),
             "borderReplacer": getattr(settings, "border_replacerr", False),
             "runSingleItem": getattr(settings, "run_single_item", False),
+            "uploadToPlex": getattr(settings, "upload_to_plex", False),
             "radarrInstances": [
                 {
                     "instanceName": instance.instance_name,
@@ -95,6 +96,7 @@ def save_settings():
             "unmatched_assets": data.get("unmatchedAssets", True),
             "border_replacerr": data.get("borderReplacerr", False),
             "run_single_item": data.get("runSingleItem", False),
+            "upload_to_plex": data.get("uploadToPlex", False),
         }
 
         models.Settings.query.delete()

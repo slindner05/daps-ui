@@ -16,3 +16,4 @@ class Settings(db.Model):
     unmatched_assets = db.Column(db.Boolean, default=True, nullable=False)
     border_replacerr = db.Column(db.Boolean, default=False, nullable=False)
     run_single_item = db.Column(db.Boolean, default=False, nullable=False)
+    upload_to_plex = db.Column(db.Boolean, default=False, nullable=False)

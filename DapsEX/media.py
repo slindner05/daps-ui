@@ -8,7 +8,7 @@ from arrapi.exceptions import ConnectionFailure
 from arrapi.exceptions import Unauthorized as ArrApiUnauthorized
 from arrapi.objs.reload import Movie
 from plexapi.collection import LibrarySection
-from plexapi.exceptions import BadRequest
+from plexapi.exceptions import BadRequest, NotFound
 from plexapi.exceptions import Unauthorized as PlexApiUnauthorized
 from plexapi.exceptions import UnknownType
 from plexapi.server import PlexServer
@@ -241,3 +241,47 @@ class Server:
             if collection.title not in unique_collections:
                 unique_collections.add(collection.title)
                 show_collections_list.append(collection.title)
+
+    def get_media(self) -> tuple[dict[str, list], dict[str, list]]:
+        movie_dict = {"movie": [], "collections": []}
+        show_dict = {"show": [], "collections": []}
+
+        unique_movies = set()
+        unique_shows = set()
+        unique_movie_collections = set()
+        unique_show_collections = set()
+
+        for library_name in self.library_names:
+            try:
+                library = self.plex.library.section(library_name)
+            except UnknownType as e:
+                self.logger.error(f"Library '{library_name}' is invalid: {e}")
+                continue
+
+            if library.type == "movie":
+                self._process_library(
+                    library, unique_movies, unique_movie_collections, movie_dict
+                )
+            if library.type == "show":
+                self._process_library(
+                    library, unique_shows, unique_show_collections, show_dict
+                )
+        return movie_dict, show_dict
+
+    def _process_library(
+        self,
+        library: LibrarySection,
+        unique_media_items: set,
+        unique_collections: set,
+        item_dict: dict[str, list],
+    ) -> None:
+        all_items = library.all()
+        all_collections = library.collections()
+        for item in all_items:
+            if item.title not in unique_media_items:
+                unique_media_items.add(item.title)
+                item_dict[library.type].append(item)
+        for collection in all_collections:
+            if collection.title not in unique_collections:
+                unique_collections.add(collection.title)
+                item_dict["collections"].append(collection)

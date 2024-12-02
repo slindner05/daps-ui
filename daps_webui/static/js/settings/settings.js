@@ -137,6 +137,8 @@ function preFillForm(data) {
     data.unmatchedAssets || false;
   document.getElementById("run_single_item").checked =
     data.runSingleItem || false;
+  document.getElementById("upload_to_plex").checked =
+    data.uploadToPlex || false;
 
   createInstanceFromSettings(data, "radarrInstances", "radarr");
   createInstanceFromSettings(data, "sonarrInstances", "sonarr");
@@ -399,6 +401,7 @@ function createPosterRenamer() {
     "Single run on new item",
     "run_single_item",
   );
+  const uploadToPlex = createCheckboxInput("Upload to plex", "upload_to_plex");
 
   const addSourceDirButton = createAddButton("source_dir", "Add Source Dir");
   attachAddButtonListener(
@@ -435,6 +438,7 @@ function createPosterRenamer() {
   checkboxDiv.appendChild(borderReplacerCheckbox);
   checkboxDiv.appendChild(unmatchedAssetsCheckbox);
   checkboxDiv.appendChild(runSingleItemCheckbox);
+  checkboxDiv.appendChild(uploadToPlex);
 
   // formGroup.appendChild(logLevelLabel);
   formGroup.appendChild(cronScheduleLabel);
@@ -698,6 +702,7 @@ document.getElementById("save-settings").addEventListener("click", function () {
   const borderReplacerr = document.getElementById("border_replacer").checked;
   const unmatchedAssets = document.getElementById("unmatched_assets").checked;
   const runSingleItem = document.getElementById("run_single_item").checked;
+  const uploadToPlex = document.getElementById("upload_to_plex").checked;
 
   // radarr
   const radarrInstanceNames = Array.from(
@@ -768,6 +773,7 @@ document.getElementById("save-settings").addEventListener("click", function () {
       unmatchedAssets: unmatchedAssets,
       borderReplacerr: borderReplacerr,
       runSingleItem: runSingleItem,
+      uploadToPlex: uploadToPlex,
       radarrInstances: radarrInstances,
       sonarrInstances: sonarrInstances,
       plexInstances: plexInstances,
