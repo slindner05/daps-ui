@@ -604,8 +604,11 @@ class PosterRenamerr:
                             self.replace_border,
                         )
 
-    def upload_poster(self, plex_movie_dict, plex_show_dict) -> None:
+    def upload_poster(
+        self, plex_movie_dict, plex_show_dict, asset_folders: bool
+    ) -> None:
         cached_files = self.db.return_all_files()
+        self.logger.debug(json.dumps(cached_files, indent=4))
         for file_path, file_info in cached_files.items():
             self.logger.info(
                 f"{file_path}: uploaded_to_plex={file_info.get('uploaded_to_plex')}"
@@ -698,7 +701,11 @@ class PosterRenamerr:
         plex_show_dict = add_show_paths(plex_show_dict)
 
         for file_path, file_info in movies_only.items():
-            file_name = self._remove_chars(file_info["file_name"])
+            if asset_folders:
+                asset_file_path = Path(file_path)
+                file_name = self._remove_chars(asset_file_path.parent.name)
+            else:
+                file_name = self._remove_chars(file_info["file_name"])
             self.logger.info(
                 f"Processing cached movie file: {file_path}, Normalized title: {file_name}"
             )
@@ -710,12 +717,20 @@ class PosterRenamerr:
                 add_poster_to_plex(movie, file_path)
 
         for file_path, file_info in shows_only.items():
-            season_match = re.match(
-                r"^(.*\s\(\d{4}\)\s.*)_Season(\d{2}).*$", file_info["file_name"]
-            )
+            if asset_folders:
+                season_match = re.match(r"^Season(\d{2})", file_info["file_name"])
+            else:
+                season_match = re.match(
+                    r"^(.*\s\(\d{4}\)\s.*)_Season(\d{2}).*$", file_info["file_name"]
+                )
             if season_match:
-                file_name = self._remove_chars(f"{season_match.group(1)}")
-                season_num = int(season_match.group(2))
+                if asset_folders:
+                    asset_file_path = Path(file_path)
+                    file_name = self._remove_chars(asset_file_path.parent.name)
+                    season_num = int(season_match.group(1))
+                else:
+                    file_name = self._remove_chars(f"{season_match.group(1)}")
+                    season_num = int(season_match.group(2))
                 self.logger.info(
                     f"Processing cached show file: {file_path}, Normalized title: {file_name}"
                 )
@@ -734,7 +749,12 @@ class PosterRenamerr:
                             f"Season {season_num} not found for show '{show.title}'"
                         )
             else:
-                file_name = self._remove_chars(file_info["file_name"])
+                if asset_folders:
+                    asset_file_path = Path(file_path)
+                    file_name = self._remove_chars(asset_file_path.parent.name)
+                else:
+                    file_name = self._remove_chars(file_info["file_name"])
+
                 self.logger.info(
                     f"Processing cached show file: {file_path}, Normalized title: {file_name}"
                 )
@@ -746,7 +766,11 @@ class PosterRenamerr:
                     add_poster_to_plex(show, file_path)
 
         for file_path, file_info in collections_only.items():
-            file_name = self._remove_chars(file_info["file_name"])
+            if asset_folders:
+                asset_file_path = Path(file_path)
+                file_name = self._remove_chars(asset_file_path.parent.name)
+            else:
+                file_name = self._remove_chars(file_info["file_name"])
             self.logger.info(
                 f"Processing cached collection file: {file_path}, Normalized title: {file_name}"
             )
@@ -970,29 +994,32 @@ class PosterRenamerr:
                 self.logger.debug(f"Asset Folders: {self.asset_folders}")
                 self.logger.debug("Starting file copying and renaming")
                 self.copy_rename_files(matched_files, media_dict, collections_dict)
-                if payload.upload_to_plex:
-                    media_dict = {}
-                    for name, server in plex_instances.items():
-                        try:
-                            plex_movie_dict, plex_show_dict = server.get_media()
-                            media_dict[name] = {
-                                "movies": plex_movie_dict,
-                                "shows": plex_show_dict,
-                            }
-                        except Exception as e:
-                            self.logger.error(
-                                f"Error retrieving media for Plex instance '{name}': {e}"
-                            )
-                            media_dict[name] = {"movies": {}, "shows": {}}
-                    for server_name, item_dict in media_dict.items():
-                        self.logger.info(
-                            f"Uploading posters for Plex instance: {server_name}"
+
+            if payload.upload_to_plex:
+                media_dict = {}
+                for name, server in plex_instances.items():
+                    try:
+                        plex_movie_dict, plex_show_dict = server.get_media()
+                        media_dict[name] = {
+                            "movies": plex_movie_dict,
+                            "shows": plex_show_dict,
+                        }
+                    except Exception as e:
+                        self.logger.error(
+                            f"Error retrieving media for Plex instance '{name}': {e}"
                         )
-                        self.upload_poster(item_dict["movies"], item_dict["shows"])
+                        media_dict[name] = {"movies": {}, "shows": {}}
+                for server_name, item_dict in media_dict.items():
+                    self.logger.info(
+                        f"Uploading posters for Plex instance: {server_name}"
+                    )
+                    self.upload_poster(
+                        item_dict["movies"], item_dict["shows"], payload.asset_folders
+                    )
 
             if job_id and cb:
                 cb(job_id, 100, ProgressState.COMPLETED)
             self.clean_cache()
         except Exception as e:
             self.logger.critical("Unexpected error occured.", exc_info=True)
-            raise e
+            raise
