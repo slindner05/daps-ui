@@ -111,7 +111,6 @@ class Database:
                 )
             conn.commit()
 
-    # TODO: CHECK IF EDGE CASE FILES ARE NOT CONSTANTLY BEING REUPLOADED TO PLEX EVEN IF ITS THE SAME FILE ON UPDATE
     def update_file(
         self,
         file_hash: str,

@@ -12,6 +12,7 @@ from pprint import pformat
 from pathvalidate import sanitize_filename
 from tqdm import tqdm
 
+from DapsEX import utils
 from DapsEX.border_replacerr import BorderReplacerr
 from DapsEX.database_cache import Database
 from DapsEX.logger import init_logger
@@ -112,6 +113,7 @@ class PosterRenamerr:
             "movies": [],
             "shows": [],
         }
+        matched_movies_with_year = {}
 
         flattened_col_list = [
             item for sublist in collections_dict.values() for item in sublist
@@ -129,18 +131,38 @@ class PosterRenamerr:
                 sanitized_name_without_extension = self._remove_chars(
                     name_without_extension
                 )
+                sanitized_name_without_year = utils.strip_year(
+                    sanitized_name_without_extension
+                )
+                year_match = re.search(r"(\b\d{4}\b)", file.stem)
+                season_match = re.search(
+                    r"\b- (season|specials)\b", file.stem, re.IGNORECASE
+                )
+                poster_file_year = year_match.group(1) if year_match else None
                 matched = False
 
                 for matched_list in matched_files.values():
-                    if any(
-                        sanitized_name_without_extension
-                        == self._remove_chars(matched_file.stem)
-                        for matched_file in matched_list
-                    ):
-                        matched = True
+                    for matched_file in matched_list:
+                        stripped_file_name = self._remove_chars(matched_file.stem)
+                        if sanitized_name_without_extension == stripped_file_name:
+                            self.logger.debug(f"Exact match found: {file}, skipping")
+                            matched = True
+                            break
+                        elif (
+                            sanitized_name_without_year in matched_movies_with_year
+                            and poster_file_year is not None
+                            and poster_file_year
+                            in matched_movies_with_year[sanitized_name_without_year]
+                        ):
+                            self.logger.debug(
+                                f"Year-based match found: {file} in matched_movies_with_year, skipping"
+                            )
+                            matched = True
+                            break
+                    if matched:
                         break
 
-                if not matched:
+                if not matched and not poster_file_year and not season_match:
                     for collection_name in modified_col_list:
                         sanitized_collection_name = self._remove_chars(collection_name)
                         if (
@@ -151,20 +173,33 @@ class PosterRenamerr:
                             matched = True
                             break
 
-                if not matched:
+                if not matched and poster_file_year and not season_match:
                     for movie_data in movies_list:
                         movie_title = movie_data.get("title")
                         movie_years = movie_data.get("years", [])
                         sanitized_movie_title = self._remove_chars(movie_title)
+                        sanitized_movie_title_without_year = self._strip_year(
+                            sanitized_movie_title
+                        )
+
                         if sanitized_name_without_extension in sanitized_movie_title:
                             matched_files["movies"].append(file)
                             matched = True
+                            if len(movie_years) > 1:
+                                if (
+                                    sanitized_movie_title_without_year
+                                    not in matched_movies_with_year
+                                ):
+                                    matched_movies_with_year[
+                                        sanitized_movie_title_without_year
+                                    ] = set()
+                                    for year in movie_years:
+                                        matched_movies_with_year[
+                                            sanitized_movie_title_without_year
+                                        ].update(movie_years)
                             break
                         if not matched and movie_years:
                             for year in movie_years:
-                                sanitized_movie_title_without_year = self._strip_year(
-                                    sanitized_movie_title
-                                )
                                 sanitized_movie_title_alternate_year = (
                                     f"{sanitized_movie_title_without_year} ({year})"
                                 )
@@ -174,8 +209,22 @@ class PosterRenamerr:
                                 ):
                                     matched_files["movies"].append(file)
                                     matched = True
+                                    if len(movie_years) > 1:
+                                        if (
+                                            sanitized_movie_title_without_year
+                                            not in matched_movies_with_year
+                                        ):
+                                            matched_movies_with_year[
+                                                sanitized_movie_title_without_year
+                                            ] = set()
+                                        matched_movies_with_year[
+                                            sanitized_movie_title_without_year
+                                        ].update(movie_years)
+                                        self.logger.debug(
+                                            f"Updated matched_movies_with_year: {matched_movies_with_year}"
+                                        )
                                     break
-                if not matched:
+                if not matched and poster_file_year:
                     for show_name in media_dict["shows"]:
                         sanitized_show_name = self._strip_id(
                             self._remove_chars(show_name)
@@ -456,8 +505,6 @@ class PosterRenamerr:
                     return target_dir, show_file_name_format
             return None
 
-    # TODO: ADD YEAR CHECK WHEN REPLACING FILES, CURRENTLY IF THE YEARS MISMATCH BETWEEN SOURCE DIRS PRIORITY FOR FILES BREAKS
-
     def _copy_file(
         self,
         file_path: Path,
@@ -474,21 +521,21 @@ class PosterRenamerr:
         current_source = str(file_path)
 
         if target_path.exists() and cached_file:
-            # cached_hash = cached_file["file_hash"]
+            cached_hash = cached_file["file_hash"]
             cached_original_hash = cached_file["original_file_hash"]
             cached_source = cached_file["source_path"]
             cached_border_state = cached_file.get("border_replaced", 0)
 
             # Debugging: Log the current and cached values for comparison
-            # self.logger.debug(f"Checking skip conditions for file: {file_path}")
-            # self.logger.debug(f"File name: {file_name_without_extension}")
-            # self.logger.debug(f"Original file hash: {original_file_hash}")
-            # self.logger.debug(f"Cached hash: {cached_hash}")
-            # self.logger.debug(f"Cached original hash: {cached_original_hash}")
-            # self.logger.debug(f"Current source: {current_source}")
-            # self.logger.debug(f"Cached source: {cached_source}")
-            # self.logger.debug(f"Replace border (current): {replace_border}")
-            # self.logger.debug(f"Cached border replaced: {cached_border_state}")
+            self.logger.debug(f"Checking skip conditions for file: {file_path}")
+            self.logger.debug(f"File name: {file_name_without_extension}")
+            self.logger.debug(f"Original file hash: {original_file_hash}")
+            self.logger.debug(f"Cached hash: {cached_hash}")
+            self.logger.debug(f"Cached original hash: {cached_original_hash}")
+            self.logger.debug(f"Current source: {current_source}")
+            self.logger.debug(f"Cached source: {cached_source}")
+            self.logger.debug(f"Replace border (current): {replace_border}")
+            self.logger.debug(f"Cached border replaced: {cached_border_state}")
 
             if (
                 cached_original_hash == original_file_hash
