@@ -107,7 +107,7 @@ def strip_id(name: str) -> str:
     """
     Strip tvdb/imdb/tmdb ID from movie title.
     """
-    return re.sub(r"\s*[\{\[].*?[\}\]]", "", name).strip()
+    return re.sub(r"\s*[\{\[](?:tvdb|imdb|tmdb).*?[\}\]]", "", name).strip()
 
 
 def remove_emojis(name: str) -> str:

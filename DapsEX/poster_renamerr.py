@@ -950,9 +950,7 @@ class PosterRenamerr:
                     add_poster_to_plex(collection_list, file_path)
 
     def _handle_movie(self, item: Path, movies_list_dict: list[dict]) -> str | None:
-        movie_matched_without_year = self._remove_chars(
-            utils.strip_year(utils.strip_id(item.stem))
-        )
+        movie_matched_without_year = self._remove_chars(utils.strip_year(item.stem))
         for item_dict in movies_list_dict:
             movie_title = item_dict.get("title", "")
             movie_clean_without_year = self._remove_chars(
@@ -1049,7 +1047,7 @@ class PosterRenamerr:
     ) -> dict[str, list] | None:
 
         media_dict = {"movies": [], "shows": []}
-        instance_name = single_item.get("instance_name")
+        instance_name = single_item.get("instance_name", "").lower()
         item_id = single_item.get("item_id")
         if not instance_name:
             self.logger.error("Instance name is missing for movie item")
@@ -1059,7 +1057,8 @@ class PosterRenamerr:
                 f"Invalid item ID: {item_id} for instance: {instance_name}"
             )
             return None
-        arr_instance = instances.get(instance_name)
+        normalized_instances = {key.lower(): value for key, value in instances.items()}
+        arr_instance = normalized_instances.get(instance_name)
         if not arr_instance:
             self.logger.error(f"Arr instance '{instance_name}' not found")
             return None
