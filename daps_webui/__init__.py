@@ -272,8 +272,9 @@ def recieve_webhook():
     if not data:
         daps_logger.error("No data recieved in the webhook")
         return "No data recieved", 400
+    daps_logger.debug(f"===== Webhook data =====\n{data}")
 
-    valid_event_types = ["Download", "Grab", "MovieAdded"]
+    valid_event_types = ["Download", "Grab", "MovieAdded", "SeriesAdd", "Import"]
     webhook_event_type = data.get("eventType", "")
 
     if webhook_event_type == "Test":
