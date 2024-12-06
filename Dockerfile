@@ -30,6 +30,8 @@ COPY . .
 # Copy the entrypoint script and set it as executable
 COPY entrypoint.sh /entrypoint.sh
 
+COPY migrate_file_cache.py /code/migrate_file_cache.py
+
 # Set environment variables to switch between development and production
 ENV APP_MODE="WEB" 
 ENV MAIN_LOG_LEVEL="INFO"

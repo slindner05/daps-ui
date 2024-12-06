@@ -21,6 +21,8 @@ class Database:
                 CREATE TABLE IF NOT EXISTS file_cache (
                     file_path TEXT PRIMARY KEY,
                     file_name TEXT,
+                    status TEXT DEFAULT NULL,
+                    has_episodes INTEGER DEFAULT NULL,
                     media_type TEXT, 
                     file_hash TEXT UNIQUE,
                     original_file_hash TEXT UNIQUE,
@@ -88,6 +90,8 @@ class Database:
         self,
         file_path: str,
         file_name: str,
+        status: str | None,
+        has_episodes: bool | None,
         media_type: str,
         file_hash: str,
         original_file_hash: str,
@@ -97,10 +101,12 @@ class Database:
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
-                    "INSERT OR REPLACE INTO file_cache (file_path, file_name, media_type, file_hash, original_file_hash, source_path, border_replaced, uploaded_to_plex) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT OR REPLACE INTO file_cache (file_path, file_name, status, has_episodes, media_type, file_hash, original_file_hash, source_path, border_replaced, uploaded_to_plex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         file_path,
                         file_name,
+                        status,
+                        has_episodes,
                         media_type,
                         file_hash,
                         original_file_hash,
@@ -133,6 +139,44 @@ class Database:
                 )
             conn.commit()
 
+    def update_status(self, file_path: str, status: str, logger):
+        with self.get_db_connection() as conn:
+            with closing(conn.cursor()) as cursor:
+                try:
+                    cursor.execute(
+                        "UPDATE file_cache SET status = ? WHERE file_path = ?",
+                        (
+                            status,
+                            file_path,
+                        ),
+                    )
+                    conn.commit()
+                    logger.debug(
+                        f"Succesfully updated 'status' to {status} for {file_path}"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to updated 'status' for {file_path}: {e}")
+
+    def update_has_episodes(self, file_path: str, has_episodes: bool, logger):
+        with self.get_db_connection() as conn:
+            with closing(conn.cursor()) as cursor:
+                try:
+                    cursor.execute(
+                        "UPDATE file_cache SET has_episodes = ? WHERE file_path = ?",
+                        (
+                            int(has_episodes),
+                            file_path,
+                        ),
+                    )
+                    conn.commit()
+                    logger.debug(
+                        f"Succesfully updated 'has_episodes' to {has_episodes} for {file_path}"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Failed to updated 'has_episodes' for {file_path}: {e}"
+                    )
+
     def update_uploaded_to_plex(self, file_path: str, logger):
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
@@ -143,7 +187,7 @@ class Database:
                     )
                     conn.commit()
                     logger.debug(
-                        f"Succesfully updated 'uploaded_to_plex' to 1 for {file_path}"
+                        f"Succesfully updated 'uploaded_to_plex' to true for {file_path}"
                     )
                 except Exception as e:
                     logger.error(
@@ -178,6 +222,8 @@ class Database:
                 return {
                     file_path: {
                         "file_name": file_name,
+                        "status": status,
+                        "has_episodes": has_episodes,
                         "media_type": media_type,
                         "file_hash": file_hash,
                         "original_file_hash": original_file_hash,
@@ -186,7 +232,7 @@ class Database:
                         "uploaded_to_plex": uploaded_to_plex,
                         "timestamp": timestamp,
                     }
-                    for file_path, file_name, media_type, file_hash, original_file_hash, source_path, border_replaced, uploaded_to_plex, timestamp, in result
+                    for file_path, file_name, status, has_episodes, media_type, file_hash, original_file_hash, source_path, border_replaced, uploaded_to_plex, timestamp, in result
                 }
 
     def add_unmatched_movie(

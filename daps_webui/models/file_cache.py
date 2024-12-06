@@ -5,6 +5,8 @@ class FileCache(db.Model):
     __tablename__ = "file_cache"
     file_path = db.Column(db.String, primary_key=True)
     file_name = db.Column(db.String)
+    status = db.Column(db.String, nullable=True, default=None)
+    has_episodes = db.Column(db.Boolean, nullable=True, default=None)
     media_type = db.Column(db.String)
     file_hash = db.Column(db.String, unique=True)
     original_file_hash = db.Column(db.String, unique=True)

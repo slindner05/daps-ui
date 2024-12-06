@@ -20,6 +20,12 @@ fi
 
 chown -R appuser:appgroup /config
 
+echo "Running file_cache reset script..."
+python /code/migrate_file_cache.py || {
+	echo "Failed to reset file_cache table. Exiting."
+	exit 1
+}
+
 if [ "$APP_MODE" = "WEB" ]; then
 	if [ "$FLASK_ENV" = "development" ]; then
 		echo "Starting Flask in development mode as $PUID:$PGID"
