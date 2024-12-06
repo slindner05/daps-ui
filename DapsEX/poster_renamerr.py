@@ -118,11 +118,8 @@ class PosterRenamerr:
         flattened_col_list = [
             item for sublist in collections_dict.values() for item in sublist
         ]
-        append_str = " Collection"
-        modified_col_list = [item + append_str for item in flattened_col_list]
         movies_list = media_dict.get("movies", [])
         shows_list = media_dict.get("shows", [])
-        self.logger.debug(pformat(shows_list))
 
         total_files = sum(len(files) for files in source_files.values())
         processed_files = 0
@@ -149,31 +146,40 @@ class PosterRenamerr:
                         if sanitized_name_without_extension == stripped_file_name:
                             self.logger.debug(f"Exact match found: {file}, skipping")
                             matched = True
-                            break
-                        elif (
-                            sanitized_name_without_year in matched_movies_with_year
+                        if (
+                            not matched
+                            and sanitized_name_without_year in matched_movies_with_year
                             and poster_file_year is not None
                             and poster_file_year
                             in matched_movies_with_year[sanitized_name_without_year]
                         ):
                             self.logger.debug(
-                                f"Year-based match found: {file} in matched_movies_with_year, skipping"
+                                f"Year-based match found: {file}, skipping"
                             )
                             matched = True
                             break
                     if matched:
                         break
+                if matched:
+                    continue
 
                 if not matched and not poster_file_year and not season_match:
-                    for collection_name in modified_col_list:
-                        sanitized_collection_name = self._remove_chars(collection_name)
+                    for collection_name in flattened_col_list:
+                        sanitized_collection_name = self._remove_chars(
+                            collection_name
+                        ).removesuffix(" collection")
+                        sanitized_file_name_without_collection = (
+                            sanitized_name_without_extension.removesuffix(" collection")
+                        )
                         if (
-                            sanitized_name_without_extension
-                            in sanitized_collection_name
+                            sanitized_file_name_without_collection
+                            == sanitized_collection_name
                         ):
                             matched_files["collections"].append(file)
                             matched = True
                             break
+                    if matched:
+                        continue
 
                 if not matched and poster_file_year and not season_match:
                     for movie_data in movies_list:
@@ -187,22 +193,9 @@ class PosterRenamerr:
                             sanitized_movie_title
                         )
 
-                        if sanitized_name_without_extension in sanitized_movie_title:
-                            matched_files["movies"][file] = movie_status
+                        if sanitized_name_without_extension == sanitized_movie_title:
                             matched = True
-                            if len(movie_years) > 1:
-                                if (
-                                    sanitized_movie_title_without_year
-                                    not in matched_movies_with_year
-                                ):
-                                    matched_movies_with_year[
-                                        sanitized_movie_title_without_year
-                                    ] = set()
-                                    for year in movie_years:
-                                        matched_movies_with_year[
-                                            sanitized_movie_title_without_year
-                                        ].update(movie_years)
-                            break
+
                         if not matched and movie_years:
                             for year in movie_years:
                                 sanitized_movie_title_alternate_year = (
@@ -210,25 +203,27 @@ class PosterRenamerr:
                                 )
                                 if (
                                     sanitized_name_without_extension
-                                    in sanitized_movie_title_alternate_year
+                                    == sanitized_movie_title_alternate_year
                                 ):
-                                    matched_files["movies"][file] = movie_status
                                     matched = True
-                                    if len(movie_years) > 1:
-                                        if (
-                                            sanitized_movie_title_without_year
-                                            not in matched_movies_with_year
-                                        ):
-                                            matched_movies_with_year[
-                                                sanitized_movie_title_without_year
-                                            ] = set()
-                                        matched_movies_with_year[
-                                            sanitized_movie_title_without_year
-                                        ].update(movie_years)
-                                        self.logger.debug(
-                                            f"Updated matched_movies_with_year: {matched_movies_with_year}"
-                                        )
                                     break
+                        if matched:
+                            matched_files["movies"][file] = movie_status
+                            self.logger.debug(f"Added {file} to matched_files dict")
+                            if (
+                                sanitized_movie_title_without_year
+                                not in matched_movies_with_year
+                            ):
+                                matched_movies_with_year[
+                                    sanitized_movie_title_without_year
+                                ] = set()
+                            matched_movies_with_year[
+                                sanitized_movie_title_without_year
+                            ].update(movie_years)
+                            break
+                    if matched:
+                        continue
+
                 if not matched and poster_file_year:
                     for show_data in shows_list:
                         show_name = show_data.get("title", "")
@@ -263,7 +258,10 @@ class PosterRenamerr:
                                             ] = season_has_episodes
                                             matched = True
                                             break
-                        elif self._match_show_special(
+                                if matched:
+                                    break
+
+                        if self._match_show_special(
                             sanitized_name_without_extension, sanitized_show_name
                         ):
                             for season in show_seasons:
@@ -274,19 +272,23 @@ class PosterRenamerr:
                                     matched_files["shows"][file] = season_has_episodes
                                     matched = True
                                     break
-                        else:
-                            if sanitized_name_without_extension == sanitized_show_name:
-                                matched_files["shows"][file] = show_status
-                                matched = True
+                            if matched:
                                 break
+
+                        if sanitized_name_without_extension == sanitized_show_name:
+                            matched_files["shows"][file] = show_status
+                            matched = True
+                            break
+                    if matched:
+                        continue
 
                 processed_files += 1
                 if job_id and cb:
                     progress = int((processed_files / total_files) * 70)
                     cb(job_id, progress + 10, ProgressState.IN_PROGRESS)
 
-            self.logger.debug("Matched files summary:")
-            self.logger.debug(pformat(matched_files))
+        self.logger.debug("Matched files summary:")
+        self.logger.debug(pformat(matched_files))
         return matched_files
 
     @staticmethod
@@ -460,13 +462,13 @@ class PosterRenamerr:
         self, asset_folder_names: dict[str, list[str]], file_path: Path
     ) -> tuple[Path, str] | None:
         for name in asset_folder_names["movies"]:
-            asset_folder_name_without_year = utils.strip_id(
-                utils.strip_year(self._remove_chars(name))
+            asset_folder_name_without_year = self._remove_chars(
+                utils.strip_year(utils.strip_id(name))
             )
             if (
                 file_path.exists()
                 and file_path.is_file()
-                and self._remove_chars(utils.strip_year(file_path.stem))
+                and self._remove_chars(utils.strip_year(utils.strip_id(file_path.stem)))
                 == asset_folder_name_without_year
             ):
                 self.log_matched_file("movie", name, str(file_path))
@@ -479,13 +481,16 @@ class PosterRenamerr:
         self, asset_folder_names: dict[str, list[str]], file_path: Path
     ) -> tuple[Path, str] | None:
         for name in asset_folder_names["collections"]:
-            stripped_file_name = self._remove_chars(
-                file_path.stem.removesuffix(" Collection")
+            stripped_file_name = self._remove_chars(file_path.stem).removesuffix(
+                " collection"
+            )
+            stripped_asset_folder_name = self._remove_chars(name).removesuffix(
+                " collection"
             )
             if (
                 file_path.exists()
                 and file_path.is_file()
-                and stripped_file_name == self._remove_chars(name)
+                and stripped_file_name == stripped_asset_folder_name
             ):
                 self.log_matched_file("collection", name, str(file_path))
                 collection_file_name_format = f"Poster{file_path.suffix}"
@@ -945,11 +950,13 @@ class PosterRenamerr:
                     add_poster_to_plex(collection_list, file_path)
 
     def _handle_movie(self, item: Path, movies_list_dict: list[dict]) -> str | None:
-        movie_matched_without_year = self._remove_chars(utils.strip_year(item.stem))
+        movie_matched_without_year = self._remove_chars(
+            utils.strip_year(utils.strip_id(item.stem))
+        )
         for item_dict in movies_list_dict:
             movie_title = item_dict.get("title", "")
-            movie_clean_without_year = utils.strip_id(
-                utils.strip_year(self._remove_chars(movie_title))
+            movie_clean_without_year = self._remove_chars(
+                utils.strip_year(utils.strip_id(movie_title))
             )
             if movie_matched_without_year == movie_clean_without_year:
                 self.log_matched_file("movie", movie_title, str(item))
@@ -962,9 +969,11 @@ class PosterRenamerr:
     def _handle_collections(
         self, item: Path, collections_list: list[str]
     ) -> str | None:
-        collection_name = self._remove_chars(item.stem.removesuffix(" Collection"))
+        collection_name = self._remove_chars(item.stem).removesuffix(" collection")
         for collection in collections_list:
-            collection_clean = self._remove_chars(collection)
+            collection_clean = self._remove_chars(collection).removesuffix(
+                " collection"
+            )
             if collection_name == collection_clean:
                 self.log_matched_file("collection", collection, str(item))
                 collection_name = collection
@@ -1209,6 +1218,8 @@ class PosterRenamerr:
                         )
                         item_dict["movies"]["movie"] = updated_movie_dict
                         item_dict["shows"]["show"] = updated_show_dict
+                        self.logger.debug("Updated plex media dict:")
+                        self.logger.debug(pformat(item_dict))
 
                         self.logger.info(
                             f"Uploading posters for Plex instance: {server_name}"

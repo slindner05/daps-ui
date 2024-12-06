@@ -298,7 +298,7 @@ def recieve_webhook():
         if not id:
             daps_logger.error(f"Item ID not found for {item_type} in webhook data")
             return "Invalid webhook data", 400
-        instance = data.get("instanceName", "").lower()
+        instance = data.get("instanceName", "")
         if not instance:
             daps_logger.error(
                 "Instance name missing from webhook data, please configure in arr settings."
