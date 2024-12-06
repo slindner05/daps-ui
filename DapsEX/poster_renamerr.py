@@ -807,18 +807,30 @@ class PosterRenamerr:
             self.logger.warning(f"No match found for file: {file_name}")
             return None
 
-        def add_poster_to_plex(plex_media_objects: list, file_path: str):
+        def add_poster_to_plex(
+            plex_media_objects: list, file_path: str, show_title: str | None = None
+        ):
             try:
                 for item in plex_media_objects:
                     item.uploadPoster(filepath=file_path)
                 self.db.update_uploaded_to_plex(file_path, self.logger)
-                self.logger.info(
-                    f"Successfully uploaded poster for item {plex_media_objects[0].title}"
-                )
+                if show_title:
+                    self.logger.info(
+                        f"Successfully uploaded poster for '{show_title}', item {plex_media_objects[0].title}"
+                    )
+                else:
+                    self.logger.info(
+                        f"Successfully uploaded poster for item {plex_media_objects[0].title}"
+                    )
             except Exception as e:
-                self.logger.error(
-                    f"Error uploading poster for item: {plex_media_objects[0].title}: {e}"
-                )
+                if show_title:
+                    self.logger.error(
+                        f"Error uploading poster for '{show_title}', item {plex_media_objects[0].title}"
+                    )
+                else:
+                    self.logger.error(
+                        f"Error uploading poster for item: {plex_media_objects[0].title}: {e}"
+                    )
 
         movies_only = filter_cached_files_by_type(cached_files, "movies")
         collections_only = filter_cached_files_by_type(cached_files, "collections")
@@ -887,7 +899,9 @@ class PosterRenamerr:
                         seasons_only = [season for _, season in matching_seasons]
                         if file_path not in processed_files:
                             processed_files.add(file_path)
-                            add_poster_to_plex(seasons_only, file_path)
+                            add_poster_to_plex(
+                                seasons_only, file_path, first_show_title
+                            )
                     else:
                         for show in show_list:
                             self.logger.warning(
@@ -1063,7 +1077,6 @@ class PosterRenamerr:
             )
             return None
 
-    # TODO: CREATE FUNCTION TO ADD has_episodes ATTRIBUTE TO PLEX MEDIA DICT FROM ARR MEDIA DICT
     def run(
         self,
         payload: Payload,
