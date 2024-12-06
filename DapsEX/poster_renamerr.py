@@ -212,7 +212,7 @@ class PosterRenamerr:
                                     sanitized_name_without_extension
                                     in sanitized_movie_title_alternate_year
                                 ):
-                                    matched_files["movies"].append(file)
+                                    matched_files["movies"][file] = movie_status
                                     matched = True
                                     if len(movie_years) > 1:
                                         if (
