@@ -472,7 +472,7 @@ class PosterRenamerr:
                 == asset_folder_name_without_year
             ):
                 self.log_matched_file("movie", name, str(file_path))
-                movie_file_name_format = f"Poster{file_path.suffix}"
+                movie_file_name_format = f"poster{file_path.suffix}"
                 target_dir = self.target_path / name
                 return target_dir, movie_file_name_format
         return None
@@ -493,7 +493,7 @@ class PosterRenamerr:
                 and stripped_file_name == stripped_asset_folder_name
             ):
                 self.log_matched_file("collection", name, str(file_path))
-                collection_file_name_format = f"Poster{file_path.suffix}"
+                collection_file_name_format = f"poster{file_path.suffix}"
                 target_dir = self.target_path / name
                 return target_dir, collection_file_name_format
         return None
@@ -553,7 +553,7 @@ class PosterRenamerr:
                 ):
                     self.log_matched_file("series", name, str(file_path))
                     target_dir = self.target_path / name
-                    show_file_name_format = f"Poster{file_path.suffix}"
+                    show_file_name_format = f"poster{file_path.suffix}"
                     return target_dir, show_file_name_format
             return None
 
