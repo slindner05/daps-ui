@@ -29,7 +29,7 @@ python /code/migrate_file_cache.py || {
 if [ "$APP_MODE" = "WEB" ]; then
 	if [ "$FLASK_ENV" = "development" ]; then
 		echo "Starting Flask in development mode as $PUID:$PGID"
-		exec gosu appuser poetry run flask --app daps_webui run --host 0.0.0.0 --port=5000 --debug
+		exec gosu appuser poetry run flask --app daps_webui:app run --host 0.0.0.0 --port=5000 --debug
 	else
 		echo "Starting Gunicorn in production mode as $PUID:$PGID"
 		exec gosu appuser poetry run gunicorn -w 1 -b 0.0.0.0:8000 daps_webui:app

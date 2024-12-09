@@ -1,10 +1,9 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 from time import sleep
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from flask import Flask, jsonify, request
+from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 
 from daps_webui.config.config import Config
@@ -22,7 +21,6 @@ db = SQLAlchemy()
 progress_dict = {}
 executor = ThreadPoolExecutor(max_workers=2)
 scheduler = BackgroundScheduler()
-scheduler.start()
 
 # define all loggers
 daps_logger = logging.getLogger("daps-web")
@@ -40,6 +38,14 @@ def create_app() -> Flask:
     # initiate database
     db.init_app(app)
 
+    with app.app_context():
+        db.create_all()
+        if app.debug:
+            schedule_jobs()
+            if not scheduler.running:
+                scheduler.start()
+                daps_logger.info("Scheduler started in development server")
+
     # import needed blueprints
     from daps_webui.views.home.home import home
     from daps_webui.views.poster_renamer.poster_renamer import poster_renamer
@@ -51,14 +57,6 @@ def create_app() -> Flask:
     app.register_blueprint(poster_renamer)
 
     return app
-
-
-app = create_app()
-daps_logger.info("Created app")
-
-
-def initialize_database():
-    db.create_all()
 
 
 def run_renamer_task(webhook_item: dict | None = None):
@@ -251,93 +249,4 @@ def run_unmatched_scheduled():
             )
 
 
-with app.app_context():
-    initialize_database()
-    schedule_jobs()
-
-
-@app.route("/arr-webhook", methods=["POST"])
-def recieve_webhook():
-    from daps_webui.models import Settings
-
-    run_single_item = Settings.query.with_entities(Settings.run_single_item).scalar()
-    if run_single_item is None:
-        daps_logger.error("No settings found or run_single_item is not configured.")
-        return "Settings not configured", 500
-    if not run_single_item:
-        daps_logger.debug("Single item processing is disabled in settings.")
-        return "Single item processing disabled", 403
-
-    data = request.json
-    if not data:
-        daps_logger.error("No data recieved in the webhook")
-        return "No data recieved", 400
-    daps_logger.debug(f"===== Webhook data =====\n{data}")
-
-    valid_event_types = ["Download", "Grab", "MovieAdded", "SeriesAdd", "Import"]
-    webhook_event_type = data.get("eventType", "")
-
-    if webhook_event_type == "Test":
-        daps_logger.info("Test event recived successfully")
-        return "OK", 200
-
-    if webhook_event_type not in valid_event_types:
-        daps_logger.debug(f"'{webhook_event_type}' is not a valid event type")
-        return "Invalid event type", 400
-
-    daps_logger.info(f"Processing event type: {webhook_event_type}")
-    try:
-        item_type = (
-            "movie" if "movie" in data else "series" if "series" in data else None
-        )
-        if not item_type:
-            daps_logger.error("Neither 'movie' nor 'series' found in webhook data")
-            return "Invalid webhook data", 400
-        id = data.get(item_type, {}).get("id", None)
-        id = int(id)
-        if not id:
-            daps_logger.error(f"Item ID not found for {item_type} in webhook data")
-            return "Invalid webhook data", 400
-        instance = data.get("instanceName", "")
-        if not instance:
-            daps_logger.error(
-                "Instance name missing from webhook data, please configure in arr settings."
-            )
-            return "Invalid webhook data", 400
-        new_item = {"type": item_type, "item_id": id, "instance_name": instance}
-        daps_logger.debug(f"Extracted item: {new_item}")
-        run_renamer_task(webhook_item=new_item)
-
-    except Exception as e:
-        daps_logger.error(
-            f"Error retrieving single item from webhook: {e}", exc_info=True
-        )
-        return "Internal server error", 500
-
-    return "OK", 200
-
-
-@app.route("/run-unmatched-job", methods=["POST"])
-def run_unmatched():
-    result = run_unmatched_assets_task()
-    if result["success"] is False:
-        return jsonify(result), 500
-    return jsonify(result), 202
-
-
-@app.route("/run-renamer-job", methods=["POST"])
-def run_renamer():
-    result = run_renamer_task()
-    if result["success"] is False:
-        return jsonify(result), 500
-    return jsonify(result), 202
-
-
-@app.route("/progress/<job_id>", methods=["GET"])
-def get_progress(job_id):
-    job_progress = progress_instance.get_progress(job_id)
-    if job_progress:
-        value, state = job_progress
-        return jsonify({"job_id": job_id, "state": state, "value": value})
-    else:
-        return jsonify({"error": "Job not found"}), 404
+app = create_app()

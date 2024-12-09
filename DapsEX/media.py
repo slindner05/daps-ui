@@ -73,6 +73,7 @@ class Media:
             )
         return media_dict, collections_dict
 
+    # TODO: ONLY ADD MOVIE YEARS THAT DONT APPEAR IN MOVIE TITLE
     def get_movies_with_years(
         self, all_movie_objects: list[Movie]
     ) -> list[dict[str, str | list[str]]]:

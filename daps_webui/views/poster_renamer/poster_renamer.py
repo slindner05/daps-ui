@@ -1,9 +1,12 @@
 import re
 from pathlib import Path
 
-from flask import Blueprint, jsonify, render_template, send_from_directory
+from flask import (Blueprint, jsonify, render_template, request,
+                   send_from_directory)
 
-from daps_webui import db, models
+from daps_webui import (daps_logger, models, run_renamer_task,
+                        run_unmatched_assets_task)
+from progress import progress_instance
 
 poster_renamer = Blueprint("poster_renamer", __name__)
 
@@ -54,7 +57,7 @@ def get_images():
 
         if asset_folders:
             season_pattern = re.compile(r"^Season(?P<season>\d{2})\.(?P<ext>\w+)$")
-            show_pattern = re.compile(r"^Poster\.(?P<ext>\w+)$")
+            show_pattern = re.compile(r"^poster\.(?P<ext>\w+)$")
         else:
             season_pattern = re.compile(
                 r"^(?P<name>.+ \(\d{4}\) \{.+\})_Season(?P<season>\d{2})\.(?P<ext>\w+)$"
@@ -297,3 +300,120 @@ def fetch_unmatched_assets():
         )
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+@poster_renamer.route("/arr-webhook", methods=["POST"])
+def recieve_webhook():
+    from daps_webui.models import Settings
+
+    run_single_item = Settings.query.with_entities(Settings.run_single_item).scalar()
+    if run_single_item is None:
+        daps_logger.error("No settings found or run_single_item is not configured.")
+        return "Settings not configured", 500
+    if not run_single_item:
+        daps_logger.debug("Single item processing is disabled in settings.")
+        return "Single item processing disabled", 403
+
+    data = request.json
+    if not data:
+        daps_logger.error("No data recieved in the webhook")
+        return "No data recieved", 400
+    daps_logger.debug(f"===== Webhook data =====\n{data}")
+
+    valid_event_types = ["Download", "Grab", "MovieAdded", "SeriesAdd"]
+    webhook_event_type = data.get("eventType", "")
+
+    if webhook_event_type == "Test":
+        daps_logger.info("Test event recived successfully")
+        return "OK", 200
+
+    if webhook_event_type not in valid_event_types:
+        daps_logger.debug(f"'{webhook_event_type}' is not a valid event type")
+        return "Invalid event type", 400
+
+    daps_logger.info(f"Processing event type: {webhook_event_type}")
+    try:
+        item_type = (
+            "movie" if "movie" in data else "series" if "series" in data else None
+        )
+        if not item_type:
+            daps_logger.error("Item type 'movie' or 'series' not found in webhook data")
+            return "Invalid webhook data", 400
+
+        id = data.get(item_type, {}).get("id", None)
+        id = int(id)
+        if not id:
+            daps_logger.error(f"Item ID not found for {item_type} in webhook data")
+            return "Invalid webhook data", 400
+
+        instance = data.get("instanceName", "")
+        if not instance:
+            daps_logger.error(
+                "Instance name missing from webhook data, please configure in arr settings."
+            )
+            return "Invalid webhook data", 400
+
+        item_path = None
+
+        if item_type == "movie":
+            item_path = data.get(item_type, {}).get("folderPath", None)
+        elif item_type == "series":
+            item_path = data.get(item_type, {}).get("path", None)
+
+        season_numbers = None
+
+        if item_path and item_type == "series":
+            episodes = data.get(item_type, {}).get("episodes", [])
+            if not episodes:
+                daps_logger.warning(f"Webhook data for {item_path} is missing episodes")
+
+            season_numbers = {episode.get("seasonNumber") for episode in episodes}
+            if not season_numbers:
+                daps_logger.warning(
+                    f"No season numbers found for episodes in {item_path}"
+                )
+
+        new_item = {
+            "type": item_type,
+            "item_id": id,
+            "instance_name": instance,
+            "item_path": item_path,
+            "season_num": list(season_numbers) if season_numbers else None,
+        }
+
+        daps_logger.debug(f"Extracted item: {new_item}")
+        run_renamer_task(webhook_item=new_item)
+
+    except Exception as e:
+        daps_logger.error(
+            f"Error retrieving single item from webhook: {e}", exc_info=True
+        )
+        return "Internal server error", 500
+
+    return "OK", 200
+
+
+@poster_renamer.route("/run-unmatched-job", methods=["POST"])
+def run_unmatched():
+    result = run_unmatched_assets_task()
+    if result["success"] is False:
+        return jsonify(result), 500
+    return jsonify(result), 202
+
+
+@poster_renamer.route("/run-renamer-job", methods=["POST"])
+def run_renamer():
+    result = run_renamer_task()
+    if result["success"] is False:
+        return jsonify(result), 500
+    return jsonify(result), 202
+
+
+@poster_renamer.route("/progress/<job_id>", methods=["GET"])
+def get_progress(job_id):
+    job_progress = progress_instance.get_progress(job_id)
+    if job_progress:
+        value, state = job_progress
+        return jsonify({"job_id": job_id, "state": state, "value": value})
+    else:
+        return jsonify({"error": "Job not found"}), 404
