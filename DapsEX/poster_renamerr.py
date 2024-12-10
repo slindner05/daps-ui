@@ -176,7 +176,9 @@ class PosterRenamerr:
                         movie_title = movie_data.get("title", "")
                         movie_years = movie_data.get("years", [])
                         movie_status = movie_data.get("status", "")
-                        sanitized_movie_title = self._remove_chars(movie_title)
+                        sanitized_movie_title = self._remove_chars(
+                            utils.strip_id(movie_title)
+                        )
                         sanitized_movie_title_without_year = utils.strip_year(
                             sanitized_movie_title
                         )
