@@ -1,6 +1,7 @@
 import re
 from logging import Logger
 from pathlib import Path
+from pprint import pformat
 
 from arrapi import RadarrAPI, SonarrAPI
 from arrapi.apis.sonarr import Series
@@ -42,38 +43,6 @@ class Media:
             titles_with_seasons.append(dict_with_seasons)
         return titles_with_seasons
 
-    def get_dicts(
-        self,
-        movies_list: list[dict[str, str | list[str]]],
-        series_list: list[dict[str, str | list[str]]],
-        movies_collection_list: list[str],
-        series_collection_list: list[str],
-    ) -> tuple[dict[str, list[dict]], dict[str, list[str]]]:
-        """
-        Combines all unique movies, series and collections into dictionaries.
-        """
-        media_dict = {"movies": [], "shows": []}
-        collections_dict = {"movies": [], "shows": []}
-        unique_movies = set()
-        unique_shows = set()
-        unique_movie_collections = set()
-        unique_show_collections = set()
-
-        for movie in movies_list:
-            self._process_list(movie, unique_movies, media_dict, key="movies")
-        for show in series_list:
-            self._process_list(show, unique_shows, media_dict, key="shows")
-        for collection in movies_collection_list:
-            self._process_list(
-                collection, unique_movie_collections, collections_dict, key="movies"
-            )
-        for collection in series_collection_list:
-            self._process_list(
-                collection, unique_show_collections, collections_dict, key="shows"
-            )
-        return media_dict, collections_dict
-
-    # TODO: ONLY ADD MOVIE YEARS THAT DONT APPEAR IN MOVIE TITLE
     def get_movies_with_years(
         self, all_movie_objects: list[Movie]
     ) -> list[dict[str, str | list[str]]]:
@@ -87,38 +56,28 @@ class Media:
             return None
 
         for media_object in all_movie_objects:
-            dict_with_years = {"title": "", "years": [], "status": ""}
+            dict_with_years = {"title": "", "years": [], "status": "", "has_file": None}
 
             path = Path(media_object.path)  # type: ignore
             title = path.name
+            title_year = str(media_object.year)
             status = media_object.status
+            has_file = media_object.hasFile
             years = [
                 extract_year(media_object.physicalRelease),
                 extract_year(media_object.digitalRelease),
                 extract_year(media_object.inCinemas),
             ]
             dict_with_years["title"] = title
+            dict_with_years["status"] = status
+            dict_with_years["has_file"] = has_file
+
             for year in years:
-                if year and year not in dict_with_years["years"]:
+                if year and year not in dict_with_years["years"] and year != title_year:
                     dict_with_years["years"].append(year)
 
             titles_with_years.append(dict_with_years)
-            dict_with_years["status"] = status
         return titles_with_years
-
-    @staticmethod
-    def _process_list(
-        item: str | dict, unique_set: set, final_dict: dict, key: str
-    ) -> None:
-        if isinstance(item, dict):
-            title = item.get("title")
-            if title and item["title"] not in unique_set:
-                unique_set.add(title)
-                final_dict[key].append(item)
-        elif isinstance(item, str):
-            if item not in unique_set:
-                unique_set.add(item)
-                final_dict[key].append(item)
 
 
 class Radarr(Media):
@@ -269,9 +228,11 @@ class Server:
         all_collections = library.collections()
         for item in all_items:
             title_key = item.title
-            if title_key not in item_dict[library.type]:
-                item_dict[library.type][title_key] = []
-            item_dict[library.type][title_key].append(item)
+            year = item.year or ""
+            title_name = f"{title_key} ({year})".strip()
+            if title_name not in item_dict[library.type]:
+                item_dict[library.type][title_name] = []
+            item_dict[library.type][title_name].append(item)
         for collection in all_collections:
             collection_key = collection.title
             if collection_key not in item_dict["collections"]:

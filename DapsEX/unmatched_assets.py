@@ -96,16 +96,14 @@ class UnmatchedAssets:
         for movie in movies_list_dict:
             movie_normalized = self._normalize_name(movie["title"])
             if movie_normalized not in assets_normalized:
-                if movie["status"] in ["released"]:
+                if movie.get("has_file", False):
                     unmatched_assets["movies"].append(movie["title"])
                     self.db.add_unmatched_movie(title=movie["title"])
                     self.logger.debug(
                         f"Added unmatched movie: {movie['title']} to database"
                     )
                 else:
-                    self.logger.debug(
-                        f"Skipping {movie['title']} -> Status: {movie['status']}"
-                    )
+                    self.logger.debug(f"Skipping {movie['title']} -> No file on disk")
 
         for key, value_list in collections_dict.items():
             for collection in value_list:
@@ -126,15 +124,10 @@ class UnmatchedAssets:
             }
             show_id = None
             if show_normalized not in show_assets_normalized:
-                if item["status"] in ["released", "ended", "continuing"]:
-                    show_id = self.db.add_unmatched_show(
-                        title=unmatched_show["title"], main_poster_missing=True
-                    )
-                    unmatched_show["main_poster_missing"] = True
-                else:
-                    self.logger.debug(
-                        f"Skipping show item: {item['title']} -> Status: {item['status']}"
-                    )
+                show_id = self.db.add_unmatched_show(
+                    title=unmatched_show["title"], main_poster_missing=True
+                )
+                unmatched_show["main_poster_missing"] = True
 
             for season in item.get("seasons", []):
                 season_asset = f"{show_normalized}{season['season']}"
@@ -436,7 +429,6 @@ class UnmatchedAssets:
 
         try:
             self._log_banner()
-            media = Media()
             self.logger.debug("Creating Radarr Sonarr and Plex instances.")
             radarr_instances, sonarr_instances = utils.create_arr_instances(
                 payload, Radarr, Sonarr, self.logger
@@ -448,18 +440,10 @@ class UnmatchedAssets:
                 cb(job_id, 20, ProgressState.IN_PROGRESS)
 
             self.logger.debug("Creating media and collections dict.")
-            all_movies, all_series = utils.get_combined_media_lists(
+            media_dict = utils.get_combined_media_dict(
                 radarr_instances, sonarr_instances
             )
-            all_movie_collections, all_series_collections = (
-                utils.get_combined_collections_lists(plex_instances)
-            )
-            media_dict, collections_dict = media.get_dicts(
-                all_movies,
-                all_series,
-                all_movie_collections,
-                all_series_collections,
-            )
+            collections_dict = utils.get_combined_collections_dict(plex_instances)
             if job_id and cb:
                 cb(job_id, 40, ProgressState.IN_PROGRESS)
             self.logger.debug("Created media dict and collections dict")

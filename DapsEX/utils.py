@@ -1,4 +1,5 @@
 import re
+import unicodedata
 from logging import Logger
 
 from DapsEX.media import Radarr, Server, Sonarr
@@ -6,13 +7,22 @@ from Payloads.poster_renamerr_payload import Payload as PosterRenamerPayload
 from Payloads.unmatched_assets_payload import Payload as UnmatchedAssetsPayload
 
 
-def get_combined_media_lists(
+def get_combined_media_dict(
     radarr_instances: dict[str, Radarr], sonarr_instances: dict[str, Sonarr]
-) -> tuple[list, list]:
-    all_movies = []
+) -> dict:
     combined_series_dict = {}
+    combined_movies_dict = {}
     for radarr in radarr_instances.values():
-        all_movies.extend(radarr.movies)
+        for movie in radarr.movies:
+            movie_title = movie["title"]
+            if movie_title not in combined_movies_dict:
+                combined_movies_dict[movie_title] = movie
+            else:
+                existing_movie = combined_movies_dict[movie_title]
+                if movie.get("has_file", False) and not existing_movie.get(
+                    "has_file", False
+                ):
+                    existing_movie["has_file"] = True
     for sonarr in sonarr_instances.values():
         for series in sonarr.series:
             series_title = series["title"]
@@ -38,19 +48,23 @@ def get_combined_media_lists(
                     existing_seasons_lookup.values()
                 )
 
-    all_series = list(combined_series_dict.values())
-    return all_movies, all_series
+    final_dict = {
+        "movies": list(combined_movies_dict.values()),
+        "shows": list(combined_series_dict.values()),
+    }
+    return final_dict
 
 
-def get_combined_collections_lists(
+def get_combined_collections_dict(
     plex_instances: dict[str, Server],
-) -> tuple[list, list]:
-    all_movie_collections = []
-    all_series_collections = []
+) -> dict:
+    movie_collections = set()
+    series_collections = set()
     for plex in plex_instances.values():
-        all_movie_collections.extend(plex.movie_collections)
-        all_series_collections.extend(plex.series_collections)
-    return all_movie_collections, all_series_collections
+        movie_collections.update(plex.movie_collections)
+        series_collections.update(plex.series_collections)
+
+    return {"movies": list(movie_collections), "shows": list(series_collections)}
 
 
 def create_arr_instances(
@@ -96,11 +110,22 @@ def create_plex_instances(
 
 
 def remove_chars(file_name: str) -> str:
-    file_name = re.sub(r"(?<=\w)-\s", " ", file_name)
-    file_name = re.sub(r"(?<=\w)\s-\s", " ", file_name)
-    file_name = re.sub(r"[\*\^;~\\`\[\]'\"\/,.!?:_…]", "", file_name)
+    file_name = unicodedata.normalize("NFKC", file_name)
+    file_name = unicodedata.normalize("NFD", file_name)
+    file_name = file_name.replace("⁄", "/")
+    file_name = re.sub(r"(\d+)/(\d+)", r"\1-\2", file_name)
+    file_name = re.sub(r"[\u0300-\u036f]", "", file_name)
+    file_name = re.sub(r"[\u00A0\u200B\u200C\u200D\u200E\u200F\uFEFF]", "", file_name)
+    file_name = re.sub(r"[\u2013\u2014]", "-", file_name)
+    file_name = re.sub(
+        r"[\(\)\*\^;~\\`\[\]'\"\/,.!?:_\u2018\u2019\u201B\u02BB]", "", file_name
+    )
     file_name = remove_emojis(file_name)
-    return file_name.strip().replace("&", "and").replace("\u00a0", " ").lower()
+    file_name = file_name.replace("&", "and")
+    file_name = file_name.replace("-", " ")
+    file_name = re.sub(r"\s+", " ", file_name).strip()
+    file_name = file_name.lower()
+    return file_name
 
 
 def strip_id(name: str) -> str:

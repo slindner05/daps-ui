@@ -17,7 +17,7 @@ from DapsEX import utils
 from DapsEX.border_replacerr import BorderReplacerr
 from DapsEX.database_cache import Database
 from DapsEX.logger import init_logger
-from DapsEX.media import Media, Radarr, Server, Sonarr
+from DapsEX.media import Radarr, Server, Sonarr
 from DapsEX.settings import Settings
 from Payloads.poster_renamerr_payload import Payload
 from progress import ProgressState
@@ -144,7 +144,7 @@ class PosterRenamerr:
                     self.logger.debug(f"Skipping already matched file '{file}'")
                     continue
 
-                year_match = re.search(r"(\b\d{4}\b)", file.stem)
+                year_match = re.search(r"\((\d{4})\)", file.stem)
                 season_match = re.search(
                     r"\b- (season|specials)\b", file.stem, re.IGNORECASE
                 )
@@ -176,6 +176,7 @@ class PosterRenamerr:
                         movie_title = movie_data.get("title", "")
                         movie_years = movie_data.get("years", [])
                         movie_status = movie_data.get("status", "")
+                        movie_has_file = movie_data.get("has_file", None)
                         sanitized_movie_title = self._remove_chars(
                             utils.strip_id(movie_title)
                         )
@@ -188,7 +189,7 @@ class PosterRenamerr:
 
                         if sanitized_name_without_extension == sanitized_movie_title:
                             matched = True
-                            matched_files["movies"][file] = movie_status
+                            matched_files["movies"][file] = {"has_file": movie_has_file}
                             unique_items.add(sanitized_name_without_extension)
                             self.logger.debug(
                                 f"Found exact match for movie: {movie_title} with {file}"
@@ -206,7 +207,13 @@ class PosterRenamerr:
                                     == sanitized_movie_title_alternate_year
                                 ):
                                     matched = True
-                                    matched_files["movies"][file] = movie_status
+                                    matched_files["movies"][file] = {
+                                        "has_file": movie_has_file,
+                                        "status": movie_status,
+                                    }
+                                    matched_files["movies"][file][
+                                        "status"
+                                    ] = movie_status
                                     unique_items.add(sanitized_name_without_extension)
                                     self.logger.debug(
                                         f"Found year based match for movie: {movie_title} with {file}"
@@ -253,9 +260,9 @@ class PosterRenamerr:
                                             season_has_episodes = season.get(
                                                 "has_episodes", None
                                             )
-                                            matched_files["shows"][
-                                                file
-                                            ] = season_has_episodes
+                                            matched_files["shows"][file] = {
+                                                "has_episodes": season_has_episodes
+                                            }
                                             unique_items.add(
                                                 sanitized_name_without_extension
                                             )
@@ -277,7 +284,7 @@ class PosterRenamerr:
                             not matched_season
                             and sanitized_name_without_extension == sanitized_show_name
                         ):
-                            matched_files["shows"][file] = show_status
+                            matched_files["shows"][file] = {"status": show_status}
                             unique_items.add(sanitized_name_without_extension)
                             self.logger.debug(
                                 f"Matched series poster for show: {show_name}"
@@ -298,7 +305,9 @@ class PosterRenamerr:
                                     season_has_episodes = season.get(
                                         "has_episodes", None
                                     )
-                                    matched_files["shows"][file] = season_has_episodes
+                                    matched_files["shows"][file] = {
+                                        "has_episodes": season_has_episodes
+                                    }
                                     unique_items.add(sanitized_name_without_extension)
                                     show_seasons.remove(season)
                                     self.logger.debug(
@@ -435,7 +444,7 @@ class PosterRenamerr:
     ) -> None:
         for key, items in matched_files.items():
             if key == "movies":
-                for file_path, status in items.items():
+                for file_path, data in items.items():
                     result = self._handle_movie_asset_folders(
                         asset_folder_names, file_path
                     )
@@ -449,7 +458,8 @@ class PosterRenamerr:
                         target_dir,
                         file_name_format,
                         self.replace_border,
-                        status=status,
+                        status=data.get("status", None),
+                        has_file=data.get("has_file", None),
                     )
 
             elif key == "collections":
@@ -473,35 +483,26 @@ class PosterRenamerr:
                         continue
 
                     target_dir, file_name_format = result
-                    if isinstance(data, bool):
-                        has_episodes = data
-                        status = None
-                    else:
-                        has_episodes = None
-                        status = data
-
                     self._copy_file(
                         file_path,
                         key,
                         target_dir,
                         file_name_format,
                         self.replace_border,
-                        status=status,
-                        has_episodes=has_episodes,
+                        status=data.get("status", None),
+                        has_episodes=data.get("has_episodes", None),
                     )
 
     def _handle_movie_asset_folders(
         self, asset_folder_names: dict[str, list[str]], file_path: Path
     ) -> tuple[Path, str] | None:
         for name in asset_folder_names["movies"]:
-            asset_folder_name_without_year = self._remove_chars(
-                utils.strip_year(utils.strip_id(name))
-            )
+            asset_folder_name_clean = self._remove_chars((utils.strip_id(name)))
             if (
                 file_path.exists()
                 and file_path.is_file()
-                and self._remove_chars(utils.strip_year(utils.strip_id(file_path.stem)))
-                == asset_folder_name_without_year
+                and self._remove_chars(utils.strip_id(file_path.stem))
+                == asset_folder_name_clean
             ):
                 self.log_matched_file("movie", name, str(file_path))
                 movie_file_name_format = f"poster{file_path.suffix}"
@@ -598,6 +599,7 @@ class PosterRenamerr:
         replace_border: bool = False,
         status: str | None = None,
         has_episodes: bool | None = None,
+        has_file: bool | None = None,
     ) -> None:
         temp_path = None
         target_path = target_dir / new_file_name
@@ -612,6 +614,7 @@ class PosterRenamerr:
             cached_source = cached_file["source_path"]
             cached_border_state = cached_file.get("border_replaced", 0)
             cached_has_episodes = cached_file.get("has_episodes", None)
+            cached_has_file = cached_file.get("has_file", None)
             cached_status = cached_file.get("status", None)
 
             # Debugging: Log the current and cached values for comparison
@@ -628,12 +631,18 @@ class PosterRenamerr:
             self.logger.debug(f"Current status: {status}")
             self.logger.debug(f"Cached has_episodes: {cached_has_episodes}")
             self.logger.debug(f"Current has_episodes: {has_episodes}")
+            self.logger.debug(f"Cached has_file: {cached_has_file}")
+            self.logger.debug(f"Current has_file: {has_file}")
 
             if cached_has_episodes and has_episodes:
                 if cached_has_episodes != has_episodes:
                     self.db.update_has_episodes(
                         str(file_path), has_episodes, self.logger
                     )
+
+            if cached_has_file and has_file:
+                if cached_has_file != has_file:
+                    self.db.update_has_file(str(file_path), has_file, self.logger)
 
             if cached_status and status:
                 if cached_status != status:
@@ -690,6 +699,7 @@ class PosterRenamerr:
                     file_name_without_extension,
                     status,
                     has_episodes,
+                    has_file,
                     media_type,
                     file_hash,
                     original_file_hash,
@@ -716,7 +726,7 @@ class PosterRenamerr:
         ]
         for key, items in matched_files.items():
             if key == "movies":
-                for file_path, status in items.items():
+                for file_path, data in items.items():
                     movie_result = self._handle_movie(file_path, movies_dict_list)
                     if not movie_result:
                         continue
@@ -727,8 +737,8 @@ class PosterRenamerr:
                         self.target_path,
                         file_name_format,
                         self.replace_border,
-                        status=status,
-                        has_episodes=None,
+                        status=data.get("status", None),
+                        has_file=data.get("has_file", None),
                     )
 
             if key == "collections":
@@ -743,8 +753,6 @@ class PosterRenamerr:
                         self.target_path,
                         file_name_format,
                         self.replace_border,
-                        status=None,
-                        has_episodes=None,
                     )
 
             if key == "shows":
@@ -753,20 +761,14 @@ class PosterRenamerr:
                     if not show_result:
                         continue
                     file_name_format = sanitize_filename(show_result)
-                    if isinstance(data, bool):
-                        has_episodes = data
-                        status = None
-                    else:
-                        has_episodes = None
-                        status = data
                     self._copy_file(
                         file_path,
                         key,
                         self.target_path,
                         file_name_format,
                         self.replace_border,
-                        status=status,
-                        has_episodes=has_episodes,
+                        status=data.get("status", None),
+                        has_episodes=data.get("has_episodes", None),
                     )
 
     def convert_plex_dict_titles_to_paths(self, plex_movie_dict, plex_show_dict):
@@ -982,13 +984,11 @@ class PosterRenamerr:
                     add_poster_to_plex(collection_list, file_path)
 
     def _handle_movie(self, item: Path, movies_list_dict: list[dict]) -> str | None:
-        movie_matched_without_year = self._remove_chars(utils.strip_year(item.stem))
+        matched_file = self._remove_chars(item.stem)
         for item_dict in movies_list_dict:
             movie_title = item_dict.get("title", "")
-            movie_clean_without_year = self._remove_chars(
-                utils.strip_year(utils.strip_id(movie_title))
-            )
-            if movie_matched_without_year == movie_clean_without_year:
+            movie_clean = self._remove_chars(utils.strip_id(movie_title))
+            if matched_file == movie_clean:
                 self.log_matched_file("movie", movie_title, str(item))
                 movie_name = movie_title
                 if item.exists() and item.is_file():
@@ -1071,9 +1071,6 @@ class PosterRenamerr:
         file_name = re.sub(
             r"[\u00A0\u200B\u200C\u200D\u200E\u200F\uFEFF]", "", file_name
         )
-        # file_name = re.sub(r"(?<=\w)-(?=\w)", " ", file_name)
-        # file_name = re.sub(r"(?<=\w)-\s", " ", file_name)
-        # file_name = re.sub(r"(?<=\w)\s-\s", " ", file_name)
         file_name = re.sub(r"[\u2013\u2014]", "-", file_name)
         file_name = re.sub(
             r"[\(\)\*\^;~\\`\[\]'\"\/,.!?:_\u2018\u2019\u201B\u02BB]", "", file_name
@@ -1144,7 +1141,6 @@ class PosterRenamerr:
 
         try:
             self._log_banner()
-            media = Media()
             self.logger.debug("Creating Radarr Sonarr and Plex instances.")
             radarr_instances, sonarr_instances = utils.create_arr_instances(
                 payload, Radarr, Sonarr, self.logger
@@ -1170,18 +1166,10 @@ class PosterRenamerr:
                 self.logger.debug(
                     "Creating media and collections dict of all items in library"
                 )
-                all_movies, all_series = utils.get_combined_media_lists(
+                media_dict = utils.get_combined_media_dict(
                     radarr_instances, sonarr_instances
                 )
-                all_movie_collections, all_series_collections = (
-                    utils.get_combined_collections_lists(plex_instances)
-                )
-                media_dict, collections_dict = media.get_dicts(
-                    all_movies,
-                    all_series,
-                    all_movie_collections,
-                    all_series_collections,
-                )
+                collections_dict = utils.get_combined_collections_dict(plex_instances)
             self.logger.debug(
                 "Media dict summary:\n%s", json.dumps(media_dict, indent=4)
             )
@@ -1214,31 +1202,33 @@ class PosterRenamerr:
                 self.logger.debug("Starting file copying and renaming")
                 self.copy_rename_files(matched_files, media_dict, collections_dict)
 
+            # TODO: ADD A RETRY LOOP FOR SINGLE ITEM RUNS
             if payload.upload_to_plex:
-                media_dict = {}
+                plex_media_dict = {}
                 cached_files = self.db.return_all_files()
                 self.logger.debug(json.dumps(cached_files, indent=4))
-                new_files = {
-                    file_path: file_info
-                    for file_path, file_info in cached_files.items()
-                    if (
-                        (
-                            file_info.get("uploaded_to_plex") == 0
-                            and file_info.get("has_episodes") == 1
+                new_files = {}
+                for file_path, file_info in cached_files.items():
+                    if file_info.get("uploaded_to_plex") == 0:
+                        if (
+                            file_info.get("has_episodes") == 1
+                            or file_info.get("has_file") == 1
+                            or file_info.get("media_type") == "collections"
+                        ):
+                            new_files[file_path] = file_info
+                        else:
+                            self.logger.debug(
+                                f"Skipping {file_path} because it does not meet the criteria: "
+                                f"has_episodes={file_info.get('has_episodes')}, "
+                                f"has_file={file_info.get('has_file')}"
+                            )
+                    else:
+                        self.logger.debug(
+                            f"Skipping {file_path} because it was already uploaded to Plex."
                         )
-                        or (
-                            file_info.get("uploaded_to_plex") == 0
-                            and file_info.get("status")
-                            in {"released", "ended", "continuing"}
-                        )
-                        or (
-                            file_info.get("uploaded_to_plex") == 0
-                            and file_info.get("media_type") == "collections"
-                        )
-                    )
-                }
+
                 for file_path, file_info in new_files.items():
-                    self.logger.info(
+                    self.logger.debug(
                         f"{file_path}: uploaded_to_plex={bool(file_info.get('uploaded_to_plex'))}"
                     )
                 if new_files:
@@ -1247,7 +1237,7 @@ class PosterRenamerr:
                     for name, server in plex_instances.items():
                         try:
                             plex_movie_dict, plex_show_dict = server.get_media()
-                            media_dict[name] = {
+                            plex_media_dict[name] = {
                                 "movies": plex_movie_dict,
                                 "shows": plex_show_dict,
                             }
@@ -1255,9 +1245,9 @@ class PosterRenamerr:
                             self.logger.error(
                                 f"Error retrieving media for Plex instance '{name}': {e}"
                             )
-                            media_dict[name] = {"movies": {}, "shows": {}}
+                            plex_media_dict[name] = {"movies": {}, "shows": {}}
 
-                    for server_name, item_dict in media_dict.items():
+                    for server_name, item_dict in plex_media_dict.items():
                         updated_movie_dict, updated_show_dict = (
                             self.convert_plex_dict_titles_to_paths(
                                 item_dict["movies"], item_dict["shows"]

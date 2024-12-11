@@ -8,9 +8,13 @@ def reset_file_cache(db_path):
             cursor.execute("PRAGMA table_info(file_cache);")
             columns = [col[1] for col in cursor.fetchall()]
 
-            if "status" not in columns or "has_episodes" not in columns:
+            if (
+                "status" not in columns
+                or "has_episodes" not in columns
+                or "has_file" not in columns
+            ):
                 print(
-                    "file_cache table is missing 'status' and/or 'has_episodes' column"
+                    "file_cache table is missing 'status' and/or 'has_episodes' and/or 'has_file' column"
                 )
                 cursor.execute("DROP TABLE IF EXISTS file_cache")
                 conn.commit()
