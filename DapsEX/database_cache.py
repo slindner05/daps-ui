@@ -153,10 +153,16 @@ class Database:
                             file_path,
                         ),
                     )
+                    rows_updated = cursor.rowcount
+                    if rows_updated == 0:
+                        logger.warning(
+                            f"No matching row found for file_path: {file_path}. Update skipped."
+                        )
+                    else:
+                        logger.debug(
+                            f"Succesfully updated 'status' to {status} for {file_path}"
+                        )
                     conn.commit()
-                    logger.debug(
-                        f"Succesfully updated 'status' to {status} for {file_path}"
-                    )
                 except Exception as e:
                     logger.error(f"Failed to updated 'status' for {file_path}: {e}")
 
@@ -171,10 +177,16 @@ class Database:
                             file_path,
                         ),
                     )
+                    rows_updated = cursor.rowcount
+                    if rows_updated == 0:
+                        logger.warning(
+                            f"No matching row found for file_path: {file_path}. Update skipped."
+                        )
+                    else:
+                        logger.debug(
+                            f"Succesfully updated 'has_episodes' to {has_episodes} for {file_path}"
+                        )
                     conn.commit()
-                    logger.debug(
-                        f"Succesfully updated 'has_episodes' to {has_episodes} for {file_path}"
-                    )
                 except Exception as e:
                     logger.error(
                         f"Failed to updated 'has_episodes' for {file_path}: {e}"
@@ -191,10 +203,16 @@ class Database:
                             file_path,
                         ),
                     )
+                    rows_updated = cursor.rowcount
+                    if rows_updated == 0:
+                        logger.warning(
+                            f"No matching row found for file_path: {file_path}. Update skipped."
+                        )
+                    else:
+                        logger.debug(
+                            f"Succesfully updated 'has_file' to {has_file} for {file_path}"
+                        )
                     conn.commit()
-                    logger.debug(
-                        f"Succesfully updated 'has_file' to {has_file} for {file_path}"
-                    )
                 except Exception as e:
                     logger.error(f"Failed to updated 'has_file' for {file_path}: {e}")
 
@@ -206,10 +224,16 @@ class Database:
                         "UPDATE file_cache SET uploaded_to_plex = 1 WHERE file_path = ?",
                         (file_path,),
                     )
+                    rows_updated = cursor.rowcount
+                    if rows_updated == 0:
+                        logger.warning(
+                            f"No matching row found for file_path: {file_path}. Update skipped."
+                        )
+                    else:
+                        logger.debug(
+                            f"Succesfully updated 'uploaded_to_plex' to true for {file_path}"
+                        )
                     conn.commit()
-                    logger.debug(
-                        f"Succesfully updated 'uploaded_to_plex' to true for {file_path}"
-                    )
                 except Exception as e:
                     logger.error(
                         f"Failed to update 'uploaded_to_plex' for {file_path}: {e}"

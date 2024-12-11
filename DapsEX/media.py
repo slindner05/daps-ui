@@ -1,7 +1,6 @@
 import re
 from logging import Logger
 from pathlib import Path
-from pprint import pformat
 
 from arrapi import RadarrAPI, SonarrAPI
 from arrapi.apis.sonarr import Series
@@ -9,7 +8,7 @@ from arrapi.exceptions import ConnectionFailure
 from arrapi.exceptions import Unauthorized as ArrApiUnauthorized
 from arrapi.objs.reload import Movie
 from plexapi.collection import LibrarySection
-from plexapi.exceptions import BadRequest, NotFound
+from plexapi.exceptions import BadRequest
 from plexapi.exceptions import Unauthorized as PlexApiUnauthorized
 from plexapi.exceptions import UnknownType
 from plexapi.server import PlexServer
@@ -19,7 +18,12 @@ class Media:
     def get_series_with_seasons(self, all_series_objects: list[Series]):
         titles_with_seasons = []
         for media_object in all_series_objects:
-            dict_with_seasons = {"title": "", "seasons": [], "status": ""}
+            dict_with_seasons = {
+                "title": "",
+                "seasons": [],
+                "status": "",
+                "has_episodes": False,
+            }
             path = Path(media_object.path)  # type: ignore
             title = path.name
             series_status = media_object.status
@@ -40,6 +44,13 @@ class Media:
                 season_dict["season"] = formatted_season
                 season_dict["has_episodes"] = has_episodes
                 dict_with_seasons["seasons"].append(season_dict)
+
+            if any(
+                season.get("has_episodes", False)
+                for season in dict_with_seasons["seasons"]
+            ):
+                dict_with_seasons["has_episodes"] = True
+
             titles_with_seasons.append(dict_with_seasons)
         return titles_with_seasons
 

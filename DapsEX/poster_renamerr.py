@@ -231,6 +231,7 @@ class PosterRenamerr:
                         show_name = show_data.get("title", "")
                         show_status = show_data.get("status", "")
                         show_seasons = show_data.get("seasons", [])
+                        show_has_episodes = show_data.get("has_episodes", None)
                         sanitized_show_name = utils.strip_id(
                             self._remove_chars(show_name)
                         )
@@ -284,7 +285,10 @@ class PosterRenamerr:
                             not matched_season
                             and sanitized_name_without_extension == sanitized_show_name
                         ):
-                            matched_files["shows"][file] = {"status": show_status}
+                            matched_files["shows"][file] = {
+                                "status": show_status,
+                                "has_episodes": show_has_episodes,
+                            }
                             unique_items.add(sanitized_name_without_extension)
                             self.logger.debug(
                                 f"Matched series poster for show: {show_name}"
@@ -372,6 +376,7 @@ class PosterRenamerr:
         )
         return emoji_pattern.sub(r"", name)
 
+    # TODO: create only asset directories for matched media
     def create_asset_directories(
         self, collections_dict: dict[str, list[str]], media_dict: dict[str, list]
     ) -> dict[str, list[str]]:
@@ -634,19 +639,28 @@ class PosterRenamerr:
             self.logger.debug(f"Cached has_file: {cached_has_file}")
             self.logger.debug(f"Current has_file: {has_file}")
 
-            if cached_has_episodes and has_episodes:
-                if cached_has_episodes != has_episodes:
+            if cached_has_episodes is None or cached_has_episodes != has_episodes:
+                if has_episodes is not None:
+                    self.logger.debug(
+                        f"Updating 'has_episodes' for {target_path}: {cached_has_episodes} -> {has_episodes}"
+                    )
                     self.db.update_has_episodes(
-                        str(file_path), has_episodes, self.logger
+                        str(target_path), has_episodes, self.logger
                     )
 
-            if cached_has_file and has_file:
-                if cached_has_file != has_file:
-                    self.db.update_has_file(str(file_path), has_file, self.logger)
+            if cached_has_file is None or cached_has_file != has_file:
+                if has_file is not None:
+                    self.logger.debug(
+                        f"Updating 'has_file' for {target_path}: {cached_has_file} -> {has_file}"
+                    )
+                    self.db.update_has_file(str(target_path), has_file, self.logger)
 
-            if cached_status and status:
-                if cached_status != status:
-                    self.db.update_status(str(file_path), status, self.logger)
+            if cached_status is None or cached_status != status:
+                if status is not None:
+                    self.logger.debug(
+                        f"Updating 'status' for {target_path}: {cached_status} -> {status}"
+                    )
+                    self.db.update_status(str(target_path), status, self.logger)
 
             if (
                 cached_original_hash == original_file_hash
@@ -1203,6 +1217,8 @@ class PosterRenamerr:
                 self.copy_rename_files(matched_files, media_dict, collections_dict)
 
             # TODO: ADD A RETRY LOOP FOR SINGLE ITEM RUNS
+            # TODO: WEBHOOK ITEMS CURRENTLY ALWAYS HAVE HAS_FILE AS FALSE
+
             if payload.upload_to_plex:
                 plex_media_dict = {}
                 cached_files = self.db.return_all_files()
@@ -1274,5 +1290,5 @@ class PosterRenamerr:
                 cb(job_id, 100, ProgressState.COMPLETED)
             self.clean_cache()
         except Exception as e:
-            self.logger.critical("Unexpected error occured.", exc_info=True)
+            self.logger.critical(f"Unexpected error occured: {e}", exc_info=True)
             raise
