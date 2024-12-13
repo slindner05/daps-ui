@@ -29,6 +29,7 @@ class Database:
                     original_file_hash TEXT UNIQUE,
                     source_path TEXT,
                     border_replaced INTEGER DEFAULT 0,
+                    webhook_run INTEGER DEFAULT NULL,
                     uploaded_to_plex INTEGER DEFAULT 0,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
@@ -99,11 +100,12 @@ class Database:
         original_file_hash: str,
         source_path: str,
         border_replaced: bool,
+        webhook_run: bool | None,
     ) -> None:
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
-                    "INSERT OR REPLACE INTO file_cache (file_path, file_name, status, has_episodes, has_file, media_type, file_hash, original_file_hash, source_path, border_replaced, uploaded_to_plex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT OR REPLACE INTO file_cache (file_path, file_name, status, has_episodes, has_file, media_type, file_hash, original_file_hash, source_path, border_replaced, webhook_run, uploaded_to_plex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         file_path,
                         file_name,
@@ -115,6 +117,7 @@ class Database:
                         original_file_hash,
                         source_path,
                         border_replaced,
+                        webhook_run,
                         0,
                     ),
                 )
@@ -239,6 +242,30 @@ class Database:
                         f"Failed to update 'uploaded_to_plex' for {file_path}: {e}"
                     )
 
+    def update_webhook_flag(self, file_path: str, logger, new_value=None):
+        with self.get_db_connection() as conn:
+            with closing(conn.cursor()) as cursor:
+                try:
+                    cursor.execute(
+                        "UPDATE file_cache SET webhook_run = ? WHERE file_path = ?",
+                        (
+                            new_value,
+                            file_path,
+                        ),
+                    )
+                    rows_updated = cursor.rowcount
+                    if rows_updated == 0:
+                        logger.warning(
+                            f"No matching row found for file_path: {file_path}. Update skipped."
+                        )
+                    else:
+                        logger.debug(
+                            f"Succesfully updated 'webhook_run' to {new_value} for {file_path}"
+                        )
+                    conn.commit()
+                except Exception as e:
+                    logger.error(f"Failed to update 'webhook_run' for {file_path}: {e}")
+
     def get_cached_file(self, file_path: str) -> dict[str, str] | None:
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
@@ -259,10 +286,14 @@ class Database:
                 )
                 conn.commit()
 
-    def return_all_files(self) -> dict[str, dict]:
+    def return_all_files(self, webhook_run: bool | None = None) -> dict[str, dict]:
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
-                cursor.execute("SELECT * FROM file_cache")
+                if webhook_run:
+                    cursor.execute("SELECT * FROM file_cache WHERE webhook_run = 1")
+                else:
+                    cursor.execute("SELECT * FROM file_cache")
+
                 result = cursor.fetchall()
                 return {
                     file_path: {
@@ -276,9 +307,10 @@ class Database:
                         "source_path": source_path,
                         "border_replaced": border_replaced,
                         "uploaded_to_plex": uploaded_to_plex,
+                        "webhook_run": webhook_flag,
                         "timestamp": timestamp,
                     }
-                    for file_path, file_name, status, has_episodes, has_file, media_type, file_hash, original_file_hash, source_path, border_replaced, uploaded_to_plex, timestamp, in result
+                    for file_path, file_name, status, has_episodes, has_file, media_type, file_hash, original_file_hash, source_path, border_replaced, webhook_flag, uploaded_to_plex, timestamp, in result
                 }
 
     def add_unmatched_movie(

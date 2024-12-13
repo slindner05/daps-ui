@@ -1,4 +1,5 @@
 import re
+import time
 from logging import Logger
 from pathlib import Path
 
@@ -249,3 +250,64 @@ class Server:
             if collection_key not in item_dict["collections"]:
                 item_dict["collections"][collection_key] = []
             item_dict["collections"][collection_key].append(collection)
+
+    def get_single_item(self, media_type: str, title: str, year: int, logger):
+        if media_type == "movie":
+            item_dict = {"movie": {}}
+        else:
+            item_dict = {"show": {}}
+
+        libraries_to_search = []
+        max_retries = 10
+        retry_delay = 30
+        for library_name in self.library_names:
+            try:
+                library = self.plex.library.section(library_name)
+                if library.type == media_type:
+                    libraries_to_search.append(library)
+            except UnknownType as e:
+                self.logger.error(f"Library '{library_name}' is invalid: {e}")
+                continue
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                logger.debug(
+                    f"Attempt {attempt}/{max_retries}: Searching for '{title} {year}' across {len(libraries_to_search)} libraries"
+                )
+                for library in libraries_to_search:
+                    logger.debug(
+                        f"Library to search: '{library.title}', Type: '{library.type}'"
+                    )
+                    logger.debug(
+                        f"Searching with parameters: title='{title}', year={year}"
+                    )
+                    results = library.search(title=title, year=year)
+                    if results:
+                        logger.debug(f"Found item in library '{library.title}'")
+                    for item in results:
+                        title_key = item.title
+                        year_key = item.year or ""
+                        title_name = f"{title_key} ({year_key})".strip()
+                        if title_name not in item_dict[library.type]:
+                            item_dict[library.type][title_name] = []
+                        item_dict[library.type][title_name].append(item)
+
+                if item_dict:
+                    return item_dict
+
+                logger.warning(
+                    f"No results found for '{title} {year}' on attempt {attempt}/{max_retries}"
+                )
+
+            except Exception as e:
+                logger.error(
+                    f"Error during search for '{title} {year}' on attempt {attempt}/{max_retries}: {e}"
+                )
+
+            if attempt < max_retries:
+                time.sleep(retry_delay)
+
+        logger.error(
+            f"Failed to retrieve item '{title} {year}' from any library after {max_retries} attempts"
+        )
+        return None

@@ -13,6 +13,7 @@ class FileCache(db.Model):
     original_file_hash = db.Column(db.String, unique=True)
     source_path = db.Column(db.String)
     border_replaced = db.Column(db.Boolean, default=False)
+    webhook_run = db.Column(db.Boolean, default=None)
     uploaded_to_plex = db.Column(db.Boolean, default=False)
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
 
