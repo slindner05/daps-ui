@@ -12,7 +12,6 @@ from daps_webui.utils.logger_utils import init_logger
 from daps_webui.utils.webui_utils import get_instances
 from DapsEX.poster_renamerr import PosterRenamerr
 from DapsEX.unmatched_assets import UnmatchedAssets
-from DapsEX.utils import construct_schedule_time, parse_schedule_string
 from progress import progress_instance
 
 # all globals needs to be defined here
@@ -20,7 +19,6 @@ global_config = Config()
 db = SQLAlchemy()
 progress_dict = {}
 executor = ThreadPoolExecutor(max_workers=2)
-scheduler = BackgroundScheduler()
 
 # define all loggers
 daps_logger = logging.getLogger("daps-web")
@@ -38,10 +36,21 @@ def create_app() -> Flask:
     # initiate database
     db.init_app(app)
 
+    @app.teardown_appcontext
+    def shutdown_scheduler(exception=None):
+        if app.debug:
+            scheduler = BackgroundScheduler()
+            if scheduler.running:
+                scheduler.shutdown()
+                daps_logger.info("Scheduler stopped in development server")
+
     with app.app_context():
         db.create_all()
         if app.debug:
-            schedule_jobs()
+            from daps_webui.utils.scheduler import schedule_jobs
+
+            scheduler = BackgroundScheduler()
+            schedule_jobs(scheduler)
             if not scheduler.running:
                 scheduler.start()
                 daps_logger.info("Scheduler started in development server")
@@ -171,82 +180,82 @@ def run_unmatched_assets_task():
         return {"success": False, "message": str(e)}
 
 
-def schedule_jobs():
-    from daps_webui.models import Settings
-
-    settings = Settings.query.first()
-
-    def add_job_safe(func, job_id, schedule, schedule_name):
-        if not schedule:
-            daps_logger.warning(f"No schedule found for {schedule_name}. Skipping..")
-            return
-
-        try:
-            parsed_schedule = parse_schedule_string(schedule, daps_logger)
-            for i, parsed_schedule in enumerate(parsed_schedule):
-                schedule_time = construct_schedule_time(parsed_schedule)
-                unique_job_id = f"{job_id}_{i}"
-                scheduler.add_job(
-                    func,
-                    "cron",
-                    **parsed_schedule,
-                    id=unique_job_id,
-                    replace_existing=True,
-                )
-                daps_logger.info(f"Scheduled job: '{job_id}' {schedule_time}")
-        except ValueError as e:
-            daps_logger.error(
-                f"Failed to schedule job '{job_id}' for {schedule_name}: {e}"
-            )
-
-    job_configs = {
-        "run_renamerr": {
-            "schedule": (
-                getattr(settings, "poster_renamer_schedule", None) if settings else None
-            ),
-            "function": run_renamer_scheduled,
-            "name": "poster_renamerr",
-        },
-        "run_unmatched_assets": {
-            "schedule": (
-                getattr(settings, "unmatched_assets_schedule", None)
-                if settings
-                else None
-            ),
-            "function": run_unmatched_scheduled,
-            "name": "unmatched_assets",
-        },
-    }
-    for job_id, job_config in job_configs.items():
-        add_job_safe(
-            job_config["function"], job_id, job_config["schedule"], job_config["name"]
-        )
-
-
-def run_renamer_scheduled():
-    with app.app_context():
-        result = run_renamer_task()
-        if result["success"] is False:
-            daps_logger.error(
-                f"Error running scheduled renamer job: {result['message']}"
-            )
-        else:
-            daps_logger.info(
-                f"Scheduled renamer job started successfully with job_id: {result['job_id']}"
-            )
-
-
-def run_unmatched_scheduled():
-    with app.app_context():
-        result = run_unmatched_assets_task()
-        if result["success"] is False:
-            daps_logger.error(
-                f"Error running scheduled unmatched assets job: {result['message']}"
-            )
-        else:
-            daps_logger.info(
-                f"Scheduled unmatched assets job started successfully with job_id: {result['job_id']}"
-            )
+# def schedule_jobs():
+#     from daps_webui.models import Settings
+#
+#     settings = Settings.query.first()
+#
+#     def add_job_safe(func, job_id, schedule, schedule_name):
+#         if not schedule:
+#             daps_logger.warning(f"No schedule found for {schedule_name}. Skipping..")
+#             return
+#
+#         try:
+#             parsed_schedule = parse_schedule_string(schedule, daps_logger)
+#             for i, parsed_schedule in enumerate(parsed_schedule):
+#                 schedule_time = construct_schedule_time(parsed_schedule)
+#                 unique_job_id = f"{job_id}_{i}"
+#                 scheduler.add_job(
+#                     func,
+#                     "cron",
+#                     **parsed_schedule,
+#                     id=unique_job_id,
+#                     replace_existing=True,
+#                 )
+#                 daps_logger.info(f"Scheduled job: '{job_id}' {schedule_time}")
+#         except ValueError as e:
+#             daps_logger.error(
+#                 f"Failed to schedule job '{job_id}' for {schedule_name}: {e}"
+#             )
+#
+#     job_configs = {
+#         "run_renamerr": {
+#             "schedule": (
+#                 getattr(settings, "poster_renamer_schedule", None) if settings else None
+#             ),
+#             "function": run_renamer_scheduled,
+#             "name": "poster_renamerr",
+#         },
+#         "run_unmatched_assets": {
+#             "schedule": (
+#                 getattr(settings, "unmatched_assets_schedule", None)
+#                 if settings
+#                 else None
+#             ),
+#             "function": run_unmatched_scheduled,
+#             "name": "unmatched_assets",
+#         },
+#     }
+#     for job_id, job_config in job_configs.items():
+#         add_job_safe(
+#             job_config["function"], job_id, job_config["schedule"], job_config["name"]
+#         )
+#
+#
+# def run_renamer_scheduled():
+#     with app.app_context():
+#         result = run_renamer_task()
+#         if result["success"] is False:
+#             daps_logger.error(
+#                 f"Error running scheduled renamer job: {result['message']}"
+#             )
+#         else:
+#             daps_logger.info(
+#                 f"Scheduled renamer job started successfully with job_id: {result['job_id']}"
+#             )
+#
+#
+# def run_unmatched_scheduled():
+#     with app.app_context():
+#         result = run_unmatched_assets_task()
+#         if result["success"] is False:
+#             daps_logger.error(
+#                 f"Error running scheduled unmatched assets job: {result['message']}"
+#             )
+#         else:
+#             daps_logger.info(
+#                 f"Scheduled unmatched assets job started successfully with job_id: {result['job_id']}"
+#             )
 
 
 app = create_app()
