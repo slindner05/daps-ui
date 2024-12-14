@@ -292,7 +292,7 @@ class Server:
                             item_dict[library.type][title_name] = []
                         item_dict[library.type][title_name].append(item)
 
-                if item_dict:
+                if any(item_dict[key] for key in item_dict):
                     return item_dict
 
                 logger.warning(
@@ -305,6 +305,7 @@ class Server:
                 )
 
             if attempt < max_retries:
+                logger.debug(f"Retrying search after {retry_delay} seconds...")
                 time.sleep(retry_delay)
 
         logger.error(

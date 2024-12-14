@@ -20,7 +20,7 @@ fi
 
 chown -R appuser:appgroup /config
 
-echo "Running file_cache reset script..."
+echo "Running file_cache migrate script..."
 python /code/migrate_file_cache.py || {
 	echo "Failed to reset file_cache table. Exiting."
 	exit 1

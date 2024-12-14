@@ -15,10 +15,12 @@ init_logger(daps_logger, global_config.logs / "web-ui", "web_ui", log_level)
 
 
 def on_starting(server):
-    from daps_webui import app
+    from daps_webui import app, db
     from daps_webui.utils.scheduler import schedule_jobs
 
     with app.app_context():
+        daps_logger.info("Initializing database schema...")
+        db.create_all()
         schedule_jobs(scheduler)
         scheduler.start()
         daps_logger.info("Scheduler started in master process")
