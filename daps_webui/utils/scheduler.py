@@ -1,5 +1,4 @@
-from daps_webui import (app, daps_logger, run_renamer_task,
-                        run_unmatched_assets_task)
+from daps_webui import daps_logger, run_renamer_task, run_unmatched_assets_task
 from DapsEX.utils import construct_schedule_time, parse_schedule_string
 
 
@@ -57,6 +56,8 @@ def schedule_jobs(scheduler):
 
 
 def run_renamer_scheduled():
+    from daps_webui import app
+
     with app.app_context():
         result = run_renamer_task()
         if result["success"] is False:
@@ -70,6 +71,8 @@ def run_renamer_scheduled():
 
 
 def run_unmatched_scheduled():
+    from daps_webui import app
+
     with app.app_context():
         result = run_unmatched_assets_task()
         if result["success"] is False:
