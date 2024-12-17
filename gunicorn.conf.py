@@ -1,4 +1,5 @@
 import logging
+import os
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -19,6 +20,8 @@ def on_starting(server):
     from daps_webui.utils.scheduler import schedule_jobs
 
     with app.app_context():
+        version = os.getenv("VERSION", "0.0.1")
+        daps_logger.info(f"Starting daps-ui v{version}")
         daps_logger.info("Initializing database schema...")
         db.create_all()
         schedule_jobs(scheduler)
