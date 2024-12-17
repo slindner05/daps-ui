@@ -1,3 +1,5 @@
+from sqlalchemy.dialects.sqlite import JSON
+
 from daps_webui import db
 
 
@@ -14,7 +16,7 @@ class FileCache(db.Model):
     source_path = db.Column(db.String)
     border_replaced = db.Column(db.Boolean, default=False)
     webhook_run = db.Column(db.Boolean, default=None)
-    uploaded_to_plex = db.Column(db.Boolean, default=False)
+    uploaded_to_libraries = db.Column(JSON, default=[])
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
 
 

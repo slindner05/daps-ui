@@ -15,9 +15,10 @@ def reset_file_cache(db_path):
                     or "has_episodes" not in columns
                     or "has_file" not in columns
                     or "webhook_run" not in columns
+                    or "uploaded_to_libraries" not in columns
                 ):
                     print(
-                        "file_cache table is missing 'status' and/or 'has_episodes' and/or 'has_file' and/or 'webhook_run' column"
+                        "file_cache table is missing 'status' and/or 'has_episodes' and/or 'has_file' and/or 'webhook_run' and/or uploaded_to_libraries column"
                     )
                     cursor.execute("DROP TABLE IF EXISTS file_cache")
                     conn.commit()

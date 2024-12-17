@@ -1,5 +1,7 @@
+import json
 import sqlite3
 from contextlib import closing
+from logging import Logger
 
 from DapsEX.settings import Settings
 
@@ -30,7 +32,7 @@ class Database:
                     source_path TEXT,
                     border_replaced INTEGER DEFAULT 0,
                     webhook_run INTEGER DEFAULT NULL,
-                    uploaded_to_plex INTEGER DEFAULT 0,
+                    uploaded_to_libraries TEXT DEFAULT '[]',
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
                 """
@@ -105,7 +107,7 @@ class Database:
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
-                    "INSERT OR REPLACE INTO file_cache (file_path, file_name, status, has_episodes, has_file, media_type, file_hash, original_file_hash, source_path, border_replaced, webhook_run, uploaded_to_plex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT OR REPLACE INTO file_cache (file_path, file_name, status, has_episodes, has_file, media_type, file_hash, original_file_hash, source_path, border_replaced, webhook_run) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         file_path,
                         file_name,
@@ -118,7 +120,6 @@ class Database:
                         source_path,
                         border_replaced,
                         webhook_run,
-                        0,
                     ),
                 )
             conn.commit()
@@ -134,12 +135,13 @@ class Database:
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
-                    "UPDATE file_cache SET file_hash = ?, original_file_hash = ?, source_path = ?, border_replaced = ?, uploaded_to_plex = 0 WHERE file_path = ?",
+                    "UPDATE file_cache SET file_hash = ?, original_file_hash = ?, source_path = ?, border_replaced = ?, uploaded_to_libraries = ? WHERE file_path = ?",
                     (
                         file_hash,
                         original_file_hash,
                         source_path,
                         int(border_replaced),
+                        json.dumps([]),
                         file_path,
                     ),
                 )
@@ -219,30 +221,47 @@ class Database:
                 except Exception as e:
                     logger.error(f"Failed to updated 'has_file' for {file_path}: {e}")
 
-    def update_uploaded_to_plex(self, file_path: str, logger):
+    def update_uploaded_to_libraries(
+        self, file_path: str, new_libraries: list, logger: Logger
+    ):
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
                 try:
                     cursor.execute(
-                        "UPDATE file_cache SET uploaded_to_plex = 1 WHERE file_path = ?",
+                        "SELECT uploaded_to_libraries FROM file_cache WHERE file_path = ?",
                         (file_path,),
                     )
-                    rows_updated = cursor.rowcount
-                    if rows_updated == 0:
+                    result = cursor.fetchone()
+                    if not result:
                         logger.warning(
-                            f"No matching row found for file_path: {file_path}. Update skipped."
+                            f"No matching row found for file_path: {file_path}. Update skipped"
                         )
-                    else:
+                        return
+                    current_libraries = json.loads(result[0]) if result[0] else []
+                    updated_libraries = list(set(current_libraries + new_libraries))
+                    cursor.execute(
+                        "UPDATE file_cache SET uploaded_to_libraries = ? WHERE file_path = ?",
+                        (
+                            json.dumps(updated_libraries),
+                            file_path,
+                        ),
+                    )
+                    rows_updated = cursor.rowcount
+                    if rows_updated > 0:
                         logger.debug(
-                            f"Succesfully updated 'uploaded_to_plex' to true for {file_path}"
+                            f"Successfully updated 'uploaded_to_libraries' for {file_path} with libraries: {updated_libraries}"
                         )
-                    conn.commit()
+                        conn.commit()
+                    else:
+                        logger.warning(
+                            f"Failed to update 'uploaded_to_libraries' for file_path: {file_path}"
+                        )
                 except Exception as e:
                     logger.error(
-                        f"Failed to update 'uploaded_to_plex' for {file_path}: {e}"
+                        f"Failed to update 'uploaded_to_libraries' for {file_path}: {e}"
                     )
 
-    def update_webhook_flag(self, file_path: str, logger, new_value=None):
+    def update_webhook_flag(self, file_path: str, logger: Logger, new_value=None):
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
                 try:
@@ -289,7 +308,7 @@ class Database:
     def return_all_files(self, webhook_run: bool | None = None) -> dict[str, dict]:
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
-                if webhook_run:
+                if webhook_run is True:
                     cursor.execute("SELECT * FROM file_cache WHERE webhook_run = 1")
                 else:
                     cursor.execute("SELECT * FROM file_cache")
@@ -306,11 +325,15 @@ class Database:
                         "original_file_hash": original_file_hash,
                         "source_path": source_path,
                         "border_replaced": border_replaced,
-                        "uploaded_to_plex": uploaded_to_plex,
+                        "uploaded_to_libraries": (
+                            json.loads(uploaded_to_libraries)
+                            if uploaded_to_libraries
+                            else []
+                        ),
                         "webhook_run": webhook_flag,
                         "timestamp": timestamp,
                     }
-                    for file_path, file_name, status, has_episodes, has_file, media_type, file_hash, original_file_hash, source_path, border_replaced, webhook_flag, uploaded_to_plex, timestamp, in result
+                    for file_path, file_name, status, has_episodes, has_file, media_type, file_hash, original_file_hash, source_path, border_replaced, webhook_flag, uploaded_to_libraries, timestamp, in result
                 }
 
     def add_unmatched_movie(

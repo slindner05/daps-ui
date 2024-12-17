@@ -214,9 +214,12 @@ class Server:
                 unique_collections.add(collection.title)
                 show_collections_list.append(collection.title)
 
-    def get_media(self) -> tuple[dict[str, dict], dict[str, dict]]:
+    def get_media(
+        self, single_movie: bool = False, single_series: bool = False
+    ) -> tuple[dict[str, dict], dict[str, dict]] | dict[str, dict]:
         movie_dict = {"movie": {}, "collections": {}}
         show_dict = {"show": {}, "collections": {}}
+        fetch_collections = not (single_movie or single_series)
 
         for library_name in self.library_names:
             try:
@@ -225,90 +228,78 @@ class Server:
                 self.logger.error(f"Library '{library_name}' is invalid: {e}")
                 continue
 
-            if library.type == "movie":
-                self._process_library(library, movie_dict)
-            if library.type == "show":
-                self._process_library(library, show_dict)
-        return movie_dict, show_dict
+            if library.type == "movie" and not single_series:
+                self._process_library(library, movie_dict, fetch_collections)
+            if library.type == "show" and not single_movie:
+                self._process_library(library, show_dict, fetch_collections)
+
+        if single_movie:
+            return movie_dict
+        elif single_series:
+            return show_dict
+        else:
+            return movie_dict, show_dict
 
     def _process_library(
         self,
         library: LibrarySection,
         item_dict: dict[str, dict],
+        fetch_collections: bool = True,
     ) -> None:
+
+        library_title = library.title
+
+        if library_title not in item_dict[library.type]:
+            item_dict[library.type][library_title] = {}
+        if fetch_collections and library_title not in item_dict["collections"]:
+            item_dict["collections"][library_title] = {}
+
         all_items = library.all()
-        all_collections = library.collections()
         for item in all_items:
             title_key = item.title
             year = item.year or ""
             title_name = f"{title_key} ({year})".strip()
-            if title_name not in item_dict[library.type]:
-                item_dict[library.type][title_name] = []
-            item_dict[library.type][title_name].append(item)
-        for collection in all_collections:
-            collection_key = collection.title
-            if collection_key not in item_dict["collections"]:
-                item_dict["collections"][collection_key] = []
-            item_dict["collections"][collection_key].append(collection)
+            item_dict[library.type][library_title][title_name] = item
 
-    def get_single_item(self, media_type: str, title: str, year: int, logger):
-        if media_type == "movie":
-            item_dict = {"movie": {}}
-        else:
-            item_dict = {"show": {}}
+        if fetch_collections:
+            all_collections = library.collections()
+            for collection in all_collections:
+                collection_key = collection.title
+                item_dict["collections"][library_title][collection_key] = collection
 
-        libraries_to_search = []
-        max_retries = 10
-        retry_delay = 30
+    def fetch_recently_added(self, media_type: str, logger: Logger):
+        recently_added_dict = {media_type: {}}
         for library_name in self.library_names:
             try:
                 library = self.plex.library.section(library_name)
                 if library.type == media_type:
-                    libraries_to_search.append(library)
+                    logger.debug(
+                        f"Fetching recently added items from library: '{library.title}', Type: '{library.type}'"
+                    )
+                    recently_added = library.recentlyAdded(maxresults=5)
+                    if recently_added:
+                        if library_name not in recently_added_dict[media_type]:
+                            recently_added_dict[media_type][library_name] = {}
+
+                        for item in recently_added:
+                            title_key = item.title
+                            year = item.year or ""
+                            title_name = f"{title_key} ({year})".strip()
+                            recently_added_dict[media_type][library_name][
+                                title_name
+                            ] = item
+                        logger.info(
+                            f"Fetched {len(recently_added)} recently added items from '{library_name}'"
+                        )
+                    else:
+                        logger.info(
+                            f"No recently added items found in library '{library_name}'"
+                        )
             except UnknownType as e:
-                self.logger.error(f"Library '{library_name}' is invalid: {e}")
+                logger.error(f"Library '{library_name}' is invalid: {e}")
                 continue
-
-        for attempt in range(1, max_retries + 1):
-            try:
-                logger.debug(
-                    f"Attempt {attempt}/{max_retries}: Searching for '{title} {year}' across {len(libraries_to_search)} libraries"
-                )
-                for library in libraries_to_search:
-                    logger.debug(
-                        f"Library to search: '{library.title}', Type: '{library.type}'"
-                    )
-                    logger.debug(
-                        f"Searching with parameters: title='{title}', year={year}"
-                    )
-                    results = library.search(title=title, year=year)
-                    if results:
-                        logger.debug(f"Found item in library '{library.title}'")
-                    for item in results:
-                        title_key = item.title
-                        year_key = item.year or ""
-                        title_name = f"{title_key} ({year_key})".strip()
-                        if title_name not in item_dict[library.type]:
-                            item_dict[library.type][title_name] = []
-                        item_dict[library.type][title_name].append(item)
-
-                if any(item_dict[key] for key in item_dict):
-                    return item_dict
-
-                logger.warning(
-                    f"No results found for '{title} {year}' on attempt {attempt}/{max_retries}"
-                )
-
             except Exception as e:
                 logger.error(
-                    f"Error during search for '{title} {year}' on attempt {attempt}/{max_retries}: {e}"
+                    f"An error occurred while fetching recently added items from '{library_name}': {e}"
                 )
-
-            if attempt < max_retries:
-                logger.debug(f"Retrying search after {retry_delay} seconds...")
-                time.sleep(retry_delay)
-
-        logger.error(
-            f"Failed to retrieve item '{title} {year}' from any library after {max_retries} attempts"
-        )
-        return None
+        return recently_added_dict if recently_added_dict[media_type] else None
