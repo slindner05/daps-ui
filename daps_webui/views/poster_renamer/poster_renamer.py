@@ -360,25 +360,11 @@ def recieve_webhook():
         elif item_type == "series":
             item_path = data.get(item_type, {}).get("path", None)
 
-        season_numbers = None
-
-        if item_path and item_type == "series":
-            episodes = data.get(item_type, {}).get("episodes", [])
-            if not episodes:
-                daps_logger.warning(f"Webhook data for {item_path} is missing episodes")
-
-            season_numbers = {episode.get("seasonNumber") for episode in episodes}
-            if not season_numbers:
-                daps_logger.warning(
-                    f"No season numbers found for episodes in {item_path}"
-                )
-
         new_item = {
             "type": item_type,
             "item_id": id,
             "instance_name": instance,
             "item_path": item_path,
-            "season_num": list(season_numbers) if season_numbers else None,
         }
 
         daps_logger.debug(f"Extracted item: {new_item}")
@@ -413,7 +399,12 @@ def run_renamer():
 def get_progress(job_id):
     job_progress = progress_instance.get_progress(job_id)
     if job_progress:
-        value, state = job_progress
-        return jsonify({"job_id": job_id, "state": state, "value": value})
+        return jsonify(
+            {
+                "job_id": job_id,
+                "state": job_progress["state"],
+                "value": job_progress["value"],
+            }
+        )
     else:
         return jsonify({"error": "Job not found"}), 404

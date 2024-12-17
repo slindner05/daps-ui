@@ -18,7 +18,7 @@ from progress import progress_instance
 global_config = Config()
 db = SQLAlchemy()
 progress_dict = {}
-executor = ThreadPoolExecutor(max_workers=2)
+executor = ThreadPoolExecutor(max_workers=4)
 
 # define all loggers
 daps_logger = logging.getLogger("daps-web")
@@ -83,6 +83,7 @@ def run_renamer_task(webhook_item: dict | None = None):
         )
 
         job_id = progress_instance.add_job()
+        daps_logger.info(f"Job Poster Renamerr: '{job_id}' added.")
 
         renamer = PosterRenamerr(
             poster_renamer_payload.target_path,
@@ -137,6 +138,7 @@ def handle_unmatched_assets_task(radarr, sonarr, plex):
                 radarr, sonarr, plex
             )
             job_id = progress_instance.add_job()
+            daps_logger.info(f"Job Unmatched Assets: '{job_id}' added.")
 
             unmatched_assets = UnmatchedAssets(
                 unmatched_assets_payload.target_path,

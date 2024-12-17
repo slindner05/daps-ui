@@ -609,11 +609,12 @@ function checkProgress(jobId, button, progressId, jobName) {
   fetch(`/progress/${jobId}`)
     .then((response) => response.json())
     .then((data) => {
-      const progress = data.value || 0;
+      const progress = parseInt(data.value) || 0;
       const state = data.state || "Pending";
       const progressBar = document.getElementById(progressId);
+
       progressBar.style.width = progress + "%";
-      progressBar.textContent = progress + "%";
+      progressBar.textContent = `${progress}%`;
 
       if (progress > 0) {
         progressBar.style.backgroundColor = "#4caf50";
