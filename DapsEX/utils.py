@@ -159,9 +159,6 @@ def strip_year(name: str) -> str:
     return re.sub(r"\(\d{4}\)", "", name).strip()
 
 
-# TODO: ADD MULTIPLE DAYS AND TIMES TO WEEKLY AND MONTHLY SCHEDULES
-
-
 def convert_day_of_week(day: str) -> str:
     day_map = {
         "0": "sunday",

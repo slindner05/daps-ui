@@ -3,6 +3,7 @@ from pathlib import Path
 from PIL import Image
 
 
+# TODO: add option to change border color
 class BorderReplacerr:
     def __init__(self) -> None:
         pass

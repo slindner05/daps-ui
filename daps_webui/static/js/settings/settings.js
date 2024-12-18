@@ -1,4 +1,4 @@
-// TODO: ADD INFO HOVER TIP FOR SCHEDULES
+// TODO: add info hover tip for schedules
 document.addEventListener("DOMContentLoaded", function () {
   attachNewInstance("radarr");
   attachNewInstance("sonarr");

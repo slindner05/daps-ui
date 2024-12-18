@@ -1,6 +1,7 @@
 from DapsEX.border_replacerr import BorderReplacerr
 from DapsEX.database_cache import Database
 from DapsEX.media import *
+from DapsEX.plex_upload import *
 from DapsEX.poster_renamerr import PosterRenamerr
 from DapsEX.unmatched_assets import UnmatchedAssets
 from DapsEX.utils import *
