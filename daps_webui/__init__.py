@@ -129,7 +129,6 @@ def run_renamer_task(webhook_item: dict | None = None):
             "message": "Poster renamer task started",
             "job_id": job_id,
             "success": True,
-            "future": future,
         }
     except Exception as e:
         daps_logger.error(f"Error in Poster Renamer Task: {str(e)}")
