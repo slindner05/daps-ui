@@ -13,6 +13,7 @@ class Database:
     def get_db_connection(self):
         conn = sqlite3.connect(Settings.DB_PATH.value)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
         return conn
 
     def initialize_db(self):

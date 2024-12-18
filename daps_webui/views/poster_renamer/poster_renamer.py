@@ -302,6 +302,7 @@ def fetch_unmatched_assets():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+# TODO: setup batch processing for webhooks
 @poster_renamer.route("/arr-webhook", methods=["POST"])
 def recieve_webhook():
     from daps_webui.models import Settings
@@ -313,26 +314,25 @@ def recieve_webhook():
     if not run_single_item:
         daps_logger.debug("Single item processing is disabled in settings.")
         return "Single item processing disabled", 403
-
-    data = request.json
-    if not data:
-        daps_logger.error("No data recieved in the webhook")
-        return "No data recieved", 400
-    daps_logger.debug(f"===== Webhook data =====\n{data}")
-
-    valid_event_types = ["Download", "Grab", "MovieAdded", "SeriesAdd"]
-    webhook_event_type = data.get("eventType", "")
-
-    if webhook_event_type == "Test":
-        daps_logger.info("Test event recived successfully")
-        return "OK", 200
-
-    if webhook_event_type not in valid_event_types:
-        daps_logger.debug(f"'{webhook_event_type}' is not a valid event type")
-        return "Invalid event type", 400
-
-    daps_logger.info(f"Processing event type: {webhook_event_type}")
     try:
+        data = request.json
+        if not data:
+            daps_logger.error("No data recieved in the webhook")
+            return "No data recieved", 400
+        daps_logger.debug(f"===== Webhook data =====\n{data}")
+
+        valid_event_types = ["Download", "Grab", "MovieAdded", "SeriesAdd"]
+        webhook_event_type = data.get("eventType", "")
+
+        if webhook_event_type == "Test":
+            daps_logger.info("Test event recived successfully")
+            return "OK", 200
+
+        if webhook_event_type not in valid_event_types:
+            daps_logger.debug(f"'{webhook_event_type}' is not a valid event type")
+            return "Invalid event type", 400
+
+        daps_logger.info(f"Processing event type: {webhook_event_type}")
         item_type = (
             "movie" if "movie" in data else "series" if "series" in data else None
         )

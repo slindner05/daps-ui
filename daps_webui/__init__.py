@@ -18,7 +18,7 @@ from progress import progress_instance
 global_config = Config()
 db = SQLAlchemy()
 progress_dict = {}
-executor = ThreadPoolExecutor(max_workers=4)
+executor = ThreadPoolExecutor(max_workers=1)
 
 # define all loggers
 daps_logger = logging.getLogger("daps-web")
@@ -35,6 +35,10 @@ def create_app() -> Flask:
 
     # initiate database
     db.init_app(app)
+    with app.app_context():
+        with db.engine.connect() as conn:
+            conn.execute(db.text("PRAGMA journal_mode=WAL;"))
+        daps_logger.info("WAL mode enabled for SQLite database")
 
     @app.teardown_appcontext
     def shutdown_scheduler(exception=None):
@@ -125,6 +129,7 @@ def run_renamer_task(webhook_item: dict | None = None):
             "message": "Poster renamer task started",
             "job_id": job_id,
             "success": True,
+            "future": future,
         }
     except Exception as e:
         daps_logger.error(f"Error in Poster Renamer Task: {str(e)}")
