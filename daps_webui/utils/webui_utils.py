@@ -67,6 +67,7 @@ def create_unmatched_assets_payload(radarr, sonarr, plex) -> UnmatchedAssetsPayl
         log_level=log_level,
         target_path=getattr(settings, "target_path", ""),
         asset_folders=getattr(settings, "asset_folders", False),
+        show_all_unmatched=getattr(settings, "show_all_unmatched", False),
         library_names=(
             getattr(settings, "library_names", "").split(",")
             if getattr(settings, "library_names", None)

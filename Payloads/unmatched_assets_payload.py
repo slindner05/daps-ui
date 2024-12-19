@@ -1,10 +1,12 @@
 from dataclasses import dataclass
 
+
 @dataclass(slots=True)
 class Payload:
     log_level: int
-    target_path: str 
+    target_path: str
     asset_folders: bool
+    show_all_unmatched: bool
     library_names: list[str]
     instances: list[str]
     radarr: dict[str, dict[str, str]]

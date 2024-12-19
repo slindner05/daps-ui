@@ -81,6 +81,7 @@ class YamlConfig:
             "log_level": log_level,
             "target_path": script_config.get("target_directory", ""),
             "asset_folders": script_config.get("asset_folders", False),
+            "show_all_unmatched": script_config.get("show_all_unmatched", False),
             "library_names": script_config.get("library_names", []),
             "instances": script_config.get("instances", []),
             "radarr": self.radarr_config,

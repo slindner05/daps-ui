@@ -35,6 +35,7 @@ log_level:
 poster_renamerr:
   asset_folders: # False -- must match kometa asset folder configuration
   unmatched_assets: # True -- run unmatched assets after every renamer run
+  show_all_unmatched: # False -- show true unmatched assets (all series/seasons + shows added in the arrs)
   border_replacerr: # False -- only remove borders currently implemented
   run_on_single_item: # True -- must have ports exposed and instances must be setup in arr settings and match instances in config
   upload_to_plex: # False -- when true will change poster in plex to posters in asset directory

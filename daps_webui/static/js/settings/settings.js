@@ -139,6 +139,8 @@ function preFillForm(data) {
     data.runSingleItem || false;
   document.getElementById("upload_to_plex").checked =
     data.uploadToPlex || false;
+  document.getElementById("show_all_unmatched").checked =
+    data.showAllUnmatched || false;
 
   createInstanceFromSettings(data, "radarrInstances", "radarr");
   createInstanceFromSettings(data, "sonarrInstances", "sonarr");
@@ -265,7 +267,7 @@ let placeholders = {
   sourceDir: "/posters/Drazzilb08",
   libraryName: "Movies (HD)",
   instance: "radarr_1",
-  cronSchedule: "0 */3 * * *",
+  cronSchedule: "cron(0 */3 * * *)",
 };
 
 function createAdditionalInput(inputType, placeholder) {
@@ -460,6 +462,8 @@ let counters = {
 
 function createUnmatchedAssets() {
   const wrapperDiv = document.createElement("div");
+  const checkboxDiv = document.createElement("div");
+  checkboxDiv.classList.add("form-group-checkbox");
 
   const cronScheduleInput = document.createElement("input");
   cronScheduleInput.name = "unmatched_assets_schedule";
@@ -472,7 +476,14 @@ function createUnmatchedAssets() {
   );
   cronScheduleLabel.appendChild(cronScheduleInput);
 
+  const showAllCheckbox = createCheckboxInput(
+    "Show all unmatched",
+    "show_all_unmatched",
+  );
+  checkboxDiv.appendChild(showAllCheckbox);
+
   wrapperDiv.appendChild(cronScheduleLabel);
+  wrapperDiv.appendChild(checkboxDiv);
   return wrapperDiv;
 }
 
@@ -703,7 +714,8 @@ document.getElementById("save-settings").addEventListener("click", function () {
   const unmatchedAssets = document.getElementById("unmatched_assets").checked;
   const runSingleItem = document.getElementById("run_single_item").checked;
   const uploadToPlex = document.getElementById("upload_to_plex").checked;
-
+  const showAllUnmatched =
+    document.getElementById("show_all_unmatched").checked;
   // radarr
   const radarrInstanceNames = Array.from(
     document.querySelectorAll('input[name="radarr_instance[]"]'),
@@ -774,6 +786,7 @@ document.getElementById("save-settings").addEventListener("click", function () {
       borderReplacerr: borderReplacerr,
       runSingleItem: runSingleItem,
       uploadToPlex: uploadToPlex,
+      showAllUnmatched: showAllUnmatched,
       radarrInstances: radarrInstances,
       sonarrInstances: sonarrInstances,
       plexInstances: plexInstances,
