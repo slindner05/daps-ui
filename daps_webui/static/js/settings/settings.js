@@ -139,6 +139,8 @@ function preFillForm(data) {
     data.runSingleItem || false;
   document.getElementById("upload_to_plex").checked =
     data.uploadToPlex || false;
+  document.getElementById("reapply_posters").checked =
+    data.reapplyPosters || false;
   document.getElementById("show_all_unmatched").checked =
     data.showAllUnmatched || false;
 
@@ -400,10 +402,14 @@ function createPosterRenamer() {
     "unmatched_assets",
   );
   const runSingleItemCheckbox = createCheckboxInput(
-    "Single run on new item",
+    "Webhook Run",
     "run_single_item",
   );
   const uploadToPlex = createCheckboxInput("Upload to plex", "upload_to_plex");
+  const reapplyPostersCheckbox = createCheckboxInput(
+    "Reapply Posters",
+    "reapply_posters",
+  );
 
   const addSourceDirButton = createAddButton("source_dir", "Add Source Dir");
   attachAddButtonListener(
@@ -441,6 +447,7 @@ function createPosterRenamer() {
   checkboxDiv.appendChild(unmatchedAssetsCheckbox);
   checkboxDiv.appendChild(runSingleItemCheckbox);
   checkboxDiv.appendChild(uploadToPlex);
+  checkboxDiv.appendChild(reapplyPostersCheckbox);
 
   // formGroup.appendChild(logLevelLabel);
   formGroup.appendChild(cronScheduleLabel);
@@ -714,6 +721,7 @@ document.getElementById("save-settings").addEventListener("click", function () {
   const unmatchedAssets = document.getElementById("unmatched_assets").checked;
   const runSingleItem = document.getElementById("run_single_item").checked;
   const uploadToPlex = document.getElementById("upload_to_plex").checked;
+  const reapplyPosters = document.getElementById("reapply_posters").checked;
   const showAllUnmatched =
     document.getElementById("show_all_unmatched").checked;
   // radarr
@@ -786,6 +794,7 @@ document.getElementById("save-settings").addEventListener("click", function () {
       borderReplacerr: borderReplacerr,
       runSingleItem: runSingleItem,
       uploadToPlex: uploadToPlex,
+      reapplyPosters: reapplyPosters,
       showAllUnmatched: showAllUnmatched,
       radarrInstances: radarrInstances,
       sonarrInstances: sonarrInstances,

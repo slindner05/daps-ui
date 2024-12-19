@@ -879,10 +879,15 @@ class PosterRenamerr:
                         plex_instances,
                         single_item,
                         media_dict,
+                        payload.reapply_posters,
                     )
                 else:
                     upload_posters_full(
-                        self.db, payload.asset_folders, self.logger, plex_instances
+                        self.db,
+                        payload.asset_folders,
+                        self.logger,
+                        plex_instances,
+                        payload.reapply_posters,
                     )
 
             if job_id and cb:

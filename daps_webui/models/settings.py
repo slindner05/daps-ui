@@ -17,4 +17,5 @@ class Settings(db.Model):
     border_replacerr = db.Column(db.Boolean, default=False, nullable=False)
     run_single_item = db.Column(db.Boolean, default=False, nullable=False)
     upload_to_plex = db.Column(db.Boolean, default=False, nullable=False)
+    reapply_posters = db.Column(db.Boolean, default=False, nullable=False)
     show_all_unmatched = db.Column(db.Boolean, default=False, nullable=False)

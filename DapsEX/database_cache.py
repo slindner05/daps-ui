@@ -286,6 +286,26 @@ class Database:
                 except Exception as e:
                     logger.error(f"Failed to update 'webhook_run' for {file_path}: {e}")
 
+    def clear_uploaded_to_libraries_data(
+        self, logger: Logger, webhook_run: bool | None = None
+    ):
+        with self.get_db_connection() as conn:
+            with closing(conn.cursor()) as cursor:
+                try:
+                    if webhook_run is True:
+                        cursor.execute(
+                            "UPDATE file_cache SET uploaded_to_libraries = '[]' WHERE webhook_run = 1"
+                        )
+                    else:
+                        cursor.execute(
+                            "UPDATE file_cache SET uploaded_to_libraries = '[]'"
+                        )
+                    conn.commit()
+                    logger.debug("Successfully reset uploaded_to_libraries to '[]'")
+                except Exception as e:
+                    conn.rollback()
+                    logger.error(f"Failed to clear uploaded_to_libraries data: {e}")
+
     def get_cached_file(self, file_path: str) -> dict[str, str] | None:
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:

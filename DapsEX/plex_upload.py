@@ -398,8 +398,17 @@ def search_recently_added_for_items(
                 )
 
 
-def upload_posters_full(db, asset_folders: bool, logger: Logger, plex_instances: dict):
+def upload_posters_full(
+    db, asset_folders: bool, logger: Logger, plex_instances: dict, reapply_posters: bool
+):
     plex_media_dict = {}
+
+    if reapply_posters:
+        db.clear_uploaded_to_libraries_data(logger)
+        logger.info(
+            "Reapply posters is enabled. Clearing uploaded_to_libraries data and re-uploading them to plex."
+        )
+
     cached_files = db.return_all_files()
     logger.debug(json.dumps(cached_files, indent=4))
     valid_files = {}
@@ -459,7 +468,17 @@ def upload_posters_webhook(
     plex_instances: dict,
     single_item: dict,
     media_dict: dict,
+    reapply_posters: bool,
 ):
+    if reapply_posters:
+        db.clear_uploaded_to_libraries_data(logger, webhook_run=True)
+        logger.info(
+            "Reapply posters is enabled. Clearing uploaded_to_libraries data for webhook-run items "
+            "and re-uploading them to Plex if they exist."
+        )
+    else:
+        logger.info("Reapply posters is disabled. No action taken.")
+
     plex_media_dict = {}
     item_type = single_item.get("type", None)
     if item_type == "movie":

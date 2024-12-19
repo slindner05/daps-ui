@@ -39,6 +39,7 @@ poster_renamerr:
   border_replacerr: # False -- only remove borders currently implemented
   run_on_single_item: # True -- must have ports exposed and instances must be setup in arr settings and match instances in config
   upload_to_plex: # False -- when true will change poster in plex to posters in asset directory
+  reapply_posters: # False -- when true will force re-upload posters to plex whether they were previously upload or not
   library_names:
   # must match plex library names
   # - Movies

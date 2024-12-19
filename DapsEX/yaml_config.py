@@ -62,6 +62,7 @@ class YamlConfig:
             "unmatched_assets": script_config.get("unmatched_assets", True),
             "border_replacerr": script_config.get("border_replacerr", False),
             "upload_to_plex": script_config.get("upload_to_plex", False),
+            "reapply_posters": script_config.get("reapply_posters", False),
             "library_names": script_config.get("library_names", []),
             "instances": script_config.get("instances", []),
             "radarr": self.radarr_config,
