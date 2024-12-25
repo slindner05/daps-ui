@@ -17,16 +17,27 @@ from progress import ProgressState
 
 
 class UnmatchedAssets:
-    def __init__(self, assets_dir: str, asset_folders: bool, log_level=logging.info):
+    def __init__(self, payload: Payload):
+        self.logger = logging.getLogger("UnmatchedAssets")
         try:
             log_dir = Path(Settings.LOG_DIR.value) / Settings.UNMATCHED_ASSETS.value
-            print(f"{log_dir}")
-            self.assets_dir = Path(assets_dir)
-            self.asset_folders = asset_folders
+            init_logger(
+                self.logger,
+                log_dir,
+                "unmatched_assets",
+                log_level=payload.log_level if payload.log_level else logging.INFO,
+            )
+            self.assets_dir = Path(payload.target_path)
+            self.asset_folders = payload.asset_folders
+            self.show_all_unmatched = payload.show_all_unmatched
+            self.radarr_instances, self.sonarr_instances = utils.create_arr_instances(
+                payload, Radarr, Sonarr, self.logger
+            )
+            self.plex_instances = utils.create_plex_instances(
+                payload, Server, self.logger
+            )
             self.db = Database()
             self.db.initialize_stats()
-            self.logger = logging.getLogger("UnmatchedAssets")
-            init_logger(self.logger, log_dir, "unmatched_assets", log_level=log_level)
         except Exception as e:
             self.logger.exception("Failed to initialize UnmatchedAssets")
             raise e
@@ -93,6 +104,7 @@ class UnmatchedAssets:
         collection_assets = self.extract_assets(
             "collections", assets, is_collection_asset=True
         )
+        # self.logger.debug(json.dumps(collection_assets, indent=4))
         season_assets = self.extract_assets("shows", assets, is_season_asset=True)
 
         for movie in movies_list_dict:
@@ -115,6 +127,7 @@ class UnmatchedAssets:
         for _, value_list in collections_dict.items():
             for collection in value_list:
                 collection_clean = remove_chars(collection)
+                # self.logger.debug(collection_clean)
                 if collection_clean not in collection_assets:
                     unmatched_assets["collections"].append(collection)
                     self.db.add_unmatched_collection(title=collection)
@@ -422,7 +435,6 @@ class UnmatchedAssets:
 
     def run(
         self,
-        payload: Payload,
         cb: Callable[[str, int, ProgressState], None] | None = None,
         job_id: str | None = None,
     ):
@@ -430,21 +442,14 @@ class UnmatchedAssets:
 
         try:
             self._log_banner()
-            self.logger.debug("Creating Radarr Sonarr and Plex instances.")
-            radarr_instances, sonarr_instances = utils.create_arr_instances(
-                payload, Radarr, Sonarr, self.logger
-            )
-            plex_instances = utils.create_plex_instances(payload, Server, self.logger)
-            self.logger.debug("Successfully created all instances.")
-
             if job_id and cb:
                 cb(job_id, 20, ProgressState.IN_PROGRESS)
 
             self.logger.debug("Creating media and collections dict.")
             media_dict = utils.get_combined_media_dict(
-                radarr_instances, sonarr_instances
+                self.radarr_instances, self.sonarr_instances
             )
-            collections_dict = utils.get_combined_collections_dict(plex_instances)
+            collections_dict = utils.get_combined_collections_dict(self.plex_instances)
             if job_id and cb:
                 cb(job_id, 40, ProgressState.IN_PROGRESS)
             self.logger.debug("Created media dict and collections dict")
@@ -458,7 +463,7 @@ class UnmatchedAssets:
                 media_dict,
                 collections_dict,
                 assets,
-                payload.show_all_unmatched,
+                self.show_all_unmatched,
             )
             self.logger.debug(
                 "Unmatched assets summary:\n%s", json.dumps(unmatched_assets, indent=4)
@@ -467,7 +472,7 @@ class UnmatchedAssets:
                 unmatched_assets,
                 media_dict,
                 collections_dict,
-                payload.show_all_unmatched,
+                self.show_all_unmatched,
             )
             self.logger.debug("Cleaning up database")
 

@@ -1,7 +1,9 @@
 import json
 import sqlite3
 from contextlib import closing
+from datetime import datetime, timedelta, timezone
 from logging import Logger
+from pathlib import Path
 
 from DapsEX.settings import Settings
 
@@ -22,19 +24,19 @@ class Database:
                 cursor.execute(
                     """
                 CREATE TABLE IF NOT EXISTS file_cache (
-                    file_path TEXT PRIMARY KEY,
+                    file_path TEXT NOT NULL PRIMARY KEY,
                     file_name TEXT,
-                    status TEXT DEFAULT NULL,
-                    has_episodes INTEGER DEFAULT NULL,
-                    has_file INTEGER DEFAULT NULL,
+                    status TEXT,
+                    has_episodes INTEGER,
+                    has_file INTEGER,
                     media_type TEXT, 
-                    file_hash TEXT UNIQUE,
-                    original_file_hash TEXT UNIQUE,
+                    file_hash TEXT,
+                    original_file_hash TEXT,
                     source_path TEXT,
-                    border_replaced INTEGER DEFAULT 0,
-                    webhook_run INTEGER DEFAULT NULL,
-                    uploaded_to_libraries TEXT DEFAULT '[]',
-                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                    border_replaced INTEGER NOT NULL DEFAULT 0,
+                    border_color TEXT,
+                    webhook_run INTEGER,
+                    uploaded_to_libraries TEXT NOT NULL DEFAULT '[]'
                 )
                 """
                 )
@@ -42,7 +44,7 @@ class Database:
                     """
                     CREATE TABLE IF NOT EXISTS unmatched_movies (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        title TEXT UNIQUE
+                        title TEXT UNIQUE NOT NULL
                     )
                     """
                 )
@@ -50,7 +52,7 @@ class Database:
                     """
                     CREATE TABLE IF NOT EXISTS unmatched_collections (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        title TEXT UNIQUE
+                        title TEXT UNIQUE NOT NULL
                     )
                     """
                 )
@@ -58,8 +60,8 @@ class Database:
                     """
                     CREATE TABLE IF NOT EXISTS unmatched_shows (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        title TEXT UNIQUE,
-                        main_poster_missing INTEGER DEFAULT NULL 
+                        title TEXT UNIQUE NOT NULL,
+                        main_poster_missing INTEGER NOT NULL DEFAULT 0  
                     )
                     """
                 )
@@ -67,8 +69,8 @@ class Database:
                     """
                     CREATE TABLE IF NOT EXISTS unmatched_seasons (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        show_id INTEGER,
-                        season TEXT,
+                        show_id INTEGER NOT NULL,
+                        season TEXT NOT NULL,
                         FOREIGN KEY (show_id) REFERENCES unmatched_shows (id) ON DELETE CASCADE,
                         UNIQUE (show_id, season)
                     )
@@ -78,14 +80,26 @@ class Database:
                     """
                     CREATE TABLE IF NOT EXISTS unmatched_stats (
                     id INTEGER PRIMARY KEY,
-                    total_movies INTEGER DEFAULT 0,
-                    total_series INTEGER DEFAULT 0,
-                    total_seasons INTEGER DEFAULT 0,
-                    total_collections INTEGER DEFAULT 0,
-                    unmatched_movies INTEGER DEFAULT 0,
-                    unmatched_series INTEGER DEFAULT 0,
-                    unmatched_seasons INTEGER DEFAULT 0,
-                    unmatched_collections INTEGER DEFAULT 0
+                    total_movies INTEGER NOT NULL DEFAULT 0,
+                    total_series INTEGER NOT NULL DEFAULT 0,
+                    total_seasons INTEGER NOT NULL DEFAULT 0,
+                    total_collections INTEGER NOT NULL DEFAULT 0,
+                    unmatched_movies INTEGER NOT NULL DEFAULT 0,
+                    unmatched_series INTEGER NOT NULL DEFAULT 0,
+                    unmatched_seasons INTEGER NOT NULL DEFAULT 0,
+                    unmatched_collections INTEGER NOT NULL DEFAULT 0
+                    )
+                    """
+                )
+                conn.commit()
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS webhook_cache (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        item_type TEXT NOT NULL,
+                        item_name TEXT NOT NULL,
+                        timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE (item_type, item_name)
                     )
                     """
                 )
@@ -93,6 +107,7 @@ class Database:
 
     def add_file(
         self,
+        logger: Logger,
         file_path: str,
         file_name: str,
         status: str | None,
@@ -103,50 +118,121 @@ class Database:
         original_file_hash: str,
         source_path: str,
         border_replaced: bool,
-        webhook_run: bool | None,
+        border_color: str | None = None,
+        webhook_run: bool | None = None,
     ) -> None:
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
-                cursor.execute(
-                    "INSERT OR REPLACE INTO file_cache (file_path, file_name, status, has_episodes, has_file, media_type, file_hash, original_file_hash, source_path, border_replaced, webhook_run) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        file_path,
-                        file_name,
-                        status,
-                        has_episodes,
-                        has_file,
-                        media_type,
-                        file_hash,
-                        original_file_hash,
-                        source_path,
-                        border_replaced,
-                        webhook_run,
-                    ),
-                )
-            conn.commit()
+                try:
+                    cursor.execute(
+                        "SELECT 1 FROM file_cache WHERE file_path = ?",
+                        (file_path,),
+                    )
+                    uploaded_to_libraries = json.dumps([])
+                    row_exists = cursor.fetchone() is not None
+                    cursor.execute(
+                        "INSERT OR REPLACE INTO file_cache (file_path, file_name, status, has_episodes, has_file, media_type, file_hash, original_file_hash, source_path, border_replaced, border_color, webhook_run, uploaded_to_libraries) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (
+                            file_path,
+                            file_name,
+                            status,
+                            has_episodes,
+                            has_file,
+                            media_type,
+                            file_hash,
+                            original_file_hash,
+                            source_path,
+                            border_replaced,
+                            border_color,
+                            webhook_run,
+                            uploaded_to_libraries,
+                        ),
+                    )
+                    conn.commit()
+                    if row_exists:
+                        logger.info(
+                            f"File '{file_path}' was successfully updated in file cache."
+                        )
+                    else:
+                        logger.debug(
+                            f"File '{file_path}' was successfully added to file cache."
+                        )
+                except Exception as e:
+                    logger.error(f"Failed to add file '{file_path}' to database: {e}")
+
+    def is_duplicate_webhook(
+        self, logger: Logger, new_item, cache_duration=600
+    ) -> bool:
+
+        item_name = Path(new_item["item_path"]).stem
+        now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(seconds=cache_duration)
+
+        with self.get_db_connection() as conn:
+            with closing(conn.cursor()) as cursor:
+                try:
+                    cursor.execute(
+                        "DELETE FROM webhook_cache WHERE timestamp < ?", (cutoff,)
+                    )
+                    expired_count = cursor.rowcount
+                    logger.debug(f"Expired webhooks removed: {expired_count}")
+
+                    cursor.execute(
+                        "SELECT 1 FROM webhook_cache WHERE item_type = ? AND item_name = ?",
+                        (
+                            new_item["type"],
+                            item_name,
+                        ),
+                    )
+                    if cursor.fetchone():
+                        logger.debug(f"Duplicate webhook detected: {item_name}")
+                        return True
+
+                    cursor.execute(
+                        "INSERT INTO webhook_cache (item_type, item_name, timestamp) VALUES (?, ?, CURRENT_TIMESTAMP)",
+                        (new_item["type"], item_name),
+                    )
+                    logger.debug(f"New webhook added to cache: {item_name}")
+                    conn.commit()
+
+                except sqlite3.InternalError as e:
+                    logger.debug(f"IntegrityError: {e}")
+                    return True
+        return False
 
     def update_file(
         self,
+        logger: Logger,
         file_hash: str,
         original_file_hash: str,
         source_path: str,
         file_path: str,
         border_replaced: bool,
+        border_color: str | None = None,
     ) -> None:
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
-                cursor.execute(
-                    "UPDATE file_cache SET file_hash = ?, original_file_hash = ?, source_path = ?, border_replaced = ?, uploaded_to_libraries = ? WHERE file_path = ?",
-                    (
-                        file_hash,
-                        original_file_hash,
-                        source_path,
-                        int(border_replaced),
-                        json.dumps([]),
-                        file_path,
-                    ),
-                )
-            conn.commit()
+                try:
+                    cursor.execute(
+                        "UPDATE file_cache SET file_hash = ?, original_file_hash = ?, source_path = ?, border_replaced = ?, border_color = ?, uploaded_to_libraries = ? WHERE file_path = ?",
+                        (
+                            file_hash,
+                            original_file_hash,
+                            source_path,
+                            int(border_replaced),
+                            border_color,
+                            json.dumps([]),
+                            file_path,
+                        ),
+                    )
+                    conn.commit()
+                    logger.debug(
+                        f"File '{file_path}' was successfully updated in file cache."
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Failed to update file '{file_path}' to database: {e}"
+                    )
 
     def update_status(self, file_path: str, status: str, logger):
         with self.get_db_connection() as conn:
@@ -294,11 +380,13 @@ class Database:
                 try:
                     if webhook_run is True:
                         cursor.execute(
-                            "UPDATE file_cache SET uploaded_to_libraries = '[]' WHERE webhook_run = 1"
+                            "UPDATE file_cache SET uploaded_to_libraries = ? WHERE webhook_run = ?",
+                            ("[]", 1),
                         )
                     else:
                         cursor.execute(
-                            "UPDATE file_cache SET uploaded_to_libraries = '[]'"
+                            "UPDATE file_cache SET uploaded_to_libraries = ?",
+                            ("[]",),
                         )
                     conn.commit()
                     logger.debug("Successfully reset uploaded_to_libraries to '[]'")
@@ -346,15 +434,15 @@ class Database:
                         "original_file_hash": original_file_hash,
                         "source_path": source_path,
                         "border_replaced": border_replaced,
+                        "border_color": border_color,
                         "uploaded_to_libraries": (
                             json.loads(uploaded_to_libraries)
                             if uploaded_to_libraries
                             else []
                         ),
                         "webhook_run": webhook_flag,
-                        "timestamp": timestamp,
                     }
-                    for file_path, file_name, status, has_episodes, has_file, media_type, file_hash, original_file_hash, source_path, border_replaced, webhook_flag, uploaded_to_libraries, timestamp, in result
+                    for file_path, file_name, status, has_episodes, has_file, media_type, file_hash, original_file_hash, source_path, border_replaced, border_color, webhook_flag, uploaded_to_libraries in result
                 }
 
     def add_unmatched_movie(

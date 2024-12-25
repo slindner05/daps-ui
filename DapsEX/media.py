@@ -1,5 +1,4 @@
 import re
-import time
 from logging import Logger
 from pathlib import Path
 
@@ -16,7 +15,7 @@ from plexapi.server import PlexServer
 
 
 class Media:
-    def get_series_with_seasons(self, all_series_objects: list[Series]):
+    def get_series_with_seasons(self, logger, all_series_objects: list[Series]):
         titles_with_seasons = []
         for media_object in all_series_objects:
             dict_with_seasons = {
@@ -24,13 +23,26 @@ class Media:
                 "seasons": [],
                 "status": "",
                 "has_episodes": False,
+                "alternate_titles": [],
             }
+            series_id = media_object.id
             path = Path(media_object.path)  # type: ignore
             title = path.name
             series_status = media_object.status
             season_object = media_object.seasons
             dict_with_seasons["title"] = title
             dict_with_seasons["status"] = series_status
+
+            try:
+                raw_api = media_object._raw
+                series_data = raw_api.get_series_id(series_id)
+                if series_data:
+                    alternate_titles = self.extract_alternate_titles(
+                        series_data.get("alternateTitles", [])
+                    )
+                    dict_with_seasons["alternate_titles"] = alternate_titles
+            except Exception as e:
+                logger.error(f"Error fetching series data for ID {series_id}: {e}")
 
             for season in season_object:  # type: ignore
                 season_dict = {
@@ -68,13 +80,19 @@ class Media:
             return None
 
         for media_object in all_movie_objects:
-            dict_with_years = {"title": "", "years": [], "status": "", "has_file": None}
+            dict_with_years = {
+                "title": "",
+                "years": [],
+                "status": "",
+                "has_file": False,
+            }
 
             path = Path(media_object.path)  # type: ignore
             title = path.name
             title_year = str(media_object.year)
             status = media_object.status
             has_file = media_object.hasFile
+
             years = [
                 extract_year(media_object.physicalRelease),
                 extract_year(media_object.digitalRelease),
@@ -90,6 +108,15 @@ class Media:
 
             titles_with_years.append(dict_with_years)
         return titles_with_years
+
+    def extract_alternate_titles(self, alternate_titles_list):
+        return [
+            title_entry["title"].strip()
+            for title_entry in alternate_titles_list
+            if title_entry.get("seasonNumber") == -1
+            or title_entry.get("sceneSeasonNumber") == -1
+            and title_entry.get("title", "").strip()
+        ]
 
 
 class Radarr(Media):
@@ -128,7 +155,9 @@ class Sonarr(Media):
         try:
             self.sonarr = SonarrAPI(base_url, api)
             self.all_series_objects = self.get_all_series()
-            self.series = self.get_series_with_seasons(self.all_series_objects)
+            self.series = self.get_series_with_seasons(
+                self.logger, self.all_series_objects
+            )
         except ArrApiUnauthorized as e:
             self.logger.error(
                 "Error: Unauthorized access to Sonarr. Please check your API key."
@@ -147,7 +176,7 @@ class Sonarr(Media):
         show_list = []
         show = self.sonarr.get_series(id)
         show_list.append(show)
-        return self.get_series_with_seasons(show_list)
+        return self.get_series_with_seasons(self.logger, show_list)
 
 
 class Server:

@@ -47,7 +47,12 @@ fetch("/poster-renamer/unmatched")
     if (data.success) {
       const unmatchedMedia = data.unmatched_media;
       const unmatchedCounts = data.unmatched_counts;
-      populateUnmatchedAssetsTable(unmatchedMedia, unmatchedCounts);
+      const disableCollections = data.disable_collections;
+      populateUnmatchedAssetsTable(
+        unmatchedMedia,
+        unmatchedCounts,
+        disableCollections,
+      );
       // console.log(unmatchedMedia);
       // console.log(unmatchedCounts);
     } else {
@@ -203,7 +208,11 @@ function addStatsTableRow(type, total, unmatchedTotal, percentComplete) {
   return row;
 }
 
-function populateUnmatchedAssetsTable(unmatchedAssets, unmatchedStats) {
+function populateUnmatchedAssetsTable(
+  unmatchedAssets,
+  unmatchedStats,
+  disableCollections,
+) {
   const movieTableBody = document
     .getElementById("unmatched-movies")
     .querySelector("tbody");
@@ -248,16 +257,31 @@ function populateUnmatchedAssetsTable(unmatchedAssets, unmatchedStats) {
     unmatchedStats.unmatched_collections,
     unmatchedStats.percent_complete_collections,
   );
+
+  let grandTotal = unmatchedStats.grand_total;
+  let unmatchedGrandTotal = unmatchedStats.unmatched_grand_total;
+  let percentCompleteGrandTotal = unmatchedStats.percent_complete_grand_total;
+  if (disableCollections) {
+    grandTotal -= unmatchedStats.total_collections;
+    unmatchedGrandTotal -= unmatchedStats.unmatched_collections;
+    percentCompleteGrandTotal =
+      grandTotal > 0
+        ? `${(((grandTotal - unmatchedGrandTotal) / grandTotal) * 100).toFixed(2)}%`
+        : "100%";
+  }
+
   const statsGrandTotalRow = addStatsTableRow(
     "Grand Total",
-    unmatchedStats.grand_total,
-    unmatchedStats.unmatched_grand_total,
-    unmatchedStats.percent_complete_grand_total,
+    grandTotal,
+    unmatchedGrandTotal,
+    percentCompleteGrandTotal,
   );
   statsTableBody.appendChild(statsMoviesRow);
   statsTableBody.appendChild(statsSeriesRow);
   statsTableBody.appendChild(statsSeasonsRow);
-  statsTableBody.appendChild(statsCollectionsRow);
+  if (!disableCollections) {
+    statsTableBody.appendChild(statsCollectionsRow);
+  }
   statsTableBody.appendChild(statsGrandTotalRow);
 
   unmatchedAssets.movies.forEach((movie) => {
@@ -265,10 +289,15 @@ function populateUnmatchedAssetsTable(unmatchedAssets, unmatchedStats) {
     movieTableBody.appendChild(row);
   });
 
-  unmatchedAssets.collections.forEach((collection) => {
-    const row = addTableRow(collection.title);
-    collectionTableBody.appendChild(row);
-  });
+  if (!disableCollections) {
+    unmatchedAssets.collections.forEach((collection) => {
+      const row = addTableRow(collection.title);
+      collectionTableBody.appendChild(row);
+    });
+    collectionTableBody.style.display = "";
+  } else {
+    collectionTableBody.style.display = "none";
+  }
   unmatchedAssets.shows.forEach((show) => {
     const mainPosterMissing = show.main_poster_missing ? "poster" : null;
     const seasonsArray = show.seasons.map((seasonObj) => seasonObj.season);

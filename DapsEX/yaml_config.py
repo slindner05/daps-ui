@@ -6,6 +6,7 @@ from pathlib import Path
 import yaml
 
 from DapsEX.settings import Settings
+from Payloads.plex_uploader_payload import Payload as PlexUploaderrPayload
 from Payloads.poster_renamerr_payload import Payload as PosterRenamerPayload
 from Payloads.unmatched_assets_payload import Payload as UnmatchedAssetsPayload
 
@@ -60,7 +61,8 @@ class YamlConfig:
             "target_path": script_config.get("target_directory", ""),
             "asset_folders": script_config.get("asset_folders", False),
             "unmatched_assets": script_config.get("unmatched_assets", True),
-            "border_replacerr": script_config.get("border_replacerr", False),
+            "replace_border": script_config.get("replace_border", False),
+            "border_color": script_config.get("border_color", None),
             "upload_to_plex": script_config.get("upload_to_plex", False),
             "reapply_posters": script_config.get("reapply_posters", False),
             "library_names": script_config.get("library_names", []),
@@ -74,17 +76,18 @@ class YamlConfig:
         return PosterRenamerPayload(**payload_data)
 
     def create_unmatched_assets_payload(self) -> UnmatchedAssetsPayload:
-        script_config = self.config.get(Settings.POSTER_RENAMERR.value)
+        renamer_config = self.config.get(Settings.POSTER_RENAMERR.value)
+        script_config = self.config.get(Settings.UNMATCHED_ASSETS.value)
         log_level_str = self.log_level_config.get("unmatched_assets", "INFO").upper()
         log_level = LOG_LEVELS.get(log_level_str, logging.INFO)
 
         payload_data = {
             "log_level": log_level,
-            "target_path": script_config.get("target_directory", ""),
-            "asset_folders": script_config.get("asset_folders", False),
+            "target_path": renamer_config.get("target_directory", ""),
+            "asset_folders": renamer_config.get("asset_folders", False),
             "show_all_unmatched": script_config.get("show_all_unmatched", False),
-            "library_names": script_config.get("library_names", []),
-            "instances": script_config.get("instances", []),
+            "library_names": renamer_config.get("library_names", []),
+            "instances": renamer_config.get("instances", []),
             "radarr": self.radarr_config,
             "sonarr": self.sonarr_config,
             "plex": self.plex_config,
@@ -92,6 +95,24 @@ class YamlConfig:
         self.logger.debug("===" * 10 + " UnmatchedAssets Payload " + "===" * 10)
         self.logger.debug(json.dumps(payload_data, indent=4))
         return UnmatchedAssetsPayload(**payload_data)
+
+    def create_plex_uploaderr_payload(self) -> PlexUploaderrPayload:
+        renamer_config = self.config.get(Settings.POSTER_RENAMERR.value)
+        script_config = self.config.get(Settings.PLEX_UPLOADERR.value)
+        log_level_str = self.log_level_config.get("plex_uploaderr", "INFO").upper()
+        log_level = LOG_LEVELS.get(log_level_str, logging.INFO)
+
+        payload_data = {
+            "log_level": log_level,
+            "asset_folders": renamer_config.get("asset_folders", False),
+            "reapply_posters": script_config.get("reapply_posters", False),
+            "library_names": renamer_config.get("library_names", []),
+            "instances": renamer_config.get("instances", []),
+            "plex": self.plex_config,
+        }
+        self.logger.debug("===" * 10 + " PlexUploaderr Payload " + "===" * 10)
+        self.logger.debug(json.dumps(payload_data, indent=4))
+        return PlexUploaderrPayload(**payload_data)
 
     def get_run_single_item(self) -> bool:
         return self.config.get(Settings.POSTER_RENAMERR.value).get(

@@ -16,31 +16,35 @@ from DapsEX.border_replacerr import BorderReplacerr
 from DapsEX.database_cache import Database
 from DapsEX.logger import init_logger
 from DapsEX.media import Radarr, Server, Sonarr
-from DapsEX.plex_upload import upload_posters_full, upload_posters_webhook
 from DapsEX.settings import Settings
-from Payloads.poster_renamerr_payload import Payload
 from progress import ProgressState
 
 
 class PosterRenamerr:
-    def __init__(
-        self,
-        target_path: str,
-        source_directories: list,
-        asset_folders: bool,
-        replace_border: bool,
-        log_level=logging.INFO,
-    ):
+    def __init__(self, payload):
+        self.logger = logging.getLogger("PosterRenamerr")
         try:
             log_dir = Path(Settings.LOG_DIR.value) / Settings.POSTER_RENAMERR.value
-            self.target_path = Path(target_path)
-            self.source_directories = source_directories
-            self.asset_folders = asset_folders
-            self.replace_border = replace_border
+            init_logger(
+                self.logger,
+                log_dir,
+                "poster_renamerr",
+                log_level=payload.log_level if payload.log_level else logging.INFO,
+            )
             self.db = Database()
-            self.test = BorderReplacerr()
-            self.logger = logging.getLogger("PosterRenamerr")
-            init_logger(self.logger, log_dir, "poster_renamerr", log_level=log_level)
+            self.target_path = Path(payload.target_path)
+            self.source_directories = payload.source_dirs
+            self.asset_folders = payload.asset_folders
+            self.upload_to_plex = payload.upload_to_plex
+            self.replace_border = payload.replace_border
+            self.border_color = payload.border_color if payload.border_color else None
+            self.border_replacerr = BorderReplacerr(self.border_color)
+            self.plex_instances = utils.create_plex_instances(
+                payload, Server, self.logger
+            )
+            self.radarr_instances, self.sonarr_instances = utils.create_arr_instances(
+                payload, Radarr, Sonarr, self.logger
+            )
         except Exception as e:
             self.logger.exception("Failed to initialize PosterRenamerr")
             raise e
@@ -100,7 +104,7 @@ class PosterRenamerr:
 
         return source_files
 
-    # TODO: add alternate titles to media for matching
+    # TODO: add alternate titles for movies for matching?
     def match_files_with_media(
         self,
         source_files: dict[str, list[Path]],
@@ -184,11 +188,14 @@ class PosterRenamerr:
                             utils.strip_year(utils.strip_id(movie_title))
                         )
                         # self.logger.debug(
-                        #     f"comparing file '{sanitized_name_without_extension}' with movie"
+                        #     f"comparing file '{sanitized_name_without_extension}' with movie: '{sanitized_movie_title}'"
                         # )
                         if sanitized_name_without_extension == sanitized_movie_title:
                             matched = True
-                            matched_files["movies"][file] = {"has_file": movie_has_file}
+                            matched_files["movies"][file] = {
+                                "has_file": movie_has_file,
+                                "status": movie_status,
+                            }
                             if webhook_run:
                                 matched_files["movies"][file][
                                     "webhook_run"
@@ -240,6 +247,10 @@ class PosterRenamerr:
                         sanitized_show_name = utils.strip_id(
                             utils.remove_chars(show_name)
                         )
+                        alt_titles_clean = [
+                            utils.remove_chars(alt)
+                            for alt in show_data.get("alternate_titles", [])
+                        ]
                         matched_season = False
                         series_poster_matched = show_data.get(
                             "series_poster_matched", False
@@ -251,7 +262,9 @@ class PosterRenamerr:
                         if season_num_match:
                             season_num = int(season_num_match.group(1))
                             if self._match_show_season(
-                                sanitized_name_without_extension, sanitized_show_name
+                                sanitized_name_without_extension,
+                                sanitized_show_name,
+                                alt_titles_clean,
                             ):
                                 for season in show_seasons[:]:
                                     season_str = season.get("season", "")
@@ -304,7 +317,7 @@ class PosterRenamerr:
                                 ] = webhook_run
                             unique_items.add(sanitized_name_without_extension)
                             self.logger.debug(
-                                f"Matched series poster for show: {show_name}"
+                                f"Matched series poster for show: {show_name} with {file}"
                             )
                             show_data["series_poster_matched"] = True
                             if not show_seasons and show_data["series_poster_matched"]:
@@ -313,9 +326,42 @@ class PosterRenamerr:
                                     f"All seasons and series poster matched. Removed show: {show_name}"
                                 )
                             break
+                        else:
+                            for alt_title in alt_titles_clean:
+                                sanitized_name_without_extension_without_year = (
+                                    utils.strip_year(sanitized_name_without_extension)
+                                )
+                                if (
+                                    sanitized_name_without_extension_without_year
+                                    == alt_title
+                                ):
+                                    matched_files["shows"][file] = {
+                                        "status": show_status,
+                                        "has_episodes": show_has_episodes,
+                                    }
+                                    if webhook_run:
+                                        matched_files["shows"][file][
+                                            "webhook_run"
+                                        ] = webhook_run
+                                    unique_items.add(sanitized_name_without_extension)
+                                    self.logger.debug(
+                                        f"Matched series poster for show: {show_name} with {file}"
+                                    )
+                                    show_data["series_poster_matched"] = True
+                                    if (
+                                        not show_seasons
+                                        and show_data["series_poster_matched"]
+                                    ):
+                                        shows_list_copy.remove(show_data)
+                                        self.logger.debug(
+                                            f"All seasons and series poster matched. Removed show: {show_name}"
+                                        )
+                                    break
 
                         if not matched_season and self._match_show_special(
-                            sanitized_name_without_extension, sanitized_show_name
+                            sanitized_name_without_extension,
+                            sanitized_show_name,
+                            alt_titles_clean,
                         ):
                             for season in show_seasons:
                                 if "season00" in season.get("season", ""):
@@ -354,22 +400,41 @@ class PosterRenamerr:
         return matched_files
 
     @staticmethod
-    def _match_show_season(file_name: str, show_name: str) -> bool:
+    def _match_show_season(
+        file_name: str, show_name: str, alternate_titles: list
+    ) -> bool:
         season_pattern = re.compile(
             rf"{re.escape(show_name)} season \d+", re.IGNORECASE
         )
         if season_pattern.match(file_name):
             return True
-
+        else:
+            file_name_without_year = utils.strip_year(file_name)
+            for alt_title in alternate_titles:
+                season_pattern_alt = re.compile(
+                    rf"{re.escape(alt_title)} season \d+", re.IGNORECASE
+                )
+                if season_pattern_alt.match(file_name_without_year):
+                    return True
         return False
 
     @staticmethod
-    def _match_show_special(file_name: str, show_name: str) -> bool:
+    def _match_show_special(
+        file_name: str, show_name: str, alternate_titles: list
+    ) -> bool:
         specials_pattern = re.compile(
             rf"{re.escape(show_name)} specials", re.IGNORECASE
         )
         if specials_pattern.match(file_name):
             return True
+        else:
+            file_name_without_year = utils.strip_year(file_name)
+            for alt_title in alternate_titles:
+                specials_pattern_alt = re.compile(
+                    rf"{re.escape(alt_title)} specials", re.IGNORECASE
+                )
+                if specials_pattern_alt.match(file_name_without_year):
+                    return True
 
         return False
 
@@ -423,6 +488,7 @@ class PosterRenamerr:
             cached_original_hash = cached_file["original_file_hash"]
             cached_source = cached_file["source_path"]
             cached_border_state = cached_file.get("border_replaced", 0)
+            cached_border_color = cached_file.get("border_color", None)
             cached_has_episodes = cached_file.get("has_episodes", None)
             cached_has_file = cached_file.get("has_file", None)
             cached_status = cached_file.get("status", None)
@@ -437,6 +503,8 @@ class PosterRenamerr:
             self.logger.debug(f"Cached source: {cached_source}")
             self.logger.debug(f"Replace border (current): {replace_border}")
             self.logger.debug(f"Cached border replaced: {cached_border_state}")
+            self.logger.debug(f"Cached border color: {cached_border_color}")
+            self.logger.debug(f"Current border color: {self.border_color}")
             self.logger.debug(f"Cached status: {cached_status}")
             self.logger.debug(f"Current status: {status}")
             self.logger.debug(f"Cached has_episodes: {cached_has_episodes}")
@@ -468,25 +536,46 @@ class PosterRenamerr:
                     self.db.update_status(str(target_path), status, self.logger)
 
             if (
-                cached_original_hash == original_file_hash
+                cached_file
+                and cached_file["file_path"] == str(target_path)
+                and cached_original_hash == original_file_hash
                 and cached_source == current_source
                 and cached_border_state == replace_border
+                and cached_border_color == self.border_color
             ):
                 self.logger.debug(f"⏩ Skipping unchanged file: {file_path}")
                 if webhook_run:
                     self.db.update_webhook_flag(str(target_path), self.logger, True)
                 return
 
-        if replace_border:
+        if replace_border and self.border_color:
+            supported_colors = [
+                "black",
+                "red",
+                "green",
+                "blue",
+                "yellow",
+                "cyan",
+                "magenta",
+                "gray",
+            ]
             try:
-                final_image = self.test.remove_border(file_path)
+                if self.border_color.lower() == "remove":
+                    final_image = self.border_replacerr.remove_border(file_path)
+                    self.logger.info(f"Removed border on {file_path.name}")
+                elif self.border_color.lower() in supported_colors:
+                    final_image = self.border_replacerr.replace_border(file_path)
+                    self.logger.info(f"Replaced border on {file_path.name}")
+                else:
+                    self.logger.error(f"Unsupported border color: {self.border_color}")
+                    return
+
                 temp_path = target_dir / f"temp_{new_file_name}"
                 final_image.save(temp_path)
-                self.logger.info(f"Replaced border on {file_path.name}")
                 file_path = temp_path
                 file_hash = self.hash_file(file_path)
             except Exception as e:
-                self.logger.error(f"Error removing border for {file_path}: {e}")
+                self.logger.error(f"Error processing border for {file_path}: {e}")
                 file_hash = original_file_hash
         else:
             file_hash = original_file_hash
@@ -507,15 +596,18 @@ class PosterRenamerr:
             self.logger.info(f"Copied and renamed: {file_path} -> {target_path}")
             if cached_file:
                 self.db.update_file(
+                    self.logger,
                     file_hash,
                     original_file_hash,
                     current_source,
                     str(target_path),
                     border_replaced=replace_border,
+                    border_color=self.border_color,
                 )
                 self.logger.debug(f"Replaced cached file: {cached_file} -> {file_path}")
             else:
                 self.db.add_file(
+                    self.logger,
                     str(target_path),
                     file_name_without_extension,
                     status,
@@ -526,6 +618,7 @@ class PosterRenamerr:
                     original_file_hash,
                     current_source,
                     border_replaced=replace_border,
+                    border_color=self.border_color,
                     webhook_run=webhook_run,
                 )
                 self.logger.debug(f"Adding new file to database cache: {target_path}")
@@ -686,7 +779,10 @@ class PosterRenamerr:
         return None
 
     def _handle_series(
-        self, item: Path, show_list_dict: list[dict], asset_folders
+        self,
+        item: Path,
+        show_list_dict: list[dict],
+        asset_folders,
     ) -> str | tuple[Path, str] | None:
         match_season = re.match(r"(.+?) - Season (\d+)", item.stem)
         match_specials = re.match(r"(.+?) - Specials", item.stem)
@@ -694,14 +790,31 @@ class PosterRenamerr:
         def clean_show_name(show: str) -> str:
             return utils.strip_id(utils.remove_chars(show))
 
+        def is_match(file_name, media_dict_name, alt_titles_clean):
+            file_name_without_year = utils.strip_year(file_name)
+
+            if media_dict_name == file_name:
+                return True
+            else:
+                for title in alt_titles_clean:
+                    title_without_year = utils.strip_year(title)
+                    if title_without_year == file_name_without_year:
+                        return True
+            return False
+
         if match_season:
             show_name_season = utils.remove_chars(match_season.group(1))
             season_num = int(match_season.group(2))
             formatted_season_num = f"Season{season_num:02}"
             for item_dict in show_list_dict:
+                alt_titles_clean = [
+                    utils.remove_chars(alt)
+                    for alt in item_dict.get("alternate_titles", [])
+                ]
                 show_name = item_dict.get("title", "")
                 show_clean = clean_show_name(show_name)
-                if show_name_season == show_clean:
+                match = is_match(show_name_season, show_clean, alt_titles_clean)
+                if match:
                     self.log_matched_file(
                         "season", show_name, str(item), formatted_season_num
                     )
@@ -716,9 +829,14 @@ class PosterRenamerr:
         elif match_specials:
             show_name_specials = utils.remove_chars(match_specials.group(1))
             for item_dict in show_list_dict:
+                alt_titles_clean = [
+                    utils.remove_chars(alt)
+                    for alt in item_dict.get("alternate_titles", [])
+                ]
                 show_name = item_dict.get("title", "")
                 show_clean = clean_show_name(show_name)
-                if show_name_specials == show_clean:
+                match = is_match(show_name_specials, show_clean, alt_titles_clean)
+                if match:
                     self.log_matched_file("special", show_name, str(item), "Season00")
                     if item.exists() and item.is_file():
                         if asset_folders:
@@ -731,9 +849,14 @@ class PosterRenamerr:
         else:
             show_name_normal = utils.remove_chars(item.stem)
             for item_dict in show_list_dict:
+                alt_titles_clean = [
+                    utils.remove_chars(alt)
+                    for alt in item_dict.get("alternate_titles", [])
+                ]
                 show_name = item_dict.get("title", "")
                 show_clean = clean_show_name(show_name)
-                if show_name_normal == show_clean:
+                match = is_match(show_name_normal, show_clean, alt_titles_clean)
+                if match:
                     self.log_matched_file("series", show_name, str(item))
                     if item.exists() and item.is_file():
                         if asset_folders:
@@ -796,36 +919,27 @@ class PosterRenamerr:
             return None
 
     # TODO: add upload to plex job to run on schedule
-    # TODO: add a force uplaod to plex flag
     def run(
         self,
-        payload: Payload,
         cb: Callable[[str, int, ProgressState], None] | None = None,
         job_id: str | None = None,
         single_item: dict | None = None,
-    ) -> None:
+    ) -> dict | None:
         from DapsEX import utils
 
         try:
             self._log_banner()
-            self.logger.debug("Creating Radarr Sonarr and Plex instances.")
-            radarr_instances, sonarr_instances = utils.create_arr_instances(
-                payload, Radarr, Sonarr, self.logger
-            )
-            plex_instances = utils.create_plex_instances(payload, Server, self.logger)
-            self.logger.debug("Successfully created all instances")
-
             if single_item:
                 self.logger.info("Run triggered for a single item via webhook")
                 asset_type = single_item.get("type", "")
-                combined_instances_dict = radarr_instances | sonarr_instances
+                combined_instances_dict = self.radarr_instances | self.sonarr_instances
                 collections_dict = {"movies": [], "shows": []}
 
                 media_dict = self.handle_single_item(
                     asset_type,
                     combined_instances_dict,
                     single_item,
-                    payload.upload_to_plex,
+                    self.upload_to_plex,
                 )
                 if not media_dict:
                     self.logger.error(
@@ -837,9 +951,11 @@ class PosterRenamerr:
                     "Creating media and collections dict of all items in library"
                 )
                 media_dict = utils.get_combined_media_dict(
-                    radarr_instances, sonarr_instances
+                    self.radarr_instances, self.sonarr_instances
                 )
-                collections_dict = utils.get_combined_collections_dict(plex_instances)
+                collections_dict = utils.get_combined_collections_dict(
+                    self.plex_instances
+                )
             self.logger.debug(
                 "Media dict summary:\n%s", json.dumps(media_dict, indent=4)
             )
@@ -870,29 +986,11 @@ class PosterRenamerr:
                 matched_files, media_dict, collections_dict, self.asset_folders
             )
 
-            if payload.upload_to_plex:
-                if single_item:
-                    upload_posters_webhook(
-                        self.logger,
-                        self.db,
-                        payload.asset_folders,
-                        plex_instances,
-                        single_item,
-                        media_dict,
-                        payload.reapply_posters,
-                    )
-                else:
-                    upload_posters_full(
-                        self.db,
-                        payload.asset_folders,
-                        self.logger,
-                        plex_instances,
-                        payload.reapply_posters,
-                    )
-
             if job_id and cb:
                 cb(job_id, 100, ProgressState.COMPLETED)
             self.clean_cache()
+            if single_item:
+                return media_dict
         except Exception as e:
             self.logger.critical(f"Unexpected error occured: {e}", exc_info=True)
             raise

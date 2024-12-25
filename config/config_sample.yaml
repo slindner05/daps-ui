@@ -24,6 +24,7 @@ instances:
 schedule:
   poster_renamerr: # daily(13:00)
   unmatched_assets: # weekly(sunday@12:00)
+  plex_uploaderr:
   # hourly(30)
   # monthly(13@05:00)
   # cron(0 3 * * *)
@@ -31,15 +32,24 @@ schedule:
 log_level:
   unmatched_assets: # INFO
   poster_renamerr: # DEBUG
+  plex_uploaderr:
+
+unmatched_assets:
+  show_all_unmatched: # False -- show true unmatched assets (unreleased items + items not on disk)
+
+plex_uploaderr:
+  reapply_posters: # False -- force upload posters to libraries regardless of whether they were already uploaded
 
 poster_renamerr:
   asset_folders: # False -- must match kometa asset folder configuration
   unmatched_assets: # True -- run unmatched assets after every renamer run
   show_all_unmatched: # False -- show true unmatched assets (all series/seasons + shows added in the arrs)
-  border_replacerr: # False -- only remove borders currently implemented
+  replace_border: # False -- only remove borders currently implemented
+  border_color:
+  # SUPPORTED COLORS:
+  # "black", "red", "green", "blue", "yellow", "cyan", "magenta", "gray"
   run_on_single_item: # True -- must have ports exposed and instances must be setup in arr settings and match instances in config
   upload_to_plex: # False -- when true will change poster in plex to posters in asset directory
-  reapply_posters: # False -- when true will force re-upload posters to plex whether they were previously upload or not
   library_names:
   # must match plex library names
   # - Movies

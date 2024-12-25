@@ -24,10 +24,12 @@ def get_settings():
                 settings, "log_level_unmatched_assets", ""
             ),
             "logLevelPosterRenamer": getattr(settings, "log_level_poster_renamer", ""),
+            "logLevelPlexUploaderr": getattr(settings, "log_level_plex_uploaderr", ""),
             "posterRenamerSchedule": getattr(settings, "poster_renamer_schedule", ""),
             "unmatchedAssetsSchedule": getattr(
                 settings, "unmatched_assets_schedule", ""
             ),
+            "plexUploaderrSchedule": getattr(settings, "plex_uploaderr_schedule", ""),
             "targetPath": getattr(settings, "target_path", ""),
             "sourceDirs": (
                 getattr(settings, "source_dirs", "").split(",")
@@ -46,11 +48,15 @@ def get_settings():
             ),
             "assetFolders": getattr(settings, "asset_folders", False),
             "unmatchedAssets": getattr(settings, "unmatched_assets", True),
-            "borderReplacer": getattr(settings, "border_replacerr", False),
+            "replaceBorder": getattr(settings, "replace_border", False),
+            "borderColor": getattr(settings, "border_color", False),
             "runSingleItem": getattr(settings, "run_single_item", False),
             "uploadToPlex": getattr(settings, "upload_to_plex", False),
             "reapplyPosters": getattr(settings, "reapply_posters", False),
             "showAllUnmatched": getattr(settings, "show_all_unmatched", False),
+            "disableUnmatchedCollections": getattr(
+                settings, "disable_unmatched_collections", False
+            ),
             "radarrInstances": [
                 {
                     "instanceName": instance.instance_name,
@@ -88,19 +94,25 @@ def save_settings():
         settings_data = {
             "log_level_unmatched_assets": data.get("logLevelUnmatchedAssets", ""),
             "log_level_poster_renamer": data.get("logLevelPosterRenamer", ""),
+            "log_level_plex_uploaderr": data.get("logLevelPlexUploaderr", ""),
             "poster_renamer_schedule": data.get("posterRenamerSchedule", ""),
             "unmatched_assets_schedule": data.get("unmatchedAssetsSchedule", ""),
+            "plex_uploaderr_schedule": data.get("plexUploaderrSchedule", ""),
             "target_path": data.get("targetPath", ""),
             "source_dirs": ",".join(data.get("sourceDirs", [])),
             "library_names": ",".join(data.get("libraryNames", [])),
             "instances": ",".join(data.get("instances", [])),
             "asset_folders": data.get("assetFolders", False),
             "unmatched_assets": data.get("unmatchedAssets", True),
-            "border_replacerr": data.get("borderReplacerr", False),
+            "replace_border": data.get("replaceBorder", False),
+            "border_color": data.get("borderColor", ""),
             "run_single_item": data.get("runSingleItem", False),
             "upload_to_plex": data.get("uploadToPlex", False),
             "reapply_posters": data.get("reapplyPosters", False),
             "show_all_unmatched": data.get("showAllUnmatched", False),
+            "disable_unmatched_collections": data.get(
+                "disableUnmatchedCollections", False
+            ),
         }
 
         models.Settings.query.delete()

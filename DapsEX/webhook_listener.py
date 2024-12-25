@@ -7,7 +7,7 @@ from main import get_config, logger, run_renamer
 cli_app = Flask(__name__)
 
 config = get_config(logger)
-executor = ThreadPoolExecutor(max_workers=2)
+executor = ThreadPoolExecutor(max_workers=3)
 
 
 def run_renamer_task(config, new_item):
@@ -19,12 +19,14 @@ def run_renamer_task(config, new_item):
 
 @cli_app.route("/arr-webhook", methods=["POST"])
 def recieve_webhook():
+    from main import db
+
     data = request.json
     if not data:
         logger.error("No data recieved in the webhook")
         return "No data recieved", 400
 
-    valid_event_types = ["Download", "Grab", "MovieAdded"]
+    valid_event_types = ["Download", "Grab", "MovieAdded", "SeriesAdd"]
     webhook_event_type = data.get("eventType", "")
 
     if webhook_event_type == "Test":
@@ -54,12 +56,35 @@ def recieve_webhook():
                 "Instance name missing from webhook data, please configure in arr settings."
             )
             return "Invalid webhook data", 400
-        new_item = {"type": item_type, "item_id": id, "instance_name": instance}
-        logger.debug(f"Extracted item: {new_item}")
 
-        executor.submit(run_renamer_task, config, new_item)
-        return "Task is running in the background", 202
+        item_path = None
+
+        if item_type == "movie":
+            item_path = data.get(item_type, {}).get("folderPath", None)
+        elif item_type == "series":
+            item_path = data.get(item_type, {}).get("path", None)
+
+        if not item_path:
+            logger.error("Item path missing from webhook data")
+            return "Invalid webhook data", 400
+
+        new_item = {
+            "type": item_type,
+            "item_id": id,
+            "instance_name": instance,
+            "item_path": item_path,
+        }
+
+        is_duplicate = db.is_duplicate_webhook(logger, new_item)
+
+        if is_duplicate:
+            logger.debug(f"Duplicate webhook detected: {new_item}")
+        else:
+            logger.debug(f"Extracted item: {new_item}")
+            executor.submit(run_renamer_task, config, new_item)
 
     except Exception as e:
         logger.error(f"Error retrieving single item from webhook: {e}", exc_info=True)
         return "Internal server error", 500
+
+    return "OK", 200

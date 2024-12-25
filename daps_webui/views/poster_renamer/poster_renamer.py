@@ -6,6 +6,7 @@ from flask import (Blueprint, jsonify, render_template, request,
 
 from daps_webui import (daps_logger, models, run_renamer_task,
                         run_unmatched_assets_task)
+from daps_webui.utils.webhook_manager import WebhookManager
 from progress import progress_instance
 
 poster_renamer = Blueprint("poster_renamer", __name__)
@@ -286,25 +287,34 @@ def fetch_unmatched_assets_from_db() -> dict[str, list[dict[str, str | list]]]:
     return {"movies": movies, "shows": shows, "collections": collections}
 
 
+def fetch_hide_collection_flag():
+    settings = models.Settings.query.first()
+    if settings:
+        return bool(settings.disable_unmatched_collections)
+    return False
+
+
 @poster_renamer.route("/poster-renamer/unmatched", methods=["GET"])
 def fetch_unmatched_assets():
     try:
         unmatched_media = fetch_unmatched_assets_from_db()
         unmatched_counts = fetch_unmatched_stats_from_db()
+        disable_collections = fetch_hide_collection_flag()
         return jsonify(
             {
                 "success": True,
                 "unmatched_media": unmatched_media,
                 "unmatched_counts": unmatched_counts,
+                "disable_collections": disable_collections,
             }
         )
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-# TODO: setup batch processing for webhooks
 @poster_renamer.route("/arr-webhook", methods=["POST"])
 def recieve_webhook():
+    from daps_webui import db
     from daps_webui.models import Settings
 
     run_single_item = Settings.query.with_entities(Settings.run_single_item).scalar()
@@ -314,6 +324,9 @@ def recieve_webhook():
     if not run_single_item:
         daps_logger.debug("Single item processing is disabled in settings.")
         return "Single item processing disabled", 403
+
+    webhook_manager = WebhookManager(db.session, daps_logger)
+
     try:
         data = request.json
         if not data:
@@ -360,6 +373,10 @@ def recieve_webhook():
         elif item_type == "series":
             item_path = data.get(item_type, {}).get("path", None)
 
+        if not item_path:
+            daps_logger.error("Item path missing from webhook data")
+            return "Invalid webhook data", 400
+
         new_item = {
             "type": item_type,
             "item_id": id,
@@ -367,8 +384,12 @@ def recieve_webhook():
             "item_path": item_path,
         }
 
-        daps_logger.debug(f"Extracted item: {new_item}")
-        run_renamer_task(webhook_item=new_item)
+        is_duplicate = webhook_manager.is_duplicate_webhook(new_item)
+        if is_duplicate:
+            daps_logger.debug(f"Duplicate webhook detected: {new_item}")
+        else:
+            daps_logger.debug(f"Extracted item: {new_item}")
+            run_renamer_task(webhook_item=new_item)
 
     except Exception as e:
         daps_logger.error(

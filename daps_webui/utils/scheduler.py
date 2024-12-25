@@ -1,4 +1,5 @@
-from daps_webui import daps_logger, run_renamer_task, run_unmatched_assets_task
+from daps_webui import (daps_logger, run_plex_uploaderr_task, run_renamer_task,
+                        run_unmatched_assets_task)
 from DapsEX.utils import construct_schedule_time, parse_schedule_string
 
 
@@ -48,6 +49,13 @@ def schedule_jobs(scheduler):
             "function": run_unmatched_scheduled,
             "name": "unmatched_assets",
         },
+        "run_plex_uploaderr": {
+            "schedule": (
+                getattr(settings, "plex_uploaderr_schedule", None) if settings else None
+            ),
+            "function": run_plex_upload_scheduled,
+            "name": "plex_uploaderr",
+        },
     }
     for job_id, job_config in job_configs.items():
         add_job_safe(
@@ -82,4 +90,19 @@ def run_unmatched_scheduled():
         else:
             daps_logger.info(
                 f"Scheduled unmatched assets job started successfully with job_id: {result['job_id']}"
+            )
+
+
+def run_plex_upload_scheduled():
+    from daps_webui import app
+
+    with app.app_context():
+        result = run_plex_uploaderr_task()
+        if result["success"] is False:
+            daps_logger.error(
+                f"Error running scheduled plex uploaderr job: {result['message']}"
+            )
+        else:
+            daps_logger.info(
+                f"Scheduled plex uploaderr job started successfully with job_id: {result['job_id']}"
             )

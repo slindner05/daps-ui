@@ -1,42 +1,58 @@
-from sqlalchemy.dialects.sqlite import JSON
+import json
+
+from sqlalchemy.types import TEXT, TypeDecorator
 
 from daps_webui import db
 
 
+class JSONEncodedText(TypeDecorator):
+    impl = TEXT
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        return json.dumps(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        return json.loads(value)
+
+
 class FileCache(db.Model):
     __tablename__ = "file_cache"
-    file_path = db.Column(db.String, primary_key=True)
-    file_name = db.Column(db.String)
-    status = db.Column(db.String, nullable=True, default=None)
-    has_episodes = db.Column(db.Boolean, nullable=True, default=None)
-    has_file = db.Column(db.Boolean, nullable=True, default=None)
-    media_type = db.Column(db.String)
-    file_hash = db.Column(db.String, unique=True)
-    original_file_hash = db.Column(db.String, unique=True)
-    source_path = db.Column(db.String)
-    border_replaced = db.Column(db.Boolean, default=False)
-    webhook_run = db.Column(db.Boolean, default=None)
-    uploaded_to_libraries = db.Column(JSON, default=[])
-    timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
+    file_path = db.Column(db.String, primary_key=True, nullable=False)
+    file_name = db.Column(db.String, nullable=True)
+    status = db.Column(db.String, nullable=True)
+    has_episodes = db.Column(db.Integer, nullable=True)
+    has_file = db.Column(db.Integer, nullable=True)
+    media_type = db.Column(db.String, nullable=True)
+    file_hash = db.Column(db.String, nullable=True)
+    original_file_hash = db.Column(db.String, nullable=True)
+    source_path = db.Column(db.String, nullable=True)
+    border_replaced = db.Column(db.Integer, default=0, nullable=False)
+    border_color = db.Column(db.String, nullable=True)
+    webhook_run = db.Column(db.Integer, nullable=True)
+    uploaded_to_libraries = db.Column(JSONEncodedText, default=[], nullable=False)
 
 
 class UnmatchedMovies(db.Model):
     __tablename__ = "unmatched_movies"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    title = db.Column(db.String, unique=True)
+    title = db.Column(db.String, unique=True, nullable=False)
 
 
 class UnmatchedCollections(db.Model):
     __tablename__ = "unmatched_collections"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    title = db.Column(db.String, unique=True)
+    title = db.Column(db.String, unique=True, nullable=False)
 
 
 class UnmatchedShows(db.Model):
     __tablename__ = "unmatched_shows"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    title = db.Column(db.String, unique=True)
-    main_poster_missing = db.Column(db.Boolean, default=None)
+    title = db.Column(db.String, unique=True, nullable=False)
+    main_poster_missing = db.Column(db.Integer, default=0, nullable=False)
     seasons = db.relationship(
         "UnmatchedSeasons", backref="show", cascade="all, delete-orphan", lazy=True
     )
@@ -50,7 +66,7 @@ class UnmatchedSeasons(db.Model):
         db.ForeignKey("unmatched_shows.id", ondelete="CASCADE"),
         nullable=False,
     )
-    season = db.Column(db.String)
+    season = db.Column(db.String, nullable=False)
     __table_args__ = (
         db.UniqueConstraint("show_id", "season", name="unique_show_season"),
     )
@@ -62,11 +78,11 @@ class UnmatchedStats(db.Model):
         db.Integer,
         primary_key=True,
     )
-    total_movies = db.Column(db.Integer, default=0)
-    total_series = db.Column(db.Integer, default=0)
-    total_seasons = db.Column(db.Integer, default=0)
-    total_collections = db.Column(db.Integer, default=0)
-    unmatched_movies = db.Column(db.Integer, default=0)
-    unmatched_series = db.Column(db.Integer, default=0)
-    unmatched_seasons = db.Column(db.Integer, default=0)
-    unmatched_collections = db.Column(db.Integer, default=0)
+    total_movies = db.Column(db.Integer, default=0, nullable=False)
+    total_series = db.Column(db.Integer, default=0, nullable=False)
+    total_seasons = db.Column(db.Integer, default=0, nullable=False)
+    total_collections = db.Column(db.Integer, default=0, nullable=False)
+    unmatched_movies = db.Column(db.Integer, default=0, nullable=False)
+    unmatched_series = db.Column(db.Integer, default=0, nullable=False)
+    unmatched_seasons = db.Column(db.Integer, default=0, nullable=False)
+    unmatched_collections = db.Column(db.Integer, default=0, nullable=False)

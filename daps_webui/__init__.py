@@ -1,15 +1,18 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from pprint import pformat
 from time import sleep
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask
+from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 
 from daps_webui.config.config import Config
 from daps_webui.utils import webui_utils
 from daps_webui.utils.logger_utils import init_logger
 from daps_webui.utils.webui_utils import get_instances
+from DapsEX.plex_upload import PlexUploaderr
 from DapsEX.poster_renamerr import PosterRenamerr
 from DapsEX.unmatched_assets import UnmatchedAssets
 from progress import progress_instance
@@ -17,8 +20,9 @@ from progress import progress_instance
 # all globals needs to be defined here
 global_config = Config()
 db = SQLAlchemy()
+migrate = Migrate()
 progress_dict = {}
-executor = ThreadPoolExecutor(max_workers=1)
+executor = ThreadPoolExecutor(max_workers=3)
 
 # define all loggers
 daps_logger = logging.getLogger("daps-web")
@@ -35,6 +39,7 @@ def create_app() -> Flask:
 
     # initiate database
     db.init_app(app)
+    migrate.init_app(app, db)
     with app.app_context():
         with db.engine.connect() as conn:
             conn.execute(db.text("PRAGMA journal_mode=WAL;"))
@@ -52,7 +57,6 @@ def create_app() -> Flask:
         if app.debug:
             from daps_webui.utils.scheduler import schedule_jobs
 
-            db.create_all()
             scheduler = BackgroundScheduler()
             schedule_jobs(scheduler)
             if not scheduler.running:
@@ -82,6 +86,8 @@ def run_renamer_task(webhook_item: dict | None = None):
         poster_renamer_payload = webui_utils.create_poster_renamer_payload(
             radarr, sonarr, plex
         )
+        daps_logger.debug("Poster Renamerr Payload:")
+        daps_logger.debug(pformat(poster_renamer_payload))
         daps_logger.debug(
             f"Unmatched assets flag: {poster_renamer_payload.unmatched_assets}"
         )
@@ -89,26 +95,39 @@ def run_renamer_task(webhook_item: dict | None = None):
         job_id = progress_instance.add_job()
         daps_logger.info(f"Job Poster Renamerr: '{job_id}' added.")
 
-        renamer = PosterRenamerr(
-            poster_renamer_payload.target_path,
-            poster_renamer_payload.source_dirs,
-            poster_renamer_payload.asset_folders,
-            poster_renamer_payload.border_replacerr,
-            poster_renamer_payload.log_level,
-        )
+        renamer = PosterRenamerr(poster_renamer_payload)
 
         if webhook_item:
+            daps_logger.debug("Submitting webhook task to thread pool")
             future = executor.submit(
                 renamer.run,
-                poster_renamer_payload,
                 progress_instance,
                 job_id,
                 webhook_item,
             )
+            daps_logger.debug("Task submitted successfully")
         else:
-            future = executor.submit(
-                renamer.run, poster_renamer_payload, progress_instance, job_id
-            )
+            daps_logger.debug("Submitting renamer task to thread pool")
+            future = executor.submit(renamer.run, progress_instance, job_id)
+            daps_logger.debug("Task submitted successfully")
+
+        def remove_job_cb(fut):
+            sleep(2)
+            progress_instance.remove_job(job_id)
+            daps_logger.info(f"Poster Renamerr Job: {job_id} has been removed")
+
+        if poster_renamer_payload.upload_to_plex:
+            daps_logger.debug("Upload to plex flag is true, setting up callback...")
+
+            def run_plex_upload_callback(fut):
+                try:
+                    media_dict = fut.result()
+                    daps_logger.debug(f"Media dict from renamer: {media_dict}")
+                    handle_plex_uploaderr_task(plex, webhook_item, media_dict)
+                except Exception as e:
+                    daps_logger.error(f"Error in Plex Upload Callback: {e}")
+
+            future.add_done_callback(run_plex_upload_callback)
 
         if poster_renamer_payload.unmatched_assets:
             daps_logger.debug("Unmatched assets flag is true, setting up callback...")
@@ -117,11 +136,6 @@ def run_renamer_task(webhook_item: dict | None = None):
                 handle_unmatched_assets_task(radarr, sonarr, plex)
 
             future.add_done_callback(run_unmatched_assets_callback)
-
-        def remove_job_cb(fut):
-            sleep(2)
-            progress_instance.remove_job(job_id)
-            daps_logger.info(f"Poster Renamerr Job: {job_id} has been removed")
 
         future.add_done_callback(remove_job_cb)
 
@@ -141,20 +155,19 @@ def handle_unmatched_assets_task(radarr, sonarr, plex):
             unmatched_assets_payload = webui_utils.create_unmatched_assets_payload(
                 radarr, sonarr, plex
             )
+            daps_logger.debug("Unmatched Assets Payload:")
+            daps_logger.debug(pformat(unmatched_assets_payload))
             job_id = progress_instance.add_job()
             daps_logger.info(f"Job Unmatched Assets: '{job_id}' added.")
 
-            unmatched_assets = UnmatchedAssets(
-                unmatched_assets_payload.target_path,
-                unmatched_assets_payload.asset_folders,
-                unmatched_assets_payload.log_level,
-            )
+            unmatched_assets = UnmatchedAssets(unmatched_assets_payload)
+            daps_logger.debug("Submitting unmatched assets task to thread pool")
             future = executor.submit(
                 unmatched_assets.run,
-                unmatched_assets_payload,
                 progress_instance,
                 job_id,
             )
+            daps_logger.debug("Task submitted successfully")
 
             def remove_job_cb(fut):
                 sleep(2)
@@ -173,6 +186,48 @@ def handle_unmatched_assets_task(radarr, sonarr, plex):
         return {"success": False, "message": str(e)}
 
 
+def handle_plex_uploaderr_task(
+    plex, webhook_item: dict | None = None, media_dict: dict | None = None
+):
+    with app.app_context():
+        plex_uploader_payload = webui_utils.create_plex_uploader_payload(plex)
+        daps_logger.debug("Plex Uploaderr Payload:")
+        daps_logger.debug(pformat(plex_uploader_payload))
+
+        job_id = progress_instance.add_job()
+        daps_logger.info(f"Job Plex Uploaderr: '{job_id}' added.")
+        if webhook_item and media_dict:
+            plex_uploaderr = PlexUploaderr(
+                plex_uploader_payload, webhook_item=webhook_item, media_dict=media_dict
+            )
+
+            daps_logger.debug("Submitting webhook plex uploaderr task to thread pool")
+            future = executor.submit(
+                plex_uploaderr.upload_posters_webhook,
+            )
+            daps_logger.debug("Task submitted successfully")
+        else:
+            plex_uploaderr = PlexUploaderr(plex_uploader_payload)
+
+            daps_logger.debug("Submitting plex uploaderr task to thread pool")
+            future = executor.submit(
+                plex_uploaderr.upload_posters_full,
+            )
+            daps_logger.debug("Task submitted successfully")
+
+        def remove_job_cb(fut):
+            sleep(2)
+            progress_instance.remove_job(job_id)
+            daps_logger.info(f"Plex uploaderr: {job_id} has been removed")
+
+        future.add_done_callback(remove_job_cb)
+        return {
+            "message": "Plex uploaderr task started",
+            "job_id": job_id,
+            "success": True,
+        }
+
+
 def run_unmatched_assets_task():
     from daps_webui.models import PlexInstance, RadarrInstance, SonarrInstance
 
@@ -186,4 +241,18 @@ def run_unmatched_assets_task():
         return {"success": False, "message": str(e)}
 
 
+def run_plex_uploaderr_task():
+    from daps_webui.models import PlexInstance
+
+    try:
+        plex = get_instances(PlexInstance())
+
+        return handle_plex_uploaderr_task(plex)
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
 app = create_app()
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)

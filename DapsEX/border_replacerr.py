@@ -3,10 +3,9 @@ from pathlib import Path
 from PIL import Image
 
 
-# TODO: add option to change border color
 class BorderReplacerr:
-    def __init__(self) -> None:
-        pass
+    def __init__(self, border_color=None) -> None:
+        self.border_color = border_color
 
     def remove_border(self, image_path: Path):
         image = Image.open(image_path)
@@ -19,4 +18,14 @@ class BorderReplacerr:
         final_image.paste(bottom_border, bottom_border_position)
         final_image = final_image.resize((1000, 1500)).convert("RGB")
 
+        return final_image
+
+    def replace_border(self, image_path: Path):
+        image = Image.open(image_path)
+        width, height = image.size
+        crop_area = (25, 25, width - 25, height - 25)
+        cropped_image = image.crop(crop_area)
+        new_image = Image.new("RGB", (width, height), color=self.border_color)
+        new_image.paste(cropped_image, (25, 25))
+        final_image = new_image.resize((1000, 1500)).convert("RGB")
         return final_image

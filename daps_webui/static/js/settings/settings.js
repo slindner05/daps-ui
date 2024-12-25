@@ -4,8 +4,9 @@ document.addEventListener("DOMContentLoaded", function () {
   attachNewInstance("sonarr");
   attachNewInstance("plex");
   attachPosterRenamer();
-  attachUnmatchedAssets();
   attachLogLevel();
+  attachUnmatchedAssets();
+  attachPlexUploaderr();
 
   fetch("/get-settings")
     .then((response) => response.json())
@@ -115,8 +116,11 @@ function preFillForm(data) {
     data.posterRenamerSchedule || "";
   document.querySelector('input[name="unmatched_assets_schedule"]').value =
     data.unmatchedAssetsSchedule || "";
+  document.querySelector('input[name="plex_uploaderr_schedule"]').value =
+    data.plexUploaderrSchedule || "";
   document.getElementById("poster-renamer_info").checked = true;
   document.getElementById("unmatched-assets_info").checked = true;
+  document.getElementById("plex-uploaderr_info").checked = true;
 
   if (data.logLevelPosterRenamer === "debug") {
     document.getElementById("poster-renamer_info").checked = false;
@@ -126,13 +130,17 @@ function preFillForm(data) {
     document.getElementById("unmatched-assets_info").checked = false;
     document.getElementById("unmatched-assets_debug").checked = true;
   }
+  if (data.logLevelPlexUploaderr === "debug") {
+    document.getElementById("plex-uploaderr_info").checked = false;
+    document.getElementById("plex-uploaderr_debug").checked = true;
+  }
 
   createInputFromSettings(data, "sourceDirs", "source_dir");
   createInputFromSettings(data, "libraryNames", "library_name");
   createInputFromSettings(data, "instances", "instance");
   document.getElementById("asset_folders").checked = data.assetFolders || false;
-  document.getElementById("border_replacer").checked =
-    data.borderReplacer || false;
+  document.getElementById("replace_border").checked =
+    data.replaceBorder || false;
   document.getElementById("unmatched_assets").checked =
     data.unmatchedAssets || false;
   document.getElementById("run_single_item").checked =
@@ -143,10 +151,21 @@ function preFillForm(data) {
     data.reapplyPosters || false;
   document.getElementById("show_all_unmatched").checked =
     data.showAllUnmatched || false;
+  document.getElementById("disable_unmatched_collections").checked =
+    data.disableUnmatchedCollections || false;
 
   createInstanceFromSettings(data, "radarrInstances", "radarr");
   createInstanceFromSettings(data, "sonarrInstances", "sonarr");
   createInstanceFromSettings(data, "plexInstances", "plex");
+
+  if (data.borderColor) {
+    const borderColorSelect = document.querySelector(
+      'select[name="border_color"]',
+    );
+    if (borderColorSelect) {
+      borderColorSelect.value = data.borderColor;
+    }
+  }
 }
 
 function attachPosterRenamer() {
@@ -157,21 +176,31 @@ function attachPosterRenamer() {
 function attachLogLevel() {
   const wrapperDiv = document.getElementById("log-level-wrapper");
   const posterRenamerLogLevel = createLogLevelGroup(
-    "POSTER RENAMERR",
+    "Poster Renamerr",
     "poster-renamer",
   );
   const unmatchedAssetsLogLevel = createLogLevelGroup(
-    "UNMATCHED ASSETS",
+    "Unmatched Assets",
     "unmatched-assets",
+  );
+  const plexUploaderrLogLevel = createLogLevelGroup(
+    "Plex Uploaderr",
+    "plex-uploaderr",
   );
 
   wrapperDiv.appendChild(posterRenamerLogLevel);
   wrapperDiv.appendChild(unmatchedAssetsLogLevel);
+  wrapperDiv.appendChild(plexUploaderrLogLevel);
 }
 function attachUnmatchedAssets() {
   const wrapperDiv = document.getElementById("unmatched-assets-wrapper");
   const unmatchedAssets = createUnmatchedAssets();
   wrapperDiv.appendChild(unmatchedAssets);
+}
+function attachPlexUploaderr() {
+  const wrapperDiv = document.getElementById("plex-uploaderr-wrapper");
+  const plexUploaderr = createPlexUploaderr();
+  wrapperDiv.appendChild(plexUploaderr);
 }
 
 function createLabel(labelName, inputName) {
@@ -329,6 +358,9 @@ function createPosterRenamer() {
   instancesDiv.id = "instance_div";
   const libraryNamesDiv = document.createElement("div");
   libraryNamesDiv.id = "library_name_div";
+  const borderColorDiv = document.createElement("div");
+  borderColorDiv.id = "border_color_div";
+  borderColorDiv.classList.add("border-color-div");
   const checkboxDiv = document.createElement("div");
   checkboxDiv.classList.add("form-group-checkbox");
 
@@ -389,13 +421,37 @@ function createPosterRenamer() {
   const instanceRemoveButton = instanceInputDiv.querySelector(".btn-remove");
   attachRemoveButtonListener(instancesDiv, "instance", instanceRemoveButton);
 
+  const borderColorSelect = document.createElement("select");
+  borderColorSelect.name = "border_color";
+  borderColorSelect.classList.add("form-select");
+
+  const supportedColors = [
+    "remove",
+    "black",
+    "red",
+    "green",
+    "blue",
+    "yellow",
+    "cyan",
+    "magenta",
+    "gray",
+  ];
+
+  supportedColors.forEach((color) => {
+    const option = document.createElement("option");
+    option.value = color;
+    option.textContent = color.charAt(0).toUpperCase() + color.slice(1);
+    borderColorSelect.appendChild(option);
+  });
+  const borderColorLabel = createLabel("Border Color", "border_color");
+
   const assetFoldersCheckbox = createCheckboxInput(
     "Asset Folders",
     "asset_folders",
   );
   const borderReplacerCheckbox = createCheckboxInput(
-    "Border Replacerr",
-    "border_replacer",
+    "Replace Border",
+    "replace_border",
   );
   const unmatchedAssetsCheckbox = createCheckboxInput(
     "Unmatched Assets",
@@ -406,10 +462,6 @@ function createPosterRenamer() {
     "run_single_item",
   );
   const uploadToPlex = createCheckboxInput("Upload to plex", "upload_to_plex");
-  const reapplyPostersCheckbox = createCheckboxInput(
-    "Reapply Posters",
-    "reapply_posters",
-  );
 
   const addSourceDirButton = createAddButton("source_dir", "Add Source Dir");
   attachAddButtonListener(
@@ -441,13 +493,14 @@ function createPosterRenamer() {
 
   instancesDiv.appendChild(instanceLabel);
   instancesDiv.appendChild(instanceInputDiv);
+  borderColorDiv.appendChild(borderColorLabel);
+  borderColorDiv.appendChild(borderColorSelect);
 
   checkboxDiv.appendChild(assetFoldersCheckbox);
   checkboxDiv.appendChild(borderReplacerCheckbox);
   checkboxDiv.appendChild(unmatchedAssetsCheckbox);
   checkboxDiv.appendChild(runSingleItemCheckbox);
   checkboxDiv.appendChild(uploadToPlex);
-  checkboxDiv.appendChild(reapplyPostersCheckbox);
 
   // formGroup.appendChild(logLevelLabel);
   formGroup.appendChild(cronScheduleLabel);
@@ -455,6 +508,7 @@ function createPosterRenamer() {
   formGroup.appendChild(sourceDirsDiv);
   formGroup.appendChild(libraryNamesDiv);
   formGroup.appendChild(instancesDiv);
+  formGroup.appendChild(borderColorDiv);
   formGroup.appendChild(checkboxDiv);
   formGroup.appendChild(buttonDiv);
 
@@ -487,7 +541,39 @@ function createUnmatchedAssets() {
     "Show all unmatched",
     "show_all_unmatched",
   );
+  const disableUnmatchedCollections = createCheckboxInput(
+    "Hide Collections",
+    "disable_unmatched_collections",
+  );
   checkboxDiv.appendChild(showAllCheckbox);
+  checkboxDiv.appendChild(disableUnmatchedCollections);
+
+  wrapperDiv.appendChild(cronScheduleLabel);
+  wrapperDiv.appendChild(checkboxDiv);
+  return wrapperDiv;
+}
+
+function createPlexUploaderr() {
+  const wrapperDiv = document.createElement("div");
+  const checkboxDiv = document.createElement("div");
+  checkboxDiv.classList.add("form-group-checkbox");
+
+  const cronScheduleInput = document.createElement("input");
+  cronScheduleInput.name = "plex_uploaderr_schedule";
+  cronScheduleInput.type = "text";
+  cronScheduleInput.classList.add("form-input");
+  cronScheduleInput.placeholder = placeholders["cronSchedule"];
+  const cronScheduleLabel = createLabel(
+    "Schedule",
+    `${cronScheduleInput.name}`,
+  );
+  cronScheduleLabel.appendChild(cronScheduleInput);
+
+  const reapplyPosters = createCheckboxInput(
+    "Reapply Posters",
+    "reapply_posters",
+  );
+  checkboxDiv.appendChild(reapplyPosters);
 
   wrapperDiv.appendChild(cronScheduleLabel);
   wrapperDiv.appendChild(checkboxDiv);
@@ -700,12 +786,21 @@ document.getElementById("save-settings").addEventListener("click", function () {
   const logLevelUnmatchedAssets = document.querySelector(
     'input[name="unmatched-assets_log_level"]:checked',
   )?.value;
+  const logLevelPlexUploaderr = document.querySelector(
+    'input[name="plex-uploaderr_log_level"]:checked',
+  )?.value;
   const targetPath = document.querySelector('input[name="target_path"]').value;
   const posterRenamerSchedule = document.querySelector(
     'input[name="poster_renamer_schedule"]',
   ).value;
   const unmatchedAssetsSchedule = document.querySelector(
     'input[name="unmatched_assets_schedule"]',
+  ).value;
+  const plexUploaderrSchedule = document.querySelector(
+    'input[name="plex_uploaderr_schedule"]',
+  ).value;
+  const borderColor = document.querySelector(
+    'select[name="border_color"]',
   ).value;
   const sourceDirs = Array.from(
     document.querySelectorAll('input[name="source_dir[]"]'),
@@ -717,11 +812,15 @@ document.getElementById("save-settings").addEventListener("click", function () {
     document.querySelectorAll('input[name="instance[]"]'),
   ).map((input) => input.value);
   const assetFolders = document.getElementById("asset_folders").checked;
-  const borderReplacerr = document.getElementById("border_replacer").checked;
+  const replaceBorder = document.getElementById("replace_border").checked;
   const unmatchedAssets = document.getElementById("unmatched_assets").checked;
   const runSingleItem = document.getElementById("run_single_item").checked;
   const uploadToPlex = document.getElementById("upload_to_plex").checked;
   const reapplyPosters = document.getElementById("reapply_posters").checked;
+  const disableUnmatchedCollections = document.getElementById(
+    "disable_unmatched_collections",
+  ).checked;
+  document.getElementById("reapply_posters").checked;
   const showAllUnmatched =
     document.getElementById("show_all_unmatched").checked;
   // radarr
@@ -783,22 +882,26 @@ document.getElementById("save-settings").addEventListener("click", function () {
     body: JSON.stringify({
       logLevelUnmatchedAssets: logLevelUnmatchedAssets,
       logLevelPosterRenamer: logLevelPosterRenamer,
+      logLevelPlexUploaderr: logLevelPlexUploaderr,
       posterRenamerSchedule: posterRenamerSchedule,
       unmatchedAssetsSchedule: unmatchedAssetsSchedule,
+      plexUploaderrSchedule: plexUploaderrSchedule,
       targetPath: targetPath,
       sourceDirs: sourceDirs,
       libraryNames: libraryNames,
       instances: instances,
       assetFolders: assetFolders,
       unmatchedAssets: unmatchedAssets,
-      borderReplacerr: borderReplacerr,
+      replaceBorder: replaceBorder,
       runSingleItem: runSingleItem,
       uploadToPlex: uploadToPlex,
       reapplyPosters: reapplyPosters,
       showAllUnmatched: showAllUnmatched,
+      disableUnmatchedCollections: disableUnmatchedCollections,
       radarrInstances: radarrInstances,
       sonarrInstances: sonarrInstances,
       plexInstances: plexInstances,
+      borderColor: borderColor,
     }),
   })
     .then((response) => response.json())

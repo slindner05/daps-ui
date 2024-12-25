@@ -9,7 +9,9 @@ from pathlib import Path
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from DapsEX import PosterRenamerr, UnmatchedAssets, YamlConfig
+from DapsEX.database_cache import Database
 from DapsEX.logger import init_logger
+from DapsEX.plex_upload import PlexUploaderr
 from DapsEX.settings import Settings
 from DapsEX.utils import construct_schedule_time, parse_schedule_string
 
@@ -19,6 +21,7 @@ log_dir = Path(Settings.LOG_DIR.value) / Settings.MAIN.value
 logger = logging.getLogger("Main")
 init_logger(logger, log_dir, "main", log_level=log_level)
 logger.info(f"LOG LEVEL: {log_level_env}")
+db = Database()
 
 
 def start_cli_listener():
@@ -34,24 +37,21 @@ def get_config(logger: Logger):
 
 def run_renamer(config: YamlConfig, webhook_item: dict | None = None):
     payload = config.create_poster_renamer_payload()
-    renamerr = PosterRenamerr(
-        payload.target_path,
-        payload.source_dirs,
-        payload.asset_folders,
-        payload.border_replacerr,
-        payload.log_level,
-    )
-    if payload.unmatched_assets:
-        logger.info("Running poster renamerr + unmatched assets")
-    else:
-        logger.info("Running poster renamerr")
+    renamerr = PosterRenamerr(payload)
 
     if webhook_item:
         logger.info("Poster renamerr triggered on webhook item")
-        renamerr.run(payload, single_item=webhook_item)
+        media_dict = renamerr.run(single_item=webhook_item)
+        if payload.upload_to_plex and media_dict:
+            run_plex_uploaderr(
+                config,
+                webhook_item,
+                media_dict,
+            )
     else:
-        renamerr.run(payload)
-
+        renamerr.run()
+        if payload.upload_to_plex:
+            run_plex_uploaderr(config)
     logger.info("Finished poster renamerr")
     if payload.unmatched_assets:
         run_unmatched_assets(config)
@@ -59,12 +59,31 @@ def run_renamer(config: YamlConfig, webhook_item: dict | None = None):
 
 def run_unmatched_assets(config: YamlConfig):
     payload = config.create_unmatched_assets_payload()
-    unmatched_assets = UnmatchedAssets(
-        payload.target_path, payload.asset_folders, payload.log_level
-    )
+    unmatched_assets = UnmatchedAssets(payload)
     logger.info("Running unmatched assets")
-    unmatched_assets.run(payload)
+    unmatched_assets.run()
     logger.info("Finished unmatched assets")
+
+
+def run_plex_uploaderr(
+    config: YamlConfig,
+    webhook_item: dict | None = None,
+    media_dict: dict | None = None,
+):
+    payload = config.create_plex_uploaderr_payload()
+    plex_uploaderr = PlexUploaderr(
+        payload,
+        webhook_item,
+        media_dict,
+    )
+    if webhook_item and media_dict:
+        logger.info("Running plex uploaderr for webhook run.")
+        plex_uploaderr.upload_posters_webhook()
+        logger.info("Finished plex uploaderr.")
+    else:
+        logger.info("Running plex uploaderr for full library.")
+        plex_uploaderr.upload_posters_full()
+        logger.info("Finished plex uploaderr.")
 
 
 def add_scheduled_jobs(scheduler: BackgroundScheduler, config: YamlConfig):
@@ -96,6 +115,7 @@ def add_scheduled_jobs(scheduler: BackgroundScheduler, config: YamlConfig):
                     args=[config],
                     id=unique_job_id,
                     replace_existing=True,
+                    misfire_grace_time=10,
                 )
                 logger.info(f"Scheduled job '{job_id}' {schedule_time}")
         except ValueError as e:
@@ -111,6 +131,11 @@ def add_scheduled_jobs(scheduler: BackgroundScheduler, config: YamlConfig):
             "schedule": config.schedule_config.get(Settings.UNMATCHED_ASSETS.value),
             "function": run_unmatched_assets,
             "name": Settings.UNMATCHED_ASSETS.value,
+        },
+        "run_plex_uploader": {
+            "schedule": config.schedule_config.get(Settings.PLEX_UPLOADERR.value),
+            "function": run_plex_uploaderr,
+            "name": Settings.PLEX_UPLOADERR.value,
         },
     }
 
