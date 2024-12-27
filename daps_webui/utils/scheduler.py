@@ -24,7 +24,7 @@ def schedule_jobs(scheduler):
                     **parsed_schedule,
                     id=unique_job_id,
                     replace_existing=True,
-                    misfire_grace_time=10,
+                    misfire_grace_time=60,
                 )
                 daps_logger.info(f"Scheduled job: '{job_id}' {schedule_time}")
         except ValueError as e:

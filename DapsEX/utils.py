@@ -118,10 +118,11 @@ def remove_chars(file_name: str) -> str:
     file_name = re.sub(r"[\u00A0\u200B\u200C\u200D\u200E\u200F\uFEFF]", "", file_name)
     file_name = re.sub(r"[\u2013\u2014]", "-", file_name)
     file_name = re.sub(
-        r"[\(\)\*\^;~\\`\[\]'\"\/,.!?:_\u2018\u2019\u201B\u02BB]", "", file_name
+        r"[\(\)\*\^;~\\`\[\]'\",.!?:_\u2018\u2019\u201B\u02BB]", "", file_name
     )
     file_name = remove_emojis(file_name)
     file_name = file_name.replace("&", "and")
+    file_name = re.sub(r"/", " ", file_name)
     file_name = re.sub(r"\++", " ", file_name)
     file_name = re.sub(r"\-+", " ", file_name)
     file_name = re.sub(r"\s+", " ", file_name).strip()
