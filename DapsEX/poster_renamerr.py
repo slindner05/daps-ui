@@ -269,11 +269,13 @@ class PosterRenamerr:
                         )
                         if season_num_match:
                             season_num = int(season_num_match.group(1))
-                            if self._match_show_season(
+                            result = self._match_show_season(
                                 sanitized_name_without_extension,
                                 sanitized_show_name,
                                 alt_titles_clean,
-                            ):
+                            )
+                            if isinstance(result, tuple):
+                                main_match, alt_matches = result
                                 for season in show_seasons[:]:
                                     season_str = season.get("season", "")
                                     season_str_match = re.match(
@@ -294,9 +296,8 @@ class PosterRenamerr:
                                                 matched_files["shows"][file][
                                                     "webhook_run"
                                                 ] = webhook_run
-                                            unique_items.add(
-                                                sanitized_name_without_extension
-                                            )
+                                            unique_items.add(main_match)
+                                            unique_items.update(alt_matches)
                                             show_seasons.remove(season)
                                             self.logger.debug(
                                                 f"Matched season {season_num} for show: {show_name} with {file}"
@@ -347,7 +348,7 @@ class PosterRenamerr:
                                             "webhook_run"
                                         ] = webhook_run
                                     unique_items.add(sanitized_show_name)
-                                    unique_items.add(sanitized_name_without_extension)
+                                    unique_items.update(alt_titles_clean)
                                     self.logger.debug(
                                         f"Matched series poster for show: {show_name} with {file}"
                                     )
@@ -363,11 +364,13 @@ class PosterRenamerr:
                                     break
 
                         if not matched_season:
-                            if self._match_show_special(
+                            result = self._match_show_special(
                                 sanitized_name_without_extension,
                                 sanitized_show_name,
                                 alt_titles_clean,
-                            ):
+                            )
+                            if isinstance(result, tuple):
+                                main_match, alt_matches = result
                                 for season in show_seasons:
                                     if "season00" in season.get("season", ""):
                                         season_has_episodes = season.get(
@@ -380,9 +383,8 @@ class PosterRenamerr:
                                             matched_files["shows"][file][
                                                 "webhook_run"
                                             ] = webhook_run
-                                        unique_items.add(
-                                            sanitized_name_without_extension
-                                        )
+                                        unique_items.add(main_match)
+                                        unique_items.update(alt_matches)
                                         show_seasons.remove(season)
                                         self.logger.debug(
                                             f"Matched special season for show: {show_name}"
@@ -408,38 +410,68 @@ class PosterRenamerr:
 
     def _match_show_season(
         self, file_name: str, show_name: str, alternate_titles: list
-    ) -> bool:
+    ) -> bool | tuple[str, set[str]]:
+        alt_titles = set()
         season_pattern = re.compile(
-            rf"{re.escape(show_name)} season \d+", re.IGNORECASE
+            rf"{re.escape(show_name)} season (\d+)", re.IGNORECASE
         )
-        if season_pattern.match(file_name):
-            return True
-        else:
+        main_match = season_pattern.match(file_name)
+        if main_match:
+            season_num = main_match.group(1)
+            main_title = f"{show_name} season {season_num}"
             for alt_title in alternate_titles:
-                season_pattern_alt = re.compile(
-                    rf"{re.escape(alt_title)} season \d+",
-                    re.IGNORECASE,
+                alt_titles.add(f"{alt_title} season {season_num}")
+            self.logger.debug(
+                f"Matched main title: {main_title}, Alt titles: {alt_titles}"
+            )
+            return main_title, alt_titles
+        for alt_title in alternate_titles:
+            season_pattern_alt = re.compile(
+                rf"{re.escape(alt_title)} season (\d+)",
+                re.IGNORECASE,
+            )
+            alt_match = season_pattern_alt.match(file_name)
+            if alt_match:
+                season_num = alt_match.group(1)
+                main_title = f"{show_name} season {season_num}"
+                for alt_title in alternate_titles:
+                    alt_titles.add(f"{alt_title} season {season_num}")
+                self.logger.debug(
+                    f"Matched alt title: {alt_match.group()}, Main title: {main_title}, Alt titles: {alt_titles}"
                 )
-                if season_pattern_alt.match(file_name):
-                    return True
+                return main_title, alt_titles
         return False
 
     def _match_show_special(
         self, file_name: str, show_name: str, alternate_titles: list
-    ) -> bool:
+    ) -> bool | tuple[str, set[str]]:
+        alt_titles = set()
         specials_pattern = re.compile(
             rf"{re.escape(show_name)} specials", re.IGNORECASE
         )
-        if specials_pattern.match(file_name):
-            return True
-        else:
+        main_match = specials_pattern.match(file_name)
+        if main_match:
+            main_title = f"{show_name} specials"
             for alt_title in alternate_titles:
-                specials_pattern_alt = re.compile(
-                    rf"{re.escape(alt_title)} specials",
-                    re.IGNORECASE,
+                alt_titles.add(f"{alt_title} specials")
+            self.logger.debug(
+                f"Matched main title: {main_title}, Alt titles: {alt_titles}"
+            )
+            return main_title, alt_titles
+        for alt_title in alternate_titles:
+            specials_pattern_alt = re.compile(
+                rf"{re.escape(alt_title)} specials",
+                re.IGNORECASE,
+            )
+            alt_match = specials_pattern_alt.match(file_name)
+            if alt_match:
+                main_title = f"{show_name} specials"
+                for alt_title in alternate_titles:
+                    alt_titles.add(f"{alt_title} specials")
+                self.logger.debug(
+                    f"Matched alt title: {alt_match.group()}, Main title: {main_title}, Alt titles: {alt_titles}"
                 )
-                if specials_pattern_alt.match(file_name):
-                    return True
+                return main_title, alt_titles
         return False
 
     def log_matched_file(
