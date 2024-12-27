@@ -123,7 +123,9 @@ def run_renamer_task(webhook_item: dict | None = None):
                 try:
                     media_dict = fut.result()
                     daps_logger.debug(f"Media dict from renamer: {media_dict}")
-                    handle_plex_uploaderr_task(plex, webhook_item, media_dict)
+                    handle_plex_uploaderr_task(
+                        plex, radarr, sonarr, webhook_item, media_dict
+                    )
                 except Exception as e:
                     daps_logger.error(f"Error in Plex Upload Callback: {e}")
 
@@ -187,10 +189,16 @@ def handle_unmatched_assets_task(radarr, sonarr, plex):
 
 
 def handle_plex_uploaderr_task(
-    plex, webhook_item: dict | None = None, media_dict: dict | None = None
+    plex,
+    radarr,
+    sonarr,
+    webhook_item: dict | None = None,
+    media_dict: dict | None = None,
 ):
     with app.app_context():
-        plex_uploader_payload = webui_utils.create_plex_uploader_payload(plex)
+        plex_uploader_payload = webui_utils.create_plex_uploader_payload(
+            radarr, sonarr, plex
+        )
         daps_logger.debug("Plex Uploaderr Payload:")
         daps_logger.debug(pformat(plex_uploader_payload))
 
@@ -242,12 +250,14 @@ def run_unmatched_assets_task():
 
 
 def run_plex_uploaderr_task():
-    from daps_webui.models import PlexInstance
+    from daps_webui.models import PlexInstance, RadarrInstance, SonarrInstance
 
     try:
+        radarr = get_instances(RadarrInstance())
+        sonarr = get_instances(SonarrInstance())
         plex = get_instances(PlexInstance())
 
-        return handle_plex_uploaderr_task(plex)
+        return handle_plex_uploaderr_task(plex, radarr, sonarr)
     except Exception as e:
         return {"success": False, "message": str(e)}
 

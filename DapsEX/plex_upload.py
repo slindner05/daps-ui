@@ -8,7 +8,7 @@ from pprint import pformat
 from DapsEX import utils
 from DapsEX.database_cache import Database
 from DapsEX.logger import init_logger
-from DapsEX.media import Server
+from DapsEX.media import Radarr, Server, Sonarr
 
 
 class PlexUploaderr:
@@ -34,6 +34,9 @@ class PlexUploaderr:
             self.reapply_posters = payload.reapply_posters
             self.plex_instances = utils.create_plex_instances(
                 payload, Server, self.logger
+            )
+            self.radarr_instances, self.sonarr_instances = utils.create_arr_instances(
+                payload, Radarr, Sonarr, self.logger
             )
             self.webhook_item = webhook_item
             self.media_dict = media_dict
@@ -436,6 +439,7 @@ class PlexUploaderr:
     def upload_posters_full(self):
         plex_media_dict = {}
 
+        self._log_banner()
         if self.reapply_posters:
             self.db.clear_uploaded_to_libraries_data(self.logger)
             self.logger.info(
@@ -445,6 +449,11 @@ class PlexUploaderr:
             self.logger.info("Reapply posters is disabled. No action taken.")
 
         cached_files = self.db.return_all_files()
+        self.logger.debug(
+            "Attempting to update current has_file and has_episodes values."
+        )
+        self.update_cached_files(cached_files)
+
         self.logger.debug(json.dumps(cached_files, indent=4))
         valid_files = {}
         for file_path, file_info in cached_files.items():
@@ -496,6 +505,97 @@ class PlexUploaderr:
         else:
             self.logger.info("No new files to upload to Plex")
 
+    def update_cached_files(self, cached_files: dict):
+        media_dict = utils.get_combined_media_dict(
+            self.radarr_instances, self.sonarr_instances
+        )
+        movies_lookup = {
+            movie["title"].lower(): movie["has_file"]
+            for movie in media_dict.get("movies", [])
+        }
+        # self.logger.debug("Movies lookup:")
+        # self.logger.debug(pformat(movies_lookup))
+
+        shows_lookup = {}
+        for show in media_dict.get("shows", []):
+            show_title = show["title"].lower()
+            shows_lookup[show_title] = {
+                "has_episodes": show.get("has_episodes", False),
+                "seasons": {
+                    season["season"].lower(): season.get("has_episodes", False)
+                    for season in show.get("seasons", [])
+                },
+            }
+        # self.logger.debug("Shows lookup:")
+        # self.logger.debug(pformat(shows_lookup))
+
+        for file_path, cached_item in cached_files.items():
+            if self.asset_folders:
+                title = Path(file_path).parent.name.lower()
+                season_pattern = re.match(r"(Season\d{2})", cached_item["file_name"])
+            else:
+                title = cached_item.get("file_name").lower()
+                season_pattern = re.match(
+                    r".*_(Season\d{2})$", cached_item["file_name"]
+                )
+
+            media_type = cached_item.get("media_type")
+
+            if media_type == "collections":
+                continue
+
+            if media_type == "movies":
+                cached_has_file = bool(cached_item.get("has_file", 0))
+                if title in movies_lookup:
+                    current_has_file = movies_lookup[title]
+                    if current_has_file != cached_has_file:
+                        cached_item["has_file"] = int(current_has_file)
+                        self.db.update_has_file(
+                            file_path, current_has_file, self.logger
+                        )
+                else:
+                    self.logger.warning(
+                        f"Movie title: '{title}' not found in movies lookup when processing '{file_path}'."
+                    )
+
+            if media_type == "shows":
+                cached_has_episodes = bool(cached_item.get("has_episodes"))
+                if season_pattern:
+                    season = season_pattern.group(1).lower()
+                    if title in shows_lookup:
+                        lookup_entry = shows_lookup[title]
+                        current_season_has_episodes = lookup_entry["seasons"].get(
+                            season, False
+                        )
+
+                        if current_season_has_episodes != cached_has_episodes:
+                            cached_item["has_episodes"] = int(
+                                current_season_has_episodes
+                            )
+                            self.db.update_has_episodes(
+                                file_path, current_season_has_episodes, self.logger
+                            )
+                    else:
+                        self.logger.warning(
+                            f"Show title: '{title}' not found in shows lookup when processing '{file_path}'."
+                        )
+                else:
+                    if title in shows_lookup:
+                        current_series_has_episodes = shows_lookup[title][
+                            "has_episodes"
+                        ]
+                        if current_series_has_episodes != cached_has_episodes:
+                            cached_item["has_episodes"] = int(
+                                current_series_has_episodes
+                            )
+                            self.db.update_has_episodes(
+                                file_path, current_series_has_episodes, self.logger
+                            )
+                    else:
+                        self.logger.warning(
+                            f"Show title: '{title}' not found in shows lookup when processing '{file_path}'."
+                        )
+
     def upload_posters_webhook(
         self,
     ):
@@ -527,6 +627,10 @@ class PlexUploaderr:
         item_title = item["title"]
 
         webhook_cached_files = self.db.return_all_files(webhook_run=True)
+        self.logger.debug(
+            "Attempting to update current has_file and has_episodes values."
+        )
+        self.update_cached_files(webhook_cached_files)
         self.logger.debug(json.dumps(webhook_cached_files, indent=4))
         for file_path in webhook_cached_files.keys():
             self.db.update_webhook_flag(file_path, self.logger)

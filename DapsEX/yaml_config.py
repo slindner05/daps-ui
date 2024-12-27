@@ -109,6 +109,8 @@ class YamlConfig:
             "library_names": renamer_config.get("library_names", []),
             "instances": renamer_config.get("instances", []),
             "plex": self.plex_config,
+            "radarr": self.radarr_config,
+            "sonarr": self.sonarr_config,
         }
         self.logger.debug("===" * 10 + " PlexUploaderr Payload " + "===" * 10)
         self.logger.debug(json.dumps(payload_data, indent=4))

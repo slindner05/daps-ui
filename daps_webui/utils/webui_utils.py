@@ -71,7 +71,7 @@ def create_unmatched_assets_payload(radarr, sonarr, plex) -> UnmatchedAssetsPayl
     )
 
 
-def create_plex_uploader_payload(plex) -> PlexUploaderPayload:
+def create_plex_uploader_payload(radarr, sonarr, plex) -> PlexUploaderPayload:
     from daps_webui.models.settings import Settings
 
     settings = Settings.query.first()
@@ -85,4 +85,6 @@ def create_plex_uploader_payload(plex) -> PlexUploaderPayload:
         library_names=settings.library_names.split(",") if settings else [],
         instances=settings.instances.split(",") if settings else [],
         plex=plex,
+        radarr=radarr,
+        sonarr=sonarr,
     )

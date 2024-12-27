@@ -9,3 +9,5 @@ class Payload:
     library_names: list[str]
     instances: list[str]
     plex: dict[str, dict[str, str]]
+    radarr: dict[str, dict[str, str]]
+    sonarr: dict[str, dict[str, str]]
