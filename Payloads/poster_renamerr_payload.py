@@ -7,10 +7,12 @@ class Payload:
     source_dirs: list[str]
     target_path: str
     asset_folders: bool
+    clean_assets: bool
     unmatched_assets: bool
     replace_border: bool
     border_color: str
     upload_to_plex: bool
+    match_alt: bool
     reapply_posters: bool
     library_names: list[str]
     instances: list[str]

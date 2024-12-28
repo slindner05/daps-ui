@@ -42,6 +42,7 @@ plex_uploaderr:
 
 poster_renamerr:
   asset_folders: # False -- must match kometa asset folder configuration
+  clean_assets: # False -- clean orphaned asset files in asset directory on each run
   unmatched_assets: # True -- run unmatched assets after every renamer run
   show_all_unmatched: # False -- show true unmatched assets (all series/seasons + shows added in the arrs)
   replace_border: # False -- only remove borders currently implemented
@@ -50,6 +51,7 @@ poster_renamerr:
   # "black", "red", "green", "blue", "yellow", "cyan", "magenta", "gray"
   run_on_single_item: # True -- must have ports exposed and instances must be setup in arr settings and match instances in config
   upload_to_plex: # False -- when true will change poster in plex to posters in asset directory
+  match_alt: # False -- match alternate titles for series only
   library_names:
   # must match plex library names
   # - Movies

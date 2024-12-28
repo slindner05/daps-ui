@@ -139,6 +139,8 @@ function preFillForm(data) {
   createInputFromSettings(data, "libraryNames", "library_name");
   createInputFromSettings(data, "instances", "instance");
   document.getElementById("asset_folders").checked = data.assetFolders || false;
+  document.getElementById("clean_assets").checked = data.cleanAssets || false;
+  document.getElementById("match_alt").checked = data.matchAlt || false;
   document.getElementById("replace_border").checked =
     data.replaceBorder || false;
   document.getElementById("unmatched_assets").checked =
@@ -249,28 +251,35 @@ function createInputDiv(inputType, input) {
 }
 
 function createCheckboxInput(labelName, inputId, name = null, value = null) {
+  const div = document.createElement("div");
+  div.classList.add("checkbox-container");
+
   const label = document.createElement("label");
-  label.textContent = `${labelName}`;
-  label.classList.add("custom-checkbox-label", "form-label");
-  label.setAttribute("for", inputId);
+  label.classList.add("custom-checkbox-label");
+
+  const text = document.createElement("span");
+  text.textContent = labelName;
+  text.classList.add("form-label");
 
   const input = document.createElement("input");
   input.type = "checkbox";
   input.id = inputId;
   input.name = name;
   input.value = value;
+  input.classList.add("custom-checkbox");
 
   const span = document.createElement("span");
-  span.classList.add("checkmark-icon");
+  span.classList.add("slider");
 
-  const icon = document.createElement("i");
-  icon.classList.add("fas", "fa-check");
+  // const icon = document.createElement("i");
+  // icon.classList.add("fas", "fa-check");
 
-  span.appendChild(icon);
+  label.appendChild(text);
   label.appendChild(input);
   label.appendChild(span);
+  div.appendChild(label);
 
-  return label;
+  return div;
 }
 
 function createAddButton(name, text) {
@@ -449,6 +458,8 @@ function createPosterRenamer() {
     "Asset Folders",
     "asset_folders",
   );
+  const cleanPosters = createCheckboxInput("Clean Assets", "clean_assets");
+
   const borderReplacerCheckbox = createCheckboxInput(
     "Replace Border",
     "replace_border",
@@ -457,11 +468,13 @@ function createPosterRenamer() {
     "Unmatched Assets",
     "unmatched_assets",
   );
+
   const runSingleItemCheckbox = createCheckboxInput(
     "Webhook Run",
     "run_single_item",
   );
-  const uploadToPlex = createCheckboxInput("Upload to plex", "upload_to_plex");
+  const uploadToPlex = createCheckboxInput("Plex Upload", "upload_to_plex");
+  const matchAltCheckbox = createCheckboxInput("Match Alt Titles", "match_alt");
 
   const addSourceDirButton = createAddButton("source_dir", "Add Source Dir");
   attachAddButtonListener(
@@ -497,10 +510,12 @@ function createPosterRenamer() {
   borderColorDiv.appendChild(borderColorSelect);
 
   checkboxDiv.appendChild(assetFoldersCheckbox);
+  checkboxDiv.appendChild(cleanPosters);
   checkboxDiv.appendChild(borderReplacerCheckbox);
   checkboxDiv.appendChild(unmatchedAssetsCheckbox);
   checkboxDiv.appendChild(runSingleItemCheckbox);
   checkboxDiv.appendChild(uploadToPlex);
+  checkboxDiv.appendChild(matchAltCheckbox);
 
   // formGroup.appendChild(logLevelLabel);
   formGroup.appendChild(cronScheduleLabel);
@@ -817,6 +832,8 @@ document.getElementById("save-settings").addEventListener("click", function () {
   const runSingleItem = document.getElementById("run_single_item").checked;
   const uploadToPlex = document.getElementById("upload_to_plex").checked;
   const reapplyPosters = document.getElementById("reapply_posters").checked;
+  const cleanAssets = document.getElementById("clean_assets").checked;
+  const matchAlt = document.getElementById("match_alt").checked;
   const disableUnmatchedCollections = document.getElementById(
     "disable_unmatched_collections",
   ).checked;
@@ -891,10 +908,12 @@ document.getElementById("save-settings").addEventListener("click", function () {
       libraryNames: libraryNames,
       instances: instances,
       assetFolders: assetFolders,
+      cleanAssets: cleanAssets,
       unmatchedAssets: unmatchedAssets,
       replaceBorder: replaceBorder,
       runSingleItem: runSingleItem,
       uploadToPlex: uploadToPlex,
+      matchAlt: matchAlt,
       reapplyPosters: reapplyPosters,
       showAllUnmatched: showAllUnmatched,
       disableUnmatchedCollections: disableUnmatchedCollections,

@@ -47,11 +47,13 @@ def get_settings():
                 else []
             ),
             "assetFolders": getattr(settings, "asset_folders", False),
+            "cleanAssets": getattr(settings, "clean_assets", False),
             "unmatchedAssets": getattr(settings, "unmatched_assets", True),
             "replaceBorder": getattr(settings, "replace_border", False),
             "borderColor": getattr(settings, "border_color", False),
             "runSingleItem": getattr(settings, "run_single_item", False),
             "uploadToPlex": getattr(settings, "upload_to_plex", False),
+            "matchAlt": getattr(settings, "match_alt", False),
             "reapplyPosters": getattr(settings, "reapply_posters", False),
             "showAllUnmatched": getattr(settings, "show_all_unmatched", False),
             "disableUnmatchedCollections": getattr(
@@ -103,11 +105,13 @@ def save_settings():
             "library_names": ",".join(data.get("libraryNames", [])),
             "instances": ",".join(data.get("instances", [])),
             "asset_folders": data.get("assetFolders", False),
+            "clean_assets": data.get("cleanAssets", False),
             "unmatched_assets": data.get("unmatchedAssets", True),
             "replace_border": data.get("replaceBorder", False),
             "border_color": data.get("borderColor", ""),
             "run_single_item": data.get("runSingleItem", False),
             "upload_to_plex": data.get("uploadToPlex", False),
+            "match_alt": data.get("matchAlt", False),
             "reapply_posters": data.get("reapplyPosters", False),
             "show_all_unmatched": data.get("showAllUnmatched", False),
             "disable_unmatched_collections": data.get(

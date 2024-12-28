@@ -35,7 +35,9 @@ class PosterRenamerr:
             self.target_path = Path(payload.target_path)
             self.source_directories = payload.source_dirs
             self.asset_folders = payload.asset_folders
+            self.clean_assets = payload.clean_assets
             self.upload_to_plex = payload.upload_to_plex
+            self.match_alt = payload.match_alt
             self.replace_border = payload.replace_border
             self.border_color = payload.border_color if payload.border_color else None
             self.border_replacerr = BorderReplacerr(self.border_color)
@@ -79,6 +81,62 @@ class PosterRenamerr:
                     self.logger.debug(f"Cleaned {item} from database")
         except Exception as e:
             self.logger.error(f"Error cleaning cache: {e}")
+
+    def clean_asset_dir(self, media_dict, collections_dict) -> None:
+        try:
+            asset_files = [
+                item for item in Path(self.target_path).rglob("*") if item.is_file()
+            ]
+            titles = set(
+                [
+                    utils.remove_chars(movie["title"])
+                    for movie in media_dict.get("movies", [])
+                ]
+                + [
+                    utils.remove_chars(show["title"])
+                    for show in media_dict.get("shows", [])
+                ]
+                + [
+                    utils.remove_chars(collection)
+                    for collection in collections_dict.get("movies", [])
+                ]
+                + [
+                    utils.remove_chars(collection)
+                    for collection in collections_dict.get("shows", [])
+                ]
+            )
+
+            for item in asset_files:
+                if self.asset_folders:
+                    parent_dir = item.parent
+                    if parent_dir == self.target_path:
+                        self.logger.info(f"Removing orphaned asset file: {item}")
+                        item.unlink()
+
+                    asset_title = utils.remove_chars(parent_dir.name)
+                    if asset_title not in titles and parent_dir != self.target_path:
+                        if parent_dir.exists() and parent_dir.is_dir():
+                            self.logger.info(
+                                f"Removing orphaned asset directory: {parent_dir}"
+                            )
+                            for sub_item in parent_dir.iterdir():
+                                sub_item.unlink()
+                            parent_dir.rmdir()
+                else:
+                    asset_pattern = re.search(r"^(.*?)(?:_.*)?$", item.stem)
+                    if asset_pattern:
+                        asset_title = utils.remove_chars(asset_pattern.group(1))
+                        if asset_title not in titles:
+                            self.logger.info(f"Removing orphaned asset file: {item}")
+                            item.unlink()
+
+            for dir_path in self.target_path.rglob("*"):
+                if dir_path.is_dir() and not any(dir_path.iterdir()):
+                    self.logger.info(f"Removing empty directory: {dir_path}")
+                    dir_path.rmdir()
+
+        except Exception as e:
+            self.logger.error(f"Error cleaning assets: {e}")
 
     def get_source_files(self) -> dict[str, list[Path]]:
         source_directories = [Path(item) for item in self.source_directories]
@@ -249,15 +307,18 @@ class PosterRenamerr:
                         sanitized_show_name = utils.remove_chars(
                             utils.strip_id(show_name)
                         )
-                        alt_titles_clean = [
-                            utils.remove_chars(alt)
-                            for alt in show_data.get("alternate_titles", [])
-                        ]
-                        if show_year:
+                        if self.match_alt or webhook_run:
                             alt_titles_clean = [
-                                f"{alt} {show_year.group(1)}"
-                                for alt in alt_titles_clean
+                                utils.remove_chars(alt)
+                                for alt in show_data.get("alternate_titles", [])
                             ]
+                            if show_year:
+                                alt_titles_clean = [
+                                    f"{alt} {show_year.group(1)}"
+                                    for alt in alt_titles_clean
+                                ]
+                        else:
+                            alt_titles_clean = []
 
                         matched_season = False
                         series_poster_matched = show_data.get(
@@ -297,7 +358,8 @@ class PosterRenamerr:
                                                     "webhook_run"
                                                 ] = webhook_run
                                             unique_items.add(main_match)
-                                            unique_items.update(alt_matches)
+                                            if alt_matches:
+                                                unique_items.update(alt_matches)
                                             show_seasons.remove(season)
                                             self.logger.debug(
                                                 f"Matched season {season_num} for show: {show_name} with {file}"
@@ -325,7 +387,8 @@ class PosterRenamerr:
                                     "webhook_run"
                                 ] = webhook_run
                             unique_items.add(sanitized_name_without_extension)
-                            unique_items.update(alt_titles_clean)
+                            if alt_titles_clean:
+                                unique_items.update(alt_titles_clean)
                             self.logger.debug(
                                 f"Matched series poster for show: {show_name} with {file}"
                             )
@@ -336,7 +399,7 @@ class PosterRenamerr:
                                     f"All seasons and series poster matched. Removed show: {show_name}"
                                 )
                             break
-                        else:
+                        elif alt_titles_clean:
                             for alt_title in alt_titles_clean:
                                 if sanitized_name_without_extension == alt_title:
                                     matched_files["shows"][file] = {
@@ -384,7 +447,8 @@ class PosterRenamerr:
                                                 "webhook_run"
                                             ] = webhook_run
                                         unique_items.add(main_match)
-                                        unique_items.update(alt_matches)
+                                        if alt_matches:
+                                            unique_items.update(alt_matches)
                                         show_seasons.remove(season)
                                         self.logger.debug(
                                             f"Matched special season for show: {show_name}"
@@ -421,25 +485,26 @@ class PosterRenamerr:
             main_title = f"{show_name} season {season_num}"
             for alt_title in alternate_titles:
                 alt_titles.add(f"{alt_title} season {season_num}")
-            self.logger.debug(
-                f"Matched main title: {main_title}, Alt titles: {alt_titles}"
-            )
+            # self.logger.debug(
+            #     f"Matched main title: {main_title}, Alt titles: {alt_titles}"
+            # )
             return main_title, alt_titles
-        for alt_title in alternate_titles:
-            season_pattern_alt = re.compile(
-                rf"{re.escape(alt_title)} season (\d+)",
-                re.IGNORECASE,
-            )
-            alt_match = season_pattern_alt.match(file_name)
-            if alt_match:
-                season_num = alt_match.group(1)
-                main_title = f"{show_name} season {season_num}"
-                for alt_title in alternate_titles:
-                    alt_titles.add(f"{alt_title} season {season_num}")
-                self.logger.debug(
-                    f"Matched alt title: {alt_match.group()}, Main title: {main_title}, Alt titles: {alt_titles}"
+        else:
+            for alt_title in alternate_titles:
+                season_pattern_alt = re.compile(
+                    rf"{re.escape(alt_title)} season (\d+)",
+                    re.IGNORECASE,
                 )
-                return main_title, alt_titles
+                alt_match = season_pattern_alt.match(file_name)
+                if alt_match:
+                    season_num = alt_match.group(1)
+                    main_title = f"{show_name} season {season_num}"
+                    for alt_title in alternate_titles:
+                        alt_titles.add(f"{alt_title} season {season_num}")
+                    # self.logger.debug(
+                    #     f"Matched alt title: {alt_match.group()}, Main title: {main_title}, Alt titles: {alt_titles}"
+                    # )
+                    return main_title, alt_titles
         return False
 
     def _match_show_special(
@@ -454,24 +519,26 @@ class PosterRenamerr:
             main_title = f"{show_name} specials"
             for alt_title in alternate_titles:
                 alt_titles.add(f"{alt_title} specials")
-            self.logger.debug(
-                f"Matched main title: {main_title}, Alt titles: {alt_titles}"
-            )
+            # self.logger.debug(
+            #     f"Matched main title: {main_title}, Alt titles: {alt_titles}"
+            # )
             return main_title, alt_titles
-        for alt_title in alternate_titles:
-            specials_pattern_alt = re.compile(
-                rf"{re.escape(alt_title)} specials",
-                re.IGNORECASE,
-            )
-            alt_match = specials_pattern_alt.match(file_name)
-            if alt_match:
-                main_title = f"{show_name} specials"
-                for alt_title in alternate_titles:
-                    alt_titles.add(f"{alt_title} specials")
-                self.logger.debug(
-                    f"Matched alt title: {alt_match.group()}, Main title: {main_title}, Alt titles: {alt_titles}"
+
+        else:
+            for alt_title in alternate_titles:
+                specials_pattern_alt = re.compile(
+                    rf"{re.escape(alt_title)} specials",
+                    re.IGNORECASE,
                 )
-                return main_title, alt_titles
+                alt_match = specials_pattern_alt.match(file_name)
+                if alt_match:
+                    main_title = f"{show_name} specials"
+                    for alt_title in alternate_titles:
+                        alt_titles.add(f"{alt_title} specials")
+                    # self.logger.debug(
+                    #     f"Matched alt title: {alt_match.group()}, Main title: {main_title}, Alt titles: {alt_titles}"
+                    # )
+                    return main_title, alt_titles
         return False
 
     def log_matched_file(
@@ -1027,6 +1094,10 @@ class PosterRenamerr:
 
             if job_id and cb:
                 cb(job_id, 100, ProgressState.COMPLETED)
+            if self.clean_assets and not single_item:
+                self.logger.info(f"Cleaning orphan assets in {self.target_path}")
+                self.clean_asset_dir(media_dict, collections_dict)
+                self.logger.info("Done.")
             self.clean_cache()
             if single_item:
                 return media_dict
