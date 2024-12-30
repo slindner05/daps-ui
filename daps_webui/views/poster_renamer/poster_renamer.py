@@ -58,12 +58,14 @@ def get_images():
 
         if asset_folders:
             season_pattern = re.compile(r"^Season(?P<season>\d{2})\.(?P<ext>\w+)$")
-            show_pattern = re.compile(r"^poster\.(?P<ext>\w+)$")
+            show_movie_pattern = re.compile(r"^poster\.(?P<ext>\w+)$")
         else:
             season_pattern = re.compile(
-                r"^(?P<name>.+ \(\d{4}\) \{.+\})_Season(?P<season>\d{2})\.(?P<ext>\w+)$"
+                r"^(?P<name>.+ \(\d{4}\)(?: \{.+\})?)_Season(?P<season>\d{2})\.(?P<ext>\w+)$"
             )
-            show_pattern = re.compile(r"^(?P<name>.+ \(\d{4}\) \{.+\})\.(?P<ext>\w+)$")
+            show_movie_pattern = re.compile(
+                r"^(?P<name>.+ \(\d{4}\)(?: \{.+\})?)\.(?P<ext>\w+)$"
+            )
 
         def strip_id(name: str) -> str:
             return re.sub(r"\{.*?\}", "", name)
@@ -77,6 +79,21 @@ def get_images():
 
             file_name_stripped = strip_id(file_name_without_suffix)
             parent_dir_stripped = strip_id(parent_dir)
+            if asset_folders:
+                if not season_pattern.match(file_name) and not show_movie_pattern.match(
+                    file_name
+                ):
+                    continue
+            else:
+                folder_season_pattern = re.compile(
+                    r"^Season(?P<season>\d{2})\.(?P<ext>\w+)$"
+                )
+                folder_show_movie_pattern = re.compile(r"^poster\.(?P<ext>\w+)$")
+
+                if folder_season_pattern.match(
+                    file_name
+                ) or folder_show_movie_pattern.match(file_name):
+                    continue
 
             file_data = {
                 "file_name": (
@@ -95,7 +112,7 @@ def get_images():
             elif file.media_type == "collections":
                 sorted_files["collections"].append(file_data)
             else:
-                show_match = show_pattern.match(file_name)
+                show_match = show_movie_pattern.match(file_name)
                 season_match = season_pattern.match(file_name)
                 if show_match:
                     show_name = (

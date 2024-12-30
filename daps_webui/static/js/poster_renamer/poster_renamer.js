@@ -23,7 +23,21 @@ fetch("/poster-renamer/get-file-paths")
   .then((data) => {
     if (data.success) {
       const sortedFiles = data.sorted_files;
-      // console.log(sortedFiles);
+      console.log(sortedFiles);
+
+      const isSortedFilesEmpty =
+        sortedFiles.movies.length === 0 &&
+        Object.keys(sortedFiles.shows).length === 0 &&
+        sortedFiles.collections.length === 0;
+
+      const unmatchedContainer = document.getElementById("unmatched-container");
+      if (isSortedFilesEmpty) {
+        if (unmatchedContainer) {
+          unmatchedContainer.style.display = "none";
+        }
+        return;
+      }
+
       const allFiles = [
         ...sortedFiles.movies,
         ...Object.values(sortedFiles.shows),
@@ -317,6 +331,7 @@ function toggleSeasonList(seasonList) {
 function populateTab(tabName, files) {
   const tabContent = document.getElementById(`${tabName}-content`);
   tabContent.innerHTML = "";
+
   const tabInner = document.createElement("div");
   tabInner.classList.add("tab-inner");
   if (typeof files === "object" && !Array.isArray(files)) {
