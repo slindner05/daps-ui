@@ -84,59 +84,81 @@ class PosterRenamerr:
 
     def clean_asset_dir(self, media_dict, collections_dict) -> None:
         try:
-            asset_files = [
-                item for item in Path(self.target_path).rglob("*") if item.is_file()
-            ]
-            titles = set(
-                [
+            asset_files = (
+                item for item in self.target_path.rglob("*") if item.is_file()
+            )
+            titles = (
+                set(
                     utils.remove_chars(movie["title"])
                     for movie in media_dict.get("movies", [])
-                ]
-                + [
-                    utils.remove_chars(show["title"])
-                    for show in media_dict.get("shows", [])
-                ]
-                + [
-                    utils.remove_chars(collection)
-                    for collection in collections_dict.get("movies", [])
-                ]
-                + [
-                    utils.remove_chars(collection)
-                    for collection in collections_dict.get("shows", [])
-                ]
+                )
+                .union(
+                    set(
+                        utils.remove_chars(show["title"])
+                        for show in media_dict.get("shows", [])
+                    )
+                )
+                .union(
+                    set(
+                        utils.remove_chars(collection)
+                        for collection in collections_dict.get("movies", [])
+                    )
+                )
+                .union(
+                    set(
+                        utils.remove_chars(collection)
+                        for collection in collections_dict.get("shows", [])
+                    )
+                )
             )
+            removed_asset_count = 0
 
+            if self.asset_folders:
+                self.logger.info(
+                    "Detected asset folder configuration. Attempting to remove invalid assets."
+                )
+            else:
+                self.logger.info(
+                    "Detected flat asset configuration. Attempting to remove invalid assets."
+                )
             for item in asset_files:
+                parent_dir = item.parent
                 if self.asset_folders:
-                    parent_dir = item.parent
                     if parent_dir == self.target_path:
-                        self.logger.info(f"Removing orphaned asset file: {item}")
+                        self.logger.info(f"Removing orphaned asset file --> {item}")
                         item.unlink()
-
-                    asset_title = utils.remove_chars(parent_dir.name)
-                    if asset_title not in titles and parent_dir != self.target_path:
-                        if parent_dir.exists() and parent_dir.is_dir():
-                            self.logger.info(
-                                f"Removing orphaned asset directory: {parent_dir}"
-                            )
-                            for sub_item in parent_dir.iterdir():
-                                sub_item.unlink()
-                            parent_dir.rmdir()
+                        removed_asset_count += 1
+                    else:
+                        asset_title = utils.remove_chars(parent_dir.name)
+                        if asset_title not in titles:
+                            self._remove_directory(parent_dir)
+                            removed_asset_count += 1
                 else:
                     asset_pattern = re.search(r"^(.*?)(?:_.*)?$", item.stem)
                     if asset_pattern:
                         asset_title = utils.remove_chars(asset_pattern.group(1))
                         if asset_title not in titles:
-                            self.logger.info(f"Removing orphaned asset file: {item}")
+                            self.logger.info(f"Removing orphaned asset file --> {item}")
                             item.unlink()
+                            removed_asset_count += 1
 
             for dir_path in self.target_path.rglob("*"):
                 if dir_path.is_dir() and not any(dir_path.iterdir()):
-                    self.logger.info(f"Removing empty directory: {dir_path}")
                     dir_path.rmdir()
+            self.logger.info(
+                f"Removed {removed_asset_count} items from asset directory."
+            )
 
         except Exception as e:
             self.logger.error(f"Error cleaning assets: {e}")
+
+    def _remove_directory(self, directory: Path):
+        if directory.exists() and directory.is_dir():
+            self.logger.info(f"Removing orphaned asset directory: {directory}")
+            for sub_item in directory.iterdir():
+                if sub_item:
+                    sub_item.unlink()
+            directory.rmdir()
 
     def get_source_files(self) -> dict[str, list[Path]]:
         source_directories = [Path(item) for item in self.source_directories]
@@ -1097,7 +1119,6 @@ class PosterRenamerr:
             if self.clean_assets and not single_item:
                 self.logger.info(f"Cleaning orphan assets in {self.target_path}")
                 self.clean_asset_dir(media_dict, collections_dict)
-                self.logger.info("Done.")
             self.clean_cache()
             if single_item:
                 return media_dict
