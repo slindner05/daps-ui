@@ -220,7 +220,7 @@ class Database:
             with closing(conn.cursor()) as cursor:
                 try:
                     cursor.execute(
-                        "UPDATE file_cache SET file_hash = ?, original_file_hash = ?, source_path = ?, border_replaced = ?, border_setting = ?, custom_color = ?, uploaded_to_libraries = ?, uploaded_editions = ?, WHERE file_path = ?",
+                        "UPDATE file_cache SET file_hash = ?, original_file_hash = ?, source_path = ?, border_replaced = ?, border_setting = ?, custom_color = ?, uploaded_to_libraries = ?, uploaded_editions = ? WHERE file_path = ?",
                         (
                             file_hash,
                             original_file_hash,
