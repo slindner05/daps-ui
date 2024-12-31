@@ -242,6 +242,38 @@ class Database:
                         f"Failed to update file '{file_path}' to database: {e}"
                     )
 
+    def update_border_replaced_hash(
+        self,
+        file_path: str,
+        file_hash: str,
+        border_replaced: bool,
+        border_setting: str,
+        custom_color: str | None = None,
+    ):
+        with self.get_db_connection() as conn:
+            with closing(conn.cursor()) as cursor:
+                try:
+                    cursor.execute(
+                        "UPDATE file_cache SET file_hash = ?, border_replaced = ?, border_setting = ?, custom_color = ?, uploaded_to_libraries = ?, uploaded_editions = ? WHERE file_path = ?",
+                        (
+                            file_hash,
+                            border_replaced,
+                            border_setting,
+                            custom_color,
+                            json.dumps([]),
+                            json.dumps([]),
+                            file_path,
+                        ),
+                    )
+                    conn.commit()
+                    self.logger.debug(
+                        f"File '{file_path}' was successfully updated in file cache."
+                    )
+                except Exception as e:
+                    self.logger.error(
+                        f"Failed to update file '{file_path}' to database {e}"
+                    )
+
     def update_status(self, file_path: str, status: str):
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:

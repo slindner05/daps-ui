@@ -7,6 +7,7 @@ class Settings(db.Model):
     log_level_unmatched_assets = db.Column(db.String, default="info", nullable=False)
     log_level_poster_renamer = db.Column(db.String, default="info", nullable=False)
     log_level_plex_uploaderr = db.Column(db.String, default="info", nullable=False)
+    log_level_border_replacerr = db.Column(db.String, default="info", nullable=False)
     poster_renamer_schedule = db.Column(db.String, nullable=True)
     unmatched_assets_schedule = db.Column(db.String, nullable=True)
     plex_uploaderr_schedule = db.Column(db.String, nullable=True)

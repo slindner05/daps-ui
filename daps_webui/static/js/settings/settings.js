@@ -145,6 +145,7 @@ function preFillForm(data) {
   document.getElementById("poster-renamer_info").checked = true;
   document.getElementById("unmatched-assets_info").checked = true;
   document.getElementById("plex-uploaderr_info").checked = true;
+  document.getElementById("border-replacerr_info").checked = true;
 
   if (data.logLevelPosterRenamer === "debug") {
     document.getElementById("poster-renamer_info").checked = false;
@@ -157,6 +158,10 @@ function preFillForm(data) {
   if (data.logLevelPlexUploaderr === "debug") {
     document.getElementById("plex-uploaderr_info").checked = false;
     document.getElementById("plex-uploaderr_debug").checked = true;
+  }
+  if (data.logLevelBorderReplacerr === "debug") {
+    document.getElementById("border-replacerr_info").checked = false;
+    document.getElementById("border-replacerr_debug").checked = true;
   }
 
   createInputFromSettings(data, "sourceDirs", "source_dir");
@@ -216,10 +221,15 @@ function attachLogLevel() {
     "Plex Uploaderr",
     "plex-uploaderr",
   );
+  const borderReplacerrLogLevel = createLogLevelGroup(
+    "Border Replacerr",
+    "border-replacerr",
+  );
 
   wrapperDiv.appendChild(posterRenamerLogLevel);
   wrapperDiv.appendChild(unmatchedAssetsLogLevel);
   wrapperDiv.appendChild(plexUploaderrLogLevel);
+  wrapperDiv.appendChild(borderReplacerrLogLevel);
 }
 function attachUnmatchedAssets() {
   const wrapperDiv = document.getElementById("unmatched-assets-wrapper");
@@ -835,6 +845,9 @@ document.getElementById("save-settings").addEventListener("click", function () {
   const logLevelPlexUploaderr = document.querySelector(
     'input[name="plex-uploaderr_log_level"]:checked',
   )?.value;
+  const logLevelBorderReplacerr = document.querySelector(
+    'input[name="border-replacerr_log_level"]:checked',
+  )?.value;
   const targetPath = document.querySelector('input[name="target_path"]').value;
   const posterRenamerSchedule = document.querySelector(
     'input[name="poster_renamer_schedule"]',
@@ -932,6 +945,7 @@ document.getElementById("save-settings").addEventListener("click", function () {
       logLevelUnmatchedAssets: logLevelUnmatchedAssets,
       logLevelPosterRenamer: logLevelPosterRenamer,
       logLevelPlexUploaderr: logLevelPlexUploaderr,
+      logLevelBorderReplacerr: logLevelBorderReplacerr,
       posterRenamerSchedule: posterRenamerSchedule,
       unmatchedAssetsSchedule: unmatchedAssetsSchedule,
       plexUploaderrSchedule: plexUploaderrSchedule,

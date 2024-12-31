@@ -25,6 +25,9 @@ def get_settings():
             ),
             "logLevelPosterRenamer": getattr(settings, "log_level_poster_renamer", ""),
             "logLevelPlexUploaderr": getattr(settings, "log_level_plex_uploaderr", ""),
+            "logLevelBorderReplacerr": getattr(
+                settings, "log_level_border_replacerr", ""
+            ),
             "posterRenamerSchedule": getattr(settings, "poster_renamer_schedule", ""),
             "unmatchedAssetsSchedule": getattr(
                 settings, "unmatched_assets_schedule", ""
@@ -98,6 +101,7 @@ def save_settings():
             "log_level_unmatched_assets": data.get("logLevelUnmatchedAssets", ""),
             "log_level_poster_renamer": data.get("logLevelPosterRenamer", ""),
             "log_level_plex_uploaderr": data.get("logLevelPlexUploaderr", ""),
+            "log_level_border_replacerr": data.get("logLevelBorderReplacerr", ""),
             "poster_renamer_schedule": data.get("posterRenamerSchedule", ""),
             "unmatched_assets_schedule": data.get("unmatchedAssetsSchedule", ""),
             "plex_uploaderr_schedule": data.get("plexUploaderrSchedule", ""),

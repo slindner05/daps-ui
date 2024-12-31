@@ -459,6 +459,19 @@ function previewImage(filePath, fileLink, isSeasonLink = false) {
     "PLEX UPLOADERR",
     "plex-upload-progress",
   );
+  const borderReplaceRunProgress = createRunProgress(
+    "run-border-replacer",
+    "border-replace-progress",
+    "RUN BORDER REPLACERR",
+  );
+  const borderReplaceRunButton =
+    borderReplaceRunProgress.querySelector("button");
+  attachRunListener(
+    borderReplaceRunButton,
+    "/run-border-replace-job",
+    "BORDER REPLACERR",
+    "border-replace-progress",
+  );
 
   imageSourcePath.appendChild(firstPart);
   imageSourcePath.appendChild(parentDirPart);
@@ -467,6 +480,7 @@ function previewImage(filePath, fileLink, isSeasonLink = false) {
   previewDiv.appendChild(imageDiv);
   previewDiv.appendChild(imageSourcePath);
   previewDiv.appendChild(plexUploadRunProgress);
+  previewDiv.appendChild(borderReplaceRunProgress);
   previewContainer.appendChild(previewDiv);
 }
 

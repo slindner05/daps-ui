@@ -4,8 +4,9 @@ from pathlib import Path
 from flask import (Blueprint, jsonify, render_template, request,
                    send_from_directory)
 
-from daps_webui import (daps_logger, models, run_plex_uploaderr_task,
-                        run_renamer_task, run_unmatched_assets_task)
+from daps_webui import (daps_logger, models, run_border_replacer_task,
+                        run_plex_uploaderr_task, run_renamer_task,
+                        run_unmatched_assets_task)
 from daps_webui.utils.webhook_manager import WebhookManager
 from progress import progress_instance
 
@@ -428,6 +429,14 @@ def run_unmatched():
 @poster_renamer.route("/run-renamer-job", methods=["POST"])
 def run_renamer():
     result = run_renamer_task()
+    if result["success"] is False:
+        return jsonify(result), 500
+    return jsonify(result), 202
+
+
+@poster_renamer.route("/run-border-replace-job", methods=["POST"])
+def run_border_replacer():
+    result = run_border_replacer_task()
     if result["success"] is False:
         return jsonify(result), 500
     return jsonify(result), 202

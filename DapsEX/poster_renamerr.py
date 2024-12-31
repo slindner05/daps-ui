@@ -1,5 +1,3 @@
-# TODO: add a way to clean asset directory when asset folders changes
-import hashlib
 import json
 import logging
 import re
@@ -85,17 +83,6 @@ class PosterRenamerr:
         self.logger.info("\n" + "#" * 80)
         self.logger.info("### New PosterRenamerr Run")
         self.logger.info("\n" + "#" * 80)
-
-    def hash_file(self, file_path: Path) -> str:
-        try:
-            sha256_hash = hashlib.sha256()
-            with file_path.open("rb") as f:
-                for byte_block in iter(lambda: f.read(4096), b""):
-                    sha256_hash.update(byte_block)
-            return sha256_hash.hexdigest()
-        except Exception as e:
-            self.logger.exception(f"Error hashing file {file_path}: {e}")
-            raise e
 
     def clean_cache(self) -> None:
         try:
@@ -628,7 +615,6 @@ class PosterRenamerr:
             """
             )
 
-    # TODO: fix looping with alternate title matching
     def _copy_file(
         self,
         file_path: Path,
@@ -649,7 +635,7 @@ class PosterRenamerr:
         else:
             backup_path = self.backup_dir / new_file_name
         file_name_without_extension = target_path.stem
-        original_file_hash = self.hash_file(file_path)
+        original_file_hash = utils.hash_file(file_path, self.logger)
         cached_file = self.db.get_cached_file(str(target_path))
         current_source = str(file_path)
 
@@ -747,7 +733,7 @@ class PosterRenamerr:
                 temp_path = target_dir / f"temp_{new_file_name}"
                 final_image.save(temp_path)
                 file_path = temp_path
-                file_hash = self.hash_file(file_path)
+                file_hash = utils.hash_file(file_path, self.logger)
             except Exception as e:
                 self.logger.error(f"Error processing border for {file_path}: {e}")
                 file_hash = original_file_hash

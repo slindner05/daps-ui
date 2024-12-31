@@ -12,6 +12,7 @@ from daps_webui.config.config import Config
 from daps_webui.utils import webui_utils
 from daps_webui.utils.logger_utils import init_logger
 from daps_webui.utils.webui_utils import get_instances
+from DapsEX.border_replacerr import BorderReplacerr
 from DapsEX.plex_upload import PlexUploaderr
 from DapsEX.poster_renamerr import PosterRenamerr
 from DapsEX.unmatched_assets import UnmatchedAssets
@@ -148,6 +149,42 @@ def run_renamer_task(webhook_item: dict | None = None):
         }
     except Exception as e:
         daps_logger.error(f"Error in Poster Renamer Task: {str(e)}")
+        return {"success": False, "message": str(e)}
+
+
+def run_border_replacer_task():
+    try:
+        border_replacerr_payload = webui_utils.create_border_replacer_payload()
+
+        daps_logger.debug("Border Replacerr Payload:")
+        daps_logger.debug(pformat(border_replacerr_payload))
+
+        job_id = progress_instance.add_job()
+        daps_logger.debug(f"Job Border Replacerr: '{job_id}' added.")
+
+        border_replacerr = BorderReplacerr(
+            custom_color=None, payload=border_replacerr_payload
+        )
+        daps_logger.debug("Submitting border replacerr task to thread pool")
+        future = executor.submit(
+            border_replacerr.replace_current_assets, progress_instance, job_id
+        )
+        daps_logger.debug("Task submitted successfully")
+
+        def remove_job_cb(fut):
+            sleep(2)
+            progress_instance.remove_job(job_id)
+            daps_logger.info(f"Border Replacer Job: {job_id} has been removed")
+
+        future.add_done_callback(remove_job_cb)
+
+        return {
+            "message": "Border replacer task started",
+            "job_id": job_id,
+            "success": True,
+        }
+    except Exception as e:
+        daps_logger.error(f"Error in Border Replacer Task: {str(e)}")
         return {"success": False, "message": str(e)}
 
 

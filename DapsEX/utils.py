@@ -1,6 +1,8 @@
+import hashlib
 import re
 import unicodedata
 from logging import Logger
+from pathlib import Path
 
 from DapsEX.media import Radarr, Server, Sonarr
 from Payloads.poster_renamerr_payload import Payload as PosterRenamerPayload
@@ -65,6 +67,18 @@ def get_combined_collections_dict(
         series_collections.update(plex.series_collections)
 
     return {"movies": list(movie_collections), "shows": list(series_collections)}
+
+
+def hash_file(file_path: Path, logger: Logger) -> str:
+    try:
+        sha256_hash = hashlib.sha256()
+        with file_path.open("rb") as f:
+            for byte_block in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(byte_block)
+        return sha256_hash.hexdigest()
+    except Exception as e:
+        logger.exception(f"Error hashing file {file_path}: {e}")
+        raise e
 
 
 def is_valid_hex_color(color: str) -> bool:
