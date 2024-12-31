@@ -34,6 +34,9 @@ class PosterRenamerr:
             supported_options = ["black", "remove", "custom"]
             self.db = Database(self.logger)
             self.target_path = Path(payload.target_path)
+            self.backup_dir = Path(Settings.ORIGINAL_POSTERS.value)
+            if not self.backup_dir.exists():
+                self.backup_dir.mkdir()
             self.source_directories = payload.source_dirs
             self.asset_folders = payload.asset_folders
             self.clean_assets = payload.clean_assets
@@ -109,8 +112,12 @@ class PosterRenamerr:
 
     def clean_asset_dir(self, media_dict, collections_dict) -> None:
         try:
+            directories_to_clean = [self.target_path, self.backup_dir]
             asset_files = (
-                item for item in self.target_path.rglob("*") if item.is_file()
+                item
+                for dir_path in directories_to_clean
+                for item in dir_path.rglob("*")
+                if item.is_file()
             )
             titles = (
                 set(
@@ -137,6 +144,7 @@ class PosterRenamerr:
                 )
             )
             removed_asset_count = 0
+            directories_to_remove = []
 
             if self.asset_folders:
                 self.logger.info(
@@ -146,11 +154,10 @@ class PosterRenamerr:
                 self.logger.info(
                     "Detected flat asset configuration. Attempting to remove invalid assets."
                 )
-            directories_to_remove = []
             for item in asset_files:
                 parent_dir = item.parent
                 if self.asset_folders:
-                    if parent_dir == self.target_path:
+                    if parent_dir == self.target_path or parent_dir == self.backup_dir:
                         self.logger.info(f"Removing orphaned asset file --> {item}")
                         item.unlink()
                         removed_asset_count += 1
@@ -171,12 +178,13 @@ class PosterRenamerr:
             for directory in directories_to_remove:
                 self._remove_directory(directory)
 
-            for dir_path in self.target_path.rglob("*"):
-                if dir_path.is_dir() and not any(dir_path.iterdir()):
-                    dir_path.rmdir()
+            for dir_path in directories_to_clean:
+                for sub_dir in dir_path.rglob("*"):
+                    if sub_dir.is_dir() and not any(sub_dir.iterdir()):
+                        sub_dir.rmdir()
 
             self.logger.info(
-                f"Removed {removed_asset_count} items from asset directory."
+                f"Removed {removed_asset_count} items from asset directories."
             )
 
         except Exception as e:
@@ -626,6 +634,7 @@ class PosterRenamerr:
         file_path: Path,
         media_type: str,
         target_dir: Path,
+        backup_dir: Path | None,
         new_file_name: str,
         replace_border: bool = False,
         status: str | None = None,
@@ -635,6 +644,10 @@ class PosterRenamerr:
     ) -> None:
         temp_path = None
         target_path = target_dir / new_file_name
+        if backup_dir:
+            backup_path = backup_dir / new_file_name
+        else:
+            backup_path = self.backup_dir / new_file_name
         file_name_without_extension = target_path.stem
         original_file_hash = self.hash_file(file_path)
         cached_file = self.db.get_cached_file(str(target_path))
@@ -707,6 +720,13 @@ class PosterRenamerr:
                     self.db.update_webhook_flag(str(target_path), True)
                 return
 
+        if not backup_dir:
+            backup_dir = self.backup_dir
+        try:
+            shutil.copy2(file_path, backup_path)
+        except Exception as e:
+            self.logger.error(f"Error copying backup file {file_path}: {e}")
+
         if replace_border and self.border_setting:
             try:
                 if self.border_setting.lower() == "remove":
@@ -745,6 +765,7 @@ class PosterRenamerr:
                     self.logger.error(
                         f"Error deleting border-replaced file {target_path}: {e}"
                     )
+
         try:
             shutil.copy2(file_path, target_path)
             self.logger.info(f"Copied and renamed: {file_path} -> {target_path}")
@@ -806,11 +827,14 @@ class PosterRenamerr:
                         continue
 
                     if isinstance(movie_result, tuple):
-                        target_dir, file_name_format = movie_result
+                        target_dir, backup_dir, file_name_format = movie_result
                         if not target_dir.exists():
                             target_dir.mkdir(parents=True, exist_ok=True)
                             self.logger.debug(f"Created directory -> '{target_dir}'")
+                        if not backup_dir.exists():
+                            backup_dir.mkdir(parents=True, exist_ok=True)
                     else:
+                        backup_dir = None
                         target_dir = self.target_path
                         file_name_format = sanitize_filename(movie_result)
 
@@ -818,6 +842,7 @@ class PosterRenamerr:
                         file_path,
                         key,
                         target_dir,
+                        backup_dir,
                         file_name_format,
                         self.replace_border,
                         status=data.get("status", None),
@@ -833,11 +858,14 @@ class PosterRenamerr:
                     if not collection_result:
                         continue
                     if isinstance(collection_result, tuple):
-                        target_dir, file_name_format = collection_result
+                        target_dir, backup_dir, file_name_format = collection_result
                         if not target_dir.exists():
                             target_dir.mkdir(parents=True, exist_ok=True)
                             self.logger.debug(f"Created directory -> '{target_dir}'")
+                        if not backup_dir.exists():
+                            backup_dir.mkdir(parents=True, exist_ok=True)
                     else:
+                        backup_dir = None
                         target_dir = self.target_path
                         file_name_format = sanitize_filename(collection_result)
 
@@ -845,6 +873,7 @@ class PosterRenamerr:
                         item,
                         key,
                         target_dir,
+                        backup_dir,
                         file_name_format,
                         self.replace_border,
                     )
@@ -857,11 +886,14 @@ class PosterRenamerr:
                     if not show_result:
                         continue
                     if isinstance(show_result, tuple):
-                        target_dir, file_name_format = show_result
+                        target_dir, backup_dir, file_name_format = show_result
                         if not target_dir.exists():
                             target_dir.mkdir(parents=True, exist_ok=True)
                             self.logger.debug(f"Created directory -> '{target_dir}'")
+                        if not backup_dir.exists():
+                            backup_dir.mkdir(parents=True, exist_ok=True)
                     else:
+                        backup_dir = None
                         target_dir = self.target_path
                         file_name_format = sanitize_filename(show_result)
 
@@ -869,6 +901,7 @@ class PosterRenamerr:
                         file_path,
                         key,
                         target_dir,
+                        backup_dir,
                         file_name_format,
                         self.replace_border,
                         status=data.get("status", None),
@@ -878,7 +911,7 @@ class PosterRenamerr:
 
     def _handle_movie(
         self, item: Path, movies_list_dict: list[dict], asset_folders: bool
-    ) -> str | tuple[Path, str] | None:
+    ) -> str | tuple[Path, Path, str] | None:
         matched_file = utils.remove_chars(item.stem)
 
         for item_dict in movies_list_dict:
@@ -895,8 +928,9 @@ class PosterRenamerr:
                 if item.exists() and item.is_file():
                     if asset_folders:
                         target_dir = self.target_path / sanitize_filename(movie_title)
+                        backup_dir = self.backup_dir / sanitize_filename(movie_title)
                         file_name_format = f"poster{item.suffix}"
-                        return target_dir, file_name_format
+                        return target_dir, backup_dir, file_name_format
                     else:
                         return f"{movie_title}{item.suffix}"
 
@@ -909,15 +943,18 @@ class PosterRenamerr:
                             target_dir = self.target_path / sanitize_filename(
                                 movie_title
                             )
+                            backup_dir = self.backup_dir / sanitize_filename(
+                                movie_title
+                            )
                             file_name_format = f"poster{item.suffix}"
-                            return target_dir, file_name_format
+                            return target_dir, backup_dir, file_name_format
                         else:
                             return f"{movie_title}{item.suffix}"
         return None
 
     def _handle_collections(
         self, item: Path, collections_list: list[str], asset_folders: bool
-    ) -> str | tuple[Path, str] | None:
+    ) -> str | tuple[Path, Path, str] | None:
         collection_name = utils.remove_chars(item.stem).removesuffix(" collection")
         for collection in collections_list:
             collection_clean = utils.remove_chars(collection).removesuffix(
@@ -928,8 +965,9 @@ class PosterRenamerr:
                 if item.exists() and item.is_file():
                     if asset_folders:
                         target_dir = self.target_path / sanitize_filename(collection)
+                        backup_dir = self.backup_dir / sanitize_filename(collection)
                         file_name_format = f"poster{item.suffix}"
-                        return target_dir, file_name_format
+                        return target_dir, backup_dir, file_name_format
                     else:
                         return f"{collection}{item.suffix}"
         return None
@@ -939,7 +977,7 @@ class PosterRenamerr:
         item: Path,
         show_list_dict: list[dict],
         asset_folders,
-    ) -> str | tuple[Path, str] | None:
+    ) -> str | tuple[Path, Path, str] | None:
         match_season = re.match(r"(.+?) - Season (\d+)", item.stem)
         match_specials = re.match(r"(.+?) - Specials", item.stem)
 
@@ -980,8 +1018,9 @@ class PosterRenamerr:
                     if item.exists() and item.is_file():
                         if asset_folders:
                             target_dir = self.target_path / sanitize_filename(show_name)
+                            backup_dir = self.backup_dir / sanitize_filename(show_name)
                             file_name_format = f"{formatted_season_num}{item.suffix}"
-                            return target_dir, file_name_format
+                            return target_dir, backup_dir, file_name_format
                         else:
                             return f"{show_name}_{formatted_season_num}{item.suffix}"
             return None
@@ -999,8 +1038,9 @@ class PosterRenamerr:
                     if item.exists() and item.is_file():
                         if asset_folders:
                             target_dir = self.target_path / sanitize_filename(show_name)
+                            backup_dir = self.backup_dir / sanitize_filename(show_name)
                             file_name_format = f"Season00{item.suffix}"
-                            return target_dir, file_name_format
+                            return target_dir, backup_dir, file_name_format
                         else:
                             return f"{show_name}_Season00{item.suffix}"
             return None
@@ -1018,8 +1058,9 @@ class PosterRenamerr:
                     if item.exists() and item.is_file():
                         if asset_folders:
                             target_dir = self.target_path / sanitize_filename(show_name)
+                            backup_dir = self.backup_dir / sanitize_filename(show_name)
                             file_name_format = f"poster{item.suffix}"
-                            return target_dir, file_name_format
+                            return target_dir, backup_dir, file_name_format
                         else:
                             return f"{show_name}{item.suffix}"
         return None
