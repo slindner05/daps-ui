@@ -67,6 +67,11 @@ def get_combined_collections_dict(
     return {"movies": list(movie_collections), "shows": list(series_collections)}
 
 
+def is_valid_hex_color(color: str) -> bool:
+    hex_color_pattern = r"^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
+    return bool(re.match(hex_color_pattern, color))
+
+
 def create_arr_instances(
     payload_class: PosterRenamerPayload | UnmatchedAssetsPayload,
     radarr_class: type[Radarr],

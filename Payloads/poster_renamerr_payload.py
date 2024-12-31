@@ -10,7 +10,8 @@ class Payload:
     clean_assets: bool
     unmatched_assets: bool
     replace_border: bool
-    border_color: str
+    border_setting: str | None
+    custom_color: str
     upload_to_plex: bool
     match_alt: bool
     reapply_posters: bool

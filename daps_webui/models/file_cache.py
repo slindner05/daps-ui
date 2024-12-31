@@ -31,9 +31,11 @@ class FileCache(db.Model):
     original_file_hash = db.Column(db.String, nullable=True)
     source_path = db.Column(db.String, nullable=True)
     border_replaced = db.Column(db.Integer, default=0, nullable=False)
-    border_color = db.Column(db.String, nullable=True)
+    border_setting = db.Column(db.String, nullable=True)
+    custom_color = db.Column(db.String, nullable=True)
     webhook_run = db.Column(db.Integer, nullable=True)
     uploaded_to_libraries = db.Column(JSONEncodedText, default=[], nullable=False)
+    uploaded_editions = db.Column(JSONEncodedText, default=[], nullable=False)
 
 
 class UnmatchedMovies(db.Model):

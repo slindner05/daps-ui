@@ -28,6 +28,11 @@ def create_poster_renamer_payload(radarr, sonarr, plex) -> PosterRenamerPayload:
     settings = Settings.query.first()
     log_level_str = getattr(settings, "log_level_poster_renamer", "").upper()
     log_level = LOG_LEVELS.get(log_level_str, logging.INFO)
+    border_setting = settings.border_setting if settings else None
+    if border_setting == "black":
+        custom_color = "#000000"
+    else:
+        custom_color = settings.custom_color if settings else ""
 
     return PosterRenamerPayload(
         log_level=log_level,
@@ -41,7 +46,8 @@ def create_poster_renamer_payload(radarr, sonarr, plex) -> PosterRenamerPayload:
         clean_assets=bool(settings.clean_assets) if settings else False,
         unmatched_assets=bool(settings.unmatched_assets) if settings else True,
         replace_border=bool(settings.replace_border) if settings else False,
-        border_color=settings.border_color if settings else "",
+        border_setting=border_setting,
+        custom_color=custom_color,
         upload_to_plex=bool(settings.upload_to_plex) if settings else False,
         match_alt=bool(settings.match_alt) if settings else False,
         reapply_posters=bool(settings.reapply_posters) if settings else False,

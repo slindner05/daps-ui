@@ -220,6 +220,8 @@ def handle_plex_uploaderr_task(
             daps_logger.debug("Submitting plex uploaderr task to thread pool")
             future = executor.submit(
                 plex_uploaderr.upload_posters_full,
+                progress_instance,
+                job_id,
             )
             daps_logger.debug("Task submitted successfully")
 

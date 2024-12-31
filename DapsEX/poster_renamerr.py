@@ -31,7 +31,8 @@ class PosterRenamerr:
                 "poster_renamerr",
                 log_level=payload.log_level if payload.log_level else logging.INFO,
             )
-            self.db = Database()
+            supported_options = ["black", "remove", "custom"]
+            self.db = Database(self.logger)
             self.target_path = Path(payload.target_path)
             self.source_directories = payload.source_dirs
             self.asset_folders = payload.asset_folders
@@ -39,14 +40,38 @@ class PosterRenamerr:
             self.upload_to_plex = payload.upload_to_plex
             self.match_alt = payload.match_alt
             self.replace_border = payload.replace_border
-            self.border_color = payload.border_color if payload.border_color else None
-            self.border_replacerr = BorderReplacerr(self.border_color)
+
+            if payload.border_setting in supported_options:
+                self.border_setting = payload.border_setting
+            else:
+                self.logger.warning(
+                    f"Invalid border color setting: {payload.border_setting}. Border replacerr will not run."
+                )
+                self.border_setting = None
+                self.replace_border = False
+            if self.border_setting == "custom" or self.border_setting == "black":
+                if payload.custom_color and utils.is_valid_hex_color(
+                    payload.custom_color
+                ):
+                    self.custom_color = payload.custom_color
+                else:
+                    self.logger.warning(
+                        f"Invalid hex color code: {payload.custom_color}. Border replacerr will not run."
+                    )
+                    self.custom_color = None
+                    self.replace_border = False
+            else:
+                self.custom_color = ""
+                self.replace_border = payload.replace_border
+
+            self.border_replacerr = BorderReplacerr(custom_color=self.custom_color)
             self.plex_instances = utils.create_plex_instances(
                 payload, Server, self.logger
             )
             self.radarr_instances, self.sonarr_instances = utils.create_arr_instances(
                 payload, Radarr, Sonarr, self.logger
             )
+
         except Exception as e:
             self.logger.exception("Failed to initialize PosterRenamerr")
             raise e
@@ -121,6 +146,7 @@ class PosterRenamerr:
                 self.logger.info(
                     "Detected flat asset configuration. Attempting to remove invalid assets."
                 )
+            directories_to_remove = []
             for item in asset_files:
                 parent_dir = item.parent
                 if self.asset_folders:
@@ -131,7 +157,7 @@ class PosterRenamerr:
                     else:
                         asset_title = utils.remove_chars(parent_dir.name)
                         if asset_title not in titles:
-                            self._remove_directory(parent_dir)
+                            directories_to_remove.append(parent_dir)
                             removed_asset_count += 1
                 else:
                     asset_pattern = re.search(r"^(.*?)(?:_.*)?$", item.stem)
@@ -142,9 +168,13 @@ class PosterRenamerr:
                             item.unlink()
                             removed_asset_count += 1
 
+            for directory in directories_to_remove:
+                self._remove_directory(directory)
+
             for dir_path in self.target_path.rglob("*"):
                 if dir_path.is_dir() and not any(dir_path.iterdir()):
                     dir_path.rmdir()
+
             self.logger.info(
                 f"Removed {removed_asset_count} items from asset directory."
             )
@@ -155,10 +185,11 @@ class PosterRenamerr:
     def _remove_directory(self, directory: Path):
         if directory.exists() and directory.is_dir():
             self.logger.info(f"Removing orphaned asset directory: {directory}")
-            for sub_item in directory.iterdir():
-                if sub_item:
+            for sub_item in list(directory.iterdir()):
+                if sub_item.is_file():
                     sub_item.unlink()
-            directory.rmdir()
+            if directory.exists():
+                directory.rmdir()
 
     def get_source_files(self) -> dict[str, list[Path]]:
         source_directories = [Path(item) for item in self.source_directories]
@@ -614,7 +645,8 @@ class PosterRenamerr:
             cached_original_hash = cached_file["original_file_hash"]
             cached_source = cached_file["source_path"]
             cached_border_state = cached_file.get("border_replaced", 0)
-            cached_border_color = cached_file.get("border_color", None)
+            cached_border_setting = cached_file.get("border_setting", None)
+            cached_custom_color = cached_file.get("custom_color", None)
             cached_has_episodes = cached_file.get("has_episodes", None)
             cached_has_file = cached_file.get("has_file", None)
             cached_status = cached_file.get("status", None)
@@ -629,8 +661,10 @@ class PosterRenamerr:
             self.logger.debug(f"Cached source: {cached_source}")
             self.logger.debug(f"Replace border (current): {replace_border}")
             self.logger.debug(f"Cached border replaced: {cached_border_state}")
-            self.logger.debug(f"Cached border color: {cached_border_color}")
-            self.logger.debug(f"Current border color: {self.border_color}")
+            self.logger.debug(f"Cached border color: {cached_border_setting}")
+            self.logger.debug(f"Current border color: {self.border_setting}")
+            self.logger.debug(f"Cached custom color: {cached_custom_color}")
+            self.logger.debug(f"Current custom color: {self.custom_color}")
             self.logger.debug(f"Cached status: {cached_status}")
             self.logger.debug(f"Current status: {status}")
             self.logger.debug(f"Cached has_episodes: {cached_has_episodes}")
@@ -643,23 +677,21 @@ class PosterRenamerr:
                     self.logger.debug(
                         f"Updating 'has_episodes' for {target_path}: {cached_has_episodes} -> {has_episodes}"
                     )
-                    self.db.update_has_episodes(
-                        str(target_path), has_episodes, self.logger
-                    )
+                    self.db.update_has_episodes(str(target_path), has_episodes)
 
             if cached_has_file is None or cached_has_file != has_file:
                 if has_file is not None:
                     self.logger.debug(
                         f"Updating 'has_file' for {target_path}: {cached_has_file} -> {has_file}"
                     )
-                    self.db.update_has_file(str(target_path), has_file, self.logger)
+                    self.db.update_has_file(str(target_path), has_file)
 
             if cached_status is None or cached_status != status:
                 if status is not None:
                     self.logger.debug(
                         f"Updating 'status' for {target_path}: {cached_status} -> {status}"
                     )
-                    self.db.update_status(str(target_path), status, self.logger)
+                    self.db.update_status(str(target_path), status)
 
             if (
                 cached_file
@@ -667,33 +699,29 @@ class PosterRenamerr:
                 and cached_original_hash == original_file_hash
                 and cached_source == current_source
                 and cached_border_state == replace_border
-                and cached_border_color == self.border_color
+                and cached_border_setting == self.border_setting
+                and cached_custom_color == self.custom_color
             ):
                 self.logger.debug(f"⏩ Skipping unchanged file: {file_path}")
                 if webhook_run:
-                    self.db.update_webhook_flag(str(target_path), self.logger, True)
+                    self.db.update_webhook_flag(str(target_path), True)
                 return
 
-        if replace_border and self.border_color:
-            supported_colors = [
-                "black",
-                "red",
-                "green",
-                "blue",
-                "yellow",
-                "cyan",
-                "magenta",
-                "gray",
-            ]
+        if replace_border and self.border_setting:
             try:
-                if self.border_color.lower() == "remove":
+                if self.border_setting.lower() == "remove":
                     final_image = self.border_replacerr.remove_border(file_path)
                     self.logger.info(f"Removed border on {file_path.name}")
-                elif self.border_color.lower() in supported_colors:
+                elif (
+                    self.border_setting.lower() == "custom"
+                    or self.border_setting.lower() == "black"
+                ):
                     final_image = self.border_replacerr.replace_border(file_path)
                     self.logger.info(f"Replaced border on {file_path.name}")
                 else:
-                    self.logger.error(f"Unsupported border color: {self.border_color}")
+                    self.logger.error(
+                        f"Unsupported border setting: {self.border_setting}"
+                    )
                     return
 
                 temp_path = target_dir / f"temp_{new_file_name}"
@@ -722,20 +750,19 @@ class PosterRenamerr:
             self.logger.info(f"Copied and renamed: {file_path} -> {target_path}")
             if cached_file:
                 self.db.update_file(
-                    self.logger,
                     file_hash,
                     original_file_hash,
                     current_source,
                     str(target_path),
                     border_replaced=replace_border,
-                    border_color=self.border_color,
+                    border_setting=self.border_setting,
+                    custom_color=self.custom_color,
                 )
                 self.logger.debug(f"Replaced cached file: {cached_file} -> {file_path}")
                 if webhook_run:
-                    self.db.update_webhook_flag(str(target_path), self.logger, True)
+                    self.db.update_webhook_flag(str(target_path), True)
             else:
                 self.db.add_file(
-                    self.logger,
                     str(target_path),
                     file_name_without_extension,
                     status,
@@ -746,7 +773,8 @@ class PosterRenamerr:
                     original_file_hash,
                     current_source,
                     border_replaced=replace_border,
-                    border_color=self.border_color,
+                    border_setting=self.border_setting,
+                    custom_color=self.custom_color,
                     webhook_run=webhook_run,
                 )
                 self.logger.debug(f"Adding new file to database cache: {target_path}")

@@ -36,7 +36,7 @@ class UnmatchedAssets:
             self.plex_instances = utils.create_plex_instances(
                 payload, Server, self.logger
             )
-            self.db = Database()
+            self.db = Database(self.logger)
             self.db.initialize_stats()
         except Exception as e:
             self.logger.exception("Failed to initialize UnmatchedAssets")

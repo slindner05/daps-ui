@@ -1,6 +1,7 @@
 import re
 from logging import Logger
 from pathlib import Path
+from pprint import pformat
 
 from arrapi import RadarrAPI, SonarrAPI
 from arrapi.apis.sonarr import Series
@@ -287,7 +288,12 @@ class Server:
         for item in all_items:
             title_key = item.title
             year = item.year or ""
-            title_name = f"{title_key} ({year})".strip()
+            edition = getattr(item, "editionTitle", None)
+            if edition:
+                title_name = f"{title_key} ({year}) [{edition}]".strip()
+            else:
+                title_name = f"{title_key} ({year})".strip()
+
             item_dict[library.type][library_title][title_name] = item
 
         if fetch_collections:
@@ -296,13 +302,13 @@ class Server:
                 collection_key = collection.title
                 item_dict["collections"][library_title][collection_key] = collection
 
-    def fetch_recently_added(self, media_type: str, logger: Logger):
+    def fetch_recently_added(self, media_type: str):
         recently_added_dict = {media_type: {}}
         for library_name in self.library_names:
             try:
                 library = self.plex.library.section(library_name)
                 if library.type == media_type:
-                    logger.debug(
+                    self.logger.debug(
                         f"Fetching recently added items from library: '{library.title}', Type: '{library.type}'"
                     )
                     recently_added = library.recentlyAdded(maxresults=5)
@@ -317,18 +323,18 @@ class Server:
                             recently_added_dict[media_type][library_name][
                                 title_name
                             ] = item
-                        logger.info(
+                        self.logger.info(
                             f"Fetched {len(recently_added)} recently added items from '{library_name}'"
                         )
                     else:
-                        logger.info(
+                        self.logger.info(
                             f"No recently added items found in library '{library_name}'"
                         )
             except UnknownType as e:
-                logger.error(f"Library '{library_name}' is invalid: {e}")
+                self.logger.error(f"Library '{library_name}' is invalid: {e}")
                 continue
             except Exception as e:
-                logger.error(
+                self.logger.error(
                     f"An error occurred while fetching recently added items from '{library_name}': {e}"
                 )
         return recently_added_dict if recently_added_dict[media_type] else None
