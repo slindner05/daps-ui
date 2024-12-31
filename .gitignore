@@ -11,3 +11,4 @@ package-lock.json
 eslint.config.mjs
 docker_commands.txt
 docker-compose.yml
+config/original_posers/
