@@ -26,6 +26,30 @@ document.addEventListener("DOMContentLoaded", function () {
   initializeDragAndDrop(sourceList);
 });
 
+function toggleCustomColorInput() {
+  const borderColorSelect = document.getElementById("border_select");
+  const customColorInput = document.getElementById("custom_color");
+  const customColorLabel = document.querySelector('label[for="hex_code"]');
+
+  if (borderColorSelect.value === "custom") {
+    customColorLabel.style.display = "inline-block";
+    customColorInput.style.display = "inline-block";
+  } else {
+    customColorLabel.style.display = "none";
+    customColorInput.style.display = "none";
+  }
+
+  borderColorSelect.addEventListener("change", (event) => {
+    if (event.target.value === "custom") {
+      customColorLabel.style.display = "inline-block";
+      customColorInput.style.display = "inline-block";
+    } else {
+      customColorLabel.style.display = "none";
+      customColorInput.style.display = "none";
+    }
+  });
+}
+
 function initializeDragAndDrop(container) {
   container.addEventListener("dragstart", handleDragStart);
   container.addEventListener("dragend", handleDragEnd);
@@ -121,6 +145,7 @@ function preFillForm(data) {
   document.getElementById("poster-renamer_info").checked = true;
   document.getElementById("unmatched-assets_info").checked = true;
   document.getElementById("plex-uploaderr_info").checked = true;
+  document.getElementById("border-replacerr_info").checked = true;
 
   if (data.logLevelPosterRenamer === "debug") {
     document.getElementById("poster-renamer_info").checked = false;
@@ -133,6 +158,10 @@ function preFillForm(data) {
   if (data.logLevelPlexUploaderr === "debug") {
     document.getElementById("plex-uploaderr_info").checked = false;
     document.getElementById("plex-uploaderr_debug").checked = true;
+  }
+  if (data.logLevelBorderReplacerr === "debug") {
+    document.getElementById("border-replacerr_info").checked = false;
+    document.getElementById("border-replacerr_debug").checked = true;
   }
 
   createInputFromSettings(data, "sourceDirs", "source_dir");
@@ -160,14 +189,17 @@ function preFillForm(data) {
   createInstanceFromSettings(data, "sonarrInstances", "sonarr");
   createInstanceFromSettings(data, "plexInstances", "plex");
 
-  if (data.borderColor) {
+  if (data.borderSetting) {
     const borderColorSelect = document.querySelector(
-      'select[name="border_color"]',
+      'select[name="border_setting"]',
     );
     if (borderColorSelect) {
-      borderColorSelect.value = data.borderColor;
+      borderColorSelect.value = data.borderSetting;
     }
   }
+  toggleCustomColorInput();
+  document.querySelector('input[name="hex_code"]').value =
+    data.customColor || "";
 }
 
 function attachPosterRenamer() {
@@ -189,10 +221,15 @@ function attachLogLevel() {
     "Plex Uploaderr",
     "plex-uploaderr",
   );
+  const borderReplacerrLogLevel = createLogLevelGroup(
+    "Border Replacerr",
+    "border-replacerr",
+  );
 
   wrapperDiv.appendChild(posterRenamerLogLevel);
   wrapperDiv.appendChild(unmatchedAssetsLogLevel);
   wrapperDiv.appendChild(plexUploaderrLogLevel);
+  wrapperDiv.appendChild(borderReplacerrLogLevel);
 }
 function attachUnmatchedAssets() {
   const wrapperDiv = document.getElementById("unmatched-assets-wrapper");
@@ -430,29 +467,31 @@ function createPosterRenamer() {
   const instanceRemoveButton = instanceInputDiv.querySelector(".btn-remove");
   attachRemoveButtonListener(instancesDiv, "instance", instanceRemoveButton);
 
+  const supportedColors = ["remove", "black", "custom"];
+
   const borderColorSelect = document.createElement("select");
-  borderColorSelect.name = "border_color";
+  borderColorSelect.id = "border_select";
+  borderColorSelect.name = "border_setting";
   borderColorSelect.classList.add("form-select");
-
-  const supportedColors = [
-    "remove",
-    "black",
-    "red",
-    "green",
-    "blue",
-    "yellow",
-    "cyan",
-    "magenta",
-    "gray",
-  ];
-
   supportedColors.forEach((color) => {
     const option = document.createElement("option");
     option.value = color;
     option.textContent = color.charAt(0).toUpperCase() + color.slice(1);
     borderColorSelect.appendChild(option);
   });
-  const borderColorLabel = createLabel("Border Color", "border_color");
+
+  const customColorInput = document.createElement("input");
+  customColorInput.id = "custom_color";
+  customColorInput.name = "hex_code";
+  customColorInput.type = "text";
+  customColorInput.classList.add("form-input");
+  customColorInput.placeholder = "#FFFFFF";
+  customColorInput.style.display = "none";
+  customColorInput.maxLength = 7;
+  const customColorLabel = createLabel("Hex Code", `${customColorInput.name}`);
+  customColorLabel.style.display = "none";
+
+  const borderColorLabel = createLabel("Border Color", "border_setting");
 
   const assetFoldersCheckbox = createCheckboxInput(
     "Asset Folders",
@@ -508,6 +547,8 @@ function createPosterRenamer() {
   instancesDiv.appendChild(instanceInputDiv);
   borderColorDiv.appendChild(borderColorLabel);
   borderColorDiv.appendChild(borderColorSelect);
+  borderColorDiv.appendChild(customColorLabel);
+  borderColorDiv.appendChild(customColorInput);
 
   checkboxDiv.appendChild(assetFoldersCheckbox);
   checkboxDiv.appendChild(cleanPosters);
@@ -804,6 +845,9 @@ document.getElementById("save-settings").addEventListener("click", function () {
   const logLevelPlexUploaderr = document.querySelector(
     'input[name="plex-uploaderr_log_level"]:checked',
   )?.value;
+  const logLevelBorderReplacerr = document.querySelector(
+    'input[name="border-replacerr_log_level"]:checked',
+  )?.value;
   const targetPath = document.querySelector('input[name="target_path"]').value;
   const posterRenamerSchedule = document.querySelector(
     'input[name="poster_renamer_schedule"]',
@@ -814,9 +858,10 @@ document.getElementById("save-settings").addEventListener("click", function () {
   const plexUploaderrSchedule = document.querySelector(
     'input[name="plex_uploaderr_schedule"]',
   ).value;
-  const borderColor = document.querySelector(
-    'select[name="border_color"]',
+  const borderSetting = document.querySelector(
+    'select[name="border_setting"]',
   ).value;
+  const customColor = document.querySelector('input[name="hex_code"]').value;
   const sourceDirs = Array.from(
     document.querySelectorAll('input[name="source_dir[]"]'),
   ).map((input) => input.value);
@@ -900,6 +945,7 @@ document.getElementById("save-settings").addEventListener("click", function () {
       logLevelUnmatchedAssets: logLevelUnmatchedAssets,
       logLevelPosterRenamer: logLevelPosterRenamer,
       logLevelPlexUploaderr: logLevelPlexUploaderr,
+      logLevelBorderReplacerr: logLevelBorderReplacerr,
       posterRenamerSchedule: posterRenamerSchedule,
       unmatchedAssetsSchedule: unmatchedAssetsSchedule,
       plexUploaderrSchedule: plexUploaderrSchedule,
@@ -920,7 +966,8 @@ document.getElementById("save-settings").addEventListener("click", function () {
       radarrInstances: radarrInstances,
       sonarrInstances: sonarrInstances,
       plexInstances: plexInstances,
-      borderColor: borderColor,
+      borderSetting: borderSetting,
+      customColor: customColor,
     }),
   })
     .then((response) => response.json())

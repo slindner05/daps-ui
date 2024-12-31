@@ -54,6 +54,11 @@ class YamlConfig:
         script_config = self.config.get(Settings.POSTER_RENAMERR.value)
         log_level_str = self.log_level_config.get("poster_renamerr", "INFO").upper()
         log_level = LOG_LEVELS.get(log_level_str, logging.INFO)
+        border_setting = script_config.get("border_setting", None)
+        if border_setting == "black":
+            custom_color = "#000000"
+        else:
+            custom_color = script_config.get("hex_code", "")
 
         payload_data = {
             "log_level": log_level,
@@ -63,7 +68,8 @@ class YamlConfig:
             "clean_assets": script_config.get("clean_assets", False),
             "unmatched_assets": script_config.get("unmatched_assets", True),
             "replace_border": script_config.get("replace_border", False),
-            "border_color": script_config.get("border_color", None),
+            "border_setting": border_setting,
+            "custom_color": custom_color,
             "upload_to_plex": script_config.get("upload_to_plex", False),
             "match_alt": script_config.get("match_alt", False),
             "reapply_posters": script_config.get("reapply_posters", False),

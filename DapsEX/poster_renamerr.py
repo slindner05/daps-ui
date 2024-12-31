@@ -1,5 +1,3 @@
-# TODO: add a way to clean asset directory when asset folders changes
-import hashlib
 import json
 import logging
 import re
@@ -31,22 +29,50 @@ class PosterRenamerr:
                 "poster_renamerr",
                 log_level=payload.log_level if payload.log_level else logging.INFO,
             )
-            self.db = Database()
+            supported_options = ["black", "remove", "custom"]
+            self.db = Database(self.logger)
             self.target_path = Path(payload.target_path)
+            self.backup_dir = Path(Settings.ORIGINAL_POSTERS.value)
+            if not self.backup_dir.exists():
+                self.backup_dir.mkdir()
             self.source_directories = payload.source_dirs
             self.asset_folders = payload.asset_folders
             self.clean_assets = payload.clean_assets
             self.upload_to_plex = payload.upload_to_plex
             self.match_alt = payload.match_alt
             self.replace_border = payload.replace_border
-            self.border_color = payload.border_color if payload.border_color else None
-            self.border_replacerr = BorderReplacerr(self.border_color)
+
+            if payload.border_setting in supported_options:
+                self.border_setting = payload.border_setting
+            else:
+                self.logger.warning(
+                    f"Invalid border color setting: {payload.border_setting}. Border replacerr will not run."
+                )
+                self.border_setting = None
+                self.replace_border = False
+            if self.border_setting == "custom" or self.border_setting == "black":
+                if payload.custom_color and utils.is_valid_hex_color(
+                    payload.custom_color
+                ):
+                    self.custom_color = payload.custom_color
+                else:
+                    self.logger.warning(
+                        f"Invalid hex color code: {payload.custom_color}. Border replacerr will not run."
+                    )
+                    self.custom_color = None
+                    self.replace_border = False
+            else:
+                self.custom_color = ""
+                self.replace_border = payload.replace_border
+
+            self.border_replacerr = BorderReplacerr(custom_color=self.custom_color)
             self.plex_instances = utils.create_plex_instances(
                 payload, Server, self.logger
             )
             self.radarr_instances, self.sonarr_instances = utils.create_arr_instances(
                 payload, Radarr, Sonarr, self.logger
             )
+
         except Exception as e:
             self.logger.exception("Failed to initialize PosterRenamerr")
             raise e
@@ -57,17 +83,6 @@ class PosterRenamerr:
         self.logger.info("\n" + "#" * 80)
         self.logger.info("### New PosterRenamerr Run")
         self.logger.info("\n" + "#" * 80)
-
-    def hash_file(self, file_path: Path) -> str:
-        try:
-            sha256_hash = hashlib.sha256()
-            with file_path.open("rb") as f:
-                for byte_block in iter(lambda: f.read(4096), b""):
-                    sha256_hash.update(byte_block)
-            return sha256_hash.hexdigest()
-        except Exception as e:
-            self.logger.exception(f"Error hashing file {file_path}: {e}")
-            raise e
 
     def clean_cache(self) -> None:
         try:
@@ -84,59 +99,92 @@ class PosterRenamerr:
 
     def clean_asset_dir(self, media_dict, collections_dict) -> None:
         try:
-            asset_files = [
-                item for item in Path(self.target_path).rglob("*") if item.is_file()
-            ]
-            titles = set(
-                [
+            directories_to_clean = [self.target_path, self.backup_dir]
+            asset_files = (
+                item
+                for dir_path in directories_to_clean
+                for item in dir_path.rglob("*")
+                if item.is_file()
+            )
+            titles = (
+                set(
                     utils.remove_chars(movie["title"])
                     for movie in media_dict.get("movies", [])
-                ]
-                + [
-                    utils.remove_chars(show["title"])
-                    for show in media_dict.get("shows", [])
-                ]
-                + [
-                    utils.remove_chars(collection)
-                    for collection in collections_dict.get("movies", [])
-                ]
-                + [
-                    utils.remove_chars(collection)
-                    for collection in collections_dict.get("shows", [])
-                ]
+                )
+                .union(
+                    set(
+                        utils.remove_chars(show["title"])
+                        for show in media_dict.get("shows", [])
+                    )
+                )
+                .union(
+                    set(
+                        utils.remove_chars(collection)
+                        for collection in collections_dict.get("movies", [])
+                    )
+                )
+                .union(
+                    set(
+                        utils.remove_chars(collection)
+                        for collection in collections_dict.get("shows", [])
+                    )
+                )
             )
+            removed_asset_count = 0
+            directories_to_remove = []
 
+            if self.asset_folders:
+                self.logger.info(
+                    "Detected asset folder configuration. Attempting to remove invalid assets."
+                )
+            else:
+                self.logger.info(
+                    "Detected flat asset configuration. Attempting to remove invalid assets."
+                )
             for item in asset_files:
+                parent_dir = item.parent
                 if self.asset_folders:
-                    parent_dir = item.parent
-                    if parent_dir == self.target_path:
-                        self.logger.info(f"Removing orphaned asset file: {item}")
+                    if parent_dir == self.target_path or parent_dir == self.backup_dir:
+                        self.logger.info(f"Removing orphaned asset file --> {item}")
                         item.unlink()
-
-                    asset_title = utils.remove_chars(parent_dir.name)
-                    if asset_title not in titles and parent_dir != self.target_path:
-                        if parent_dir.exists() and parent_dir.is_dir():
-                            self.logger.info(
-                                f"Removing orphaned asset directory: {parent_dir}"
-                            )
-                            for sub_item in parent_dir.iterdir():
-                                sub_item.unlink()
-                            parent_dir.rmdir()
+                        removed_asset_count += 1
+                    else:
+                        asset_title = utils.remove_chars(parent_dir.name)
+                        if asset_title not in titles:
+                            directories_to_remove.append(parent_dir)
+                            removed_asset_count += 1
                 else:
                     asset_pattern = re.search(r"^(.*?)(?:_.*)?$", item.stem)
                     if asset_pattern:
                         asset_title = utils.remove_chars(asset_pattern.group(1))
                         if asset_title not in titles:
-                            self.logger.info(f"Removing orphaned asset file: {item}")
+                            self.logger.info(f"Removing orphaned asset file --> {item}")
                             item.unlink()
+                            removed_asset_count += 1
 
-            for dir_path in self.target_path.rglob("*"):
-                if dir_path.is_dir() and not any(dir_path.iterdir()):
-                    self.logger.info(f"Removing empty directory: {dir_path}")
-                    dir_path.rmdir()
+            for directory in directories_to_remove:
+                self._remove_directory(directory)
+
+            for dir_path in directories_to_clean:
+                for sub_dir in dir_path.rglob("*"):
+                    if sub_dir.is_dir() and not any(sub_dir.iterdir()):
+                        sub_dir.rmdir()
+
+            self.logger.info(
+                f"Removed {removed_asset_count} items from asset directories."
+            )
 
         except Exception as e:
             self.logger.error(f"Error cleaning assets: {e}")
+
+    def _remove_directory(self, directory: Path):
+        if directory.exists() and directory.is_dir():
+            self.logger.info(f"Removing orphaned asset directory: {directory}")
+            for sub_item in list(directory.iterdir()):
+                if sub_item.is_file():
+                    sub_item.unlink()
+            if directory.exists():
+                directory.rmdir()
 
     def get_source_files(self) -> dict[str, list[Path]]:
         source_directories = [Path(item) for item in self.source_directories]
@@ -567,12 +615,12 @@ class PosterRenamerr:
             """
             )
 
-    # TODO: fix looping with alternate title matching
     def _copy_file(
         self,
         file_path: Path,
         media_type: str,
         target_dir: Path,
+        backup_dir: Path | None,
         new_file_name: str,
         replace_border: bool = False,
         status: str | None = None,
@@ -582,8 +630,12 @@ class PosterRenamerr:
     ) -> None:
         temp_path = None
         target_path = target_dir / new_file_name
+        if backup_dir:
+            backup_path = backup_dir / new_file_name
+        else:
+            backup_path = self.backup_dir / new_file_name
         file_name_without_extension = target_path.stem
-        original_file_hash = self.hash_file(file_path)
+        original_file_hash = utils.hash_file(file_path, self.logger)
         cached_file = self.db.get_cached_file(str(target_path))
         current_source = str(file_path)
 
@@ -592,7 +644,8 @@ class PosterRenamerr:
             cached_original_hash = cached_file["original_file_hash"]
             cached_source = cached_file["source_path"]
             cached_border_state = cached_file.get("border_replaced", 0)
-            cached_border_color = cached_file.get("border_color", None)
+            cached_border_setting = cached_file.get("border_setting", None)
+            cached_custom_color = cached_file.get("custom_color", None)
             cached_has_episodes = cached_file.get("has_episodes", None)
             cached_has_file = cached_file.get("has_file", None)
             cached_status = cached_file.get("status", None)
@@ -607,8 +660,10 @@ class PosterRenamerr:
             self.logger.debug(f"Cached source: {cached_source}")
             self.logger.debug(f"Replace border (current): {replace_border}")
             self.logger.debug(f"Cached border replaced: {cached_border_state}")
-            self.logger.debug(f"Cached border color: {cached_border_color}")
-            self.logger.debug(f"Current border color: {self.border_color}")
+            self.logger.debug(f"Cached border color: {cached_border_setting}")
+            self.logger.debug(f"Current border color: {self.border_setting}")
+            self.logger.debug(f"Cached custom color: {cached_custom_color}")
+            self.logger.debug(f"Current custom color: {self.custom_color}")
             self.logger.debug(f"Cached status: {cached_status}")
             self.logger.debug(f"Current status: {status}")
             self.logger.debug(f"Cached has_episodes: {cached_has_episodes}")
@@ -621,23 +676,21 @@ class PosterRenamerr:
                     self.logger.debug(
                         f"Updating 'has_episodes' for {target_path}: {cached_has_episodes} -> {has_episodes}"
                     )
-                    self.db.update_has_episodes(
-                        str(target_path), has_episodes, self.logger
-                    )
+                    self.db.update_has_episodes(str(target_path), has_episodes)
 
             if cached_has_file is None or cached_has_file != has_file:
                 if has_file is not None:
                     self.logger.debug(
                         f"Updating 'has_file' for {target_path}: {cached_has_file} -> {has_file}"
                     )
-                    self.db.update_has_file(str(target_path), has_file, self.logger)
+                    self.db.update_has_file(str(target_path), has_file)
 
             if cached_status is None or cached_status != status:
                 if status is not None:
                     self.logger.debug(
                         f"Updating 'status' for {target_path}: {cached_status} -> {status}"
                     )
-                    self.db.update_status(str(target_path), status, self.logger)
+                    self.db.update_status(str(target_path), status)
 
             if (
                 cached_file
@@ -645,39 +698,42 @@ class PosterRenamerr:
                 and cached_original_hash == original_file_hash
                 and cached_source == current_source
                 and cached_border_state == replace_border
-                and cached_border_color == self.border_color
+                and cached_border_setting == self.border_setting
+                and cached_custom_color == self.custom_color
             ):
                 self.logger.debug(f"⏩ Skipping unchanged file: {file_path}")
                 if webhook_run:
-                    self.db.update_webhook_flag(str(target_path), self.logger, True)
+                    self.db.update_webhook_flag(str(target_path), True)
                 return
 
-        if replace_border and self.border_color:
-            supported_colors = [
-                "black",
-                "red",
-                "green",
-                "blue",
-                "yellow",
-                "cyan",
-                "magenta",
-                "gray",
-            ]
+        if not backup_dir:
+            backup_dir = self.backup_dir
+        try:
+            shutil.copy2(file_path, backup_path)
+        except Exception as e:
+            self.logger.error(f"Error copying backup file {file_path}: {e}")
+
+        if replace_border and self.border_setting:
             try:
-                if self.border_color.lower() == "remove":
+                if self.border_setting.lower() == "remove":
                     final_image = self.border_replacerr.remove_border(file_path)
                     self.logger.info(f"Removed border on {file_path.name}")
-                elif self.border_color.lower() in supported_colors:
+                elif (
+                    self.border_setting.lower() == "custom"
+                    or self.border_setting.lower() == "black"
+                ):
                     final_image = self.border_replacerr.replace_border(file_path)
                     self.logger.info(f"Replaced border on {file_path.name}")
                 else:
-                    self.logger.error(f"Unsupported border color: {self.border_color}")
+                    self.logger.error(
+                        f"Unsupported border setting: {self.border_setting}"
+                    )
                     return
 
                 temp_path = target_dir / f"temp_{new_file_name}"
                 final_image.save(temp_path)
                 file_path = temp_path
-                file_hash = self.hash_file(file_path)
+                file_hash = utils.hash_file(file_path, self.logger)
             except Exception as e:
                 self.logger.error(f"Error processing border for {file_path}: {e}")
                 file_hash = original_file_hash
@@ -695,25 +751,25 @@ class PosterRenamerr:
                     self.logger.error(
                         f"Error deleting border-replaced file {target_path}: {e}"
                     )
+
         try:
             shutil.copy2(file_path, target_path)
             self.logger.info(f"Copied and renamed: {file_path} -> {target_path}")
             if cached_file:
                 self.db.update_file(
-                    self.logger,
                     file_hash,
                     original_file_hash,
                     current_source,
                     str(target_path),
                     border_replaced=replace_border,
-                    border_color=self.border_color,
+                    border_setting=self.border_setting,
+                    custom_color=self.custom_color,
                 )
                 self.logger.debug(f"Replaced cached file: {cached_file} -> {file_path}")
                 if webhook_run:
-                    self.db.update_webhook_flag(str(target_path), self.logger, True)
+                    self.db.update_webhook_flag(str(target_path), True)
             else:
                 self.db.add_file(
-                    self.logger,
                     str(target_path),
                     file_name_without_extension,
                     status,
@@ -724,7 +780,8 @@ class PosterRenamerr:
                     original_file_hash,
                     current_source,
                     border_replaced=replace_border,
-                    border_color=self.border_color,
+                    border_setting=self.border_setting,
+                    custom_color=self.custom_color,
                     webhook_run=webhook_run,
                 )
                 self.logger.debug(f"Adding new file to database cache: {target_path}")
@@ -756,11 +813,14 @@ class PosterRenamerr:
                         continue
 
                     if isinstance(movie_result, tuple):
-                        target_dir, file_name_format = movie_result
+                        target_dir, backup_dir, file_name_format = movie_result
                         if not target_dir.exists():
                             target_dir.mkdir(parents=True, exist_ok=True)
                             self.logger.debug(f"Created directory -> '{target_dir}'")
+                        if not backup_dir.exists():
+                            backup_dir.mkdir(parents=True, exist_ok=True)
                     else:
+                        backup_dir = None
                         target_dir = self.target_path
                         file_name_format = sanitize_filename(movie_result)
 
@@ -768,6 +828,7 @@ class PosterRenamerr:
                         file_path,
                         key,
                         target_dir,
+                        backup_dir,
                         file_name_format,
                         self.replace_border,
                         status=data.get("status", None),
@@ -783,11 +844,14 @@ class PosterRenamerr:
                     if not collection_result:
                         continue
                     if isinstance(collection_result, tuple):
-                        target_dir, file_name_format = collection_result
+                        target_dir, backup_dir, file_name_format = collection_result
                         if not target_dir.exists():
                             target_dir.mkdir(parents=True, exist_ok=True)
                             self.logger.debug(f"Created directory -> '{target_dir}'")
+                        if not backup_dir.exists():
+                            backup_dir.mkdir(parents=True, exist_ok=True)
                     else:
+                        backup_dir = None
                         target_dir = self.target_path
                         file_name_format = sanitize_filename(collection_result)
 
@@ -795,6 +859,7 @@ class PosterRenamerr:
                         item,
                         key,
                         target_dir,
+                        backup_dir,
                         file_name_format,
                         self.replace_border,
                     )
@@ -807,11 +872,14 @@ class PosterRenamerr:
                     if not show_result:
                         continue
                     if isinstance(show_result, tuple):
-                        target_dir, file_name_format = show_result
+                        target_dir, backup_dir, file_name_format = show_result
                         if not target_dir.exists():
                             target_dir.mkdir(parents=True, exist_ok=True)
                             self.logger.debug(f"Created directory -> '{target_dir}'")
+                        if not backup_dir.exists():
+                            backup_dir.mkdir(parents=True, exist_ok=True)
                     else:
+                        backup_dir = None
                         target_dir = self.target_path
                         file_name_format = sanitize_filename(show_result)
 
@@ -819,6 +887,7 @@ class PosterRenamerr:
                         file_path,
                         key,
                         target_dir,
+                        backup_dir,
                         file_name_format,
                         self.replace_border,
                         status=data.get("status", None),
@@ -828,7 +897,7 @@ class PosterRenamerr:
 
     def _handle_movie(
         self, item: Path, movies_list_dict: list[dict], asset_folders: bool
-    ) -> str | tuple[Path, str] | None:
+    ) -> str | tuple[Path, Path, str] | None:
         matched_file = utils.remove_chars(item.stem)
 
         for item_dict in movies_list_dict:
@@ -845,8 +914,9 @@ class PosterRenamerr:
                 if item.exists() and item.is_file():
                     if asset_folders:
                         target_dir = self.target_path / sanitize_filename(movie_title)
+                        backup_dir = self.backup_dir / sanitize_filename(movie_title)
                         file_name_format = f"poster{item.suffix}"
-                        return target_dir, file_name_format
+                        return target_dir, backup_dir, file_name_format
                     else:
                         return f"{movie_title}{item.suffix}"
 
@@ -859,15 +929,18 @@ class PosterRenamerr:
                             target_dir = self.target_path / sanitize_filename(
                                 movie_title
                             )
+                            backup_dir = self.backup_dir / sanitize_filename(
+                                movie_title
+                            )
                             file_name_format = f"poster{item.suffix}"
-                            return target_dir, file_name_format
+                            return target_dir, backup_dir, file_name_format
                         else:
                             return f"{movie_title}{item.suffix}"
         return None
 
     def _handle_collections(
         self, item: Path, collections_list: list[str], asset_folders: bool
-    ) -> str | tuple[Path, str] | None:
+    ) -> str | tuple[Path, Path, str] | None:
         collection_name = utils.remove_chars(item.stem).removesuffix(" collection")
         for collection in collections_list:
             collection_clean = utils.remove_chars(collection).removesuffix(
@@ -878,8 +951,9 @@ class PosterRenamerr:
                 if item.exists() and item.is_file():
                     if asset_folders:
                         target_dir = self.target_path / sanitize_filename(collection)
+                        backup_dir = self.backup_dir / sanitize_filename(collection)
                         file_name_format = f"poster{item.suffix}"
-                        return target_dir, file_name_format
+                        return target_dir, backup_dir, file_name_format
                     else:
                         return f"{collection}{item.suffix}"
         return None
@@ -889,7 +963,7 @@ class PosterRenamerr:
         item: Path,
         show_list_dict: list[dict],
         asset_folders,
-    ) -> str | tuple[Path, str] | None:
+    ) -> str | tuple[Path, Path, str] | None:
         match_season = re.match(r"(.+?) - Season (\d+)", item.stem)
         match_specials = re.match(r"(.+?) - Specials", item.stem)
 
@@ -930,8 +1004,9 @@ class PosterRenamerr:
                     if item.exists() and item.is_file():
                         if asset_folders:
                             target_dir = self.target_path / sanitize_filename(show_name)
+                            backup_dir = self.backup_dir / sanitize_filename(show_name)
                             file_name_format = f"{formatted_season_num}{item.suffix}"
-                            return target_dir, file_name_format
+                            return target_dir, backup_dir, file_name_format
                         else:
                             return f"{show_name}_{formatted_season_num}{item.suffix}"
             return None
@@ -949,8 +1024,9 @@ class PosterRenamerr:
                     if item.exists() and item.is_file():
                         if asset_folders:
                             target_dir = self.target_path / sanitize_filename(show_name)
+                            backup_dir = self.backup_dir / sanitize_filename(show_name)
                             file_name_format = f"Season00{item.suffix}"
-                            return target_dir, file_name_format
+                            return target_dir, backup_dir, file_name_format
                         else:
                             return f"{show_name}_Season00{item.suffix}"
             return None
@@ -968,8 +1044,9 @@ class PosterRenamerr:
                     if item.exists() and item.is_file():
                         if asset_folders:
                             target_dir = self.target_path / sanitize_filename(show_name)
+                            backup_dir = self.backup_dir / sanitize_filename(show_name)
                             file_name_format = f"poster{item.suffix}"
-                            return target_dir, file_name_format
+                            return target_dir, backup_dir, file_name_format
                         else:
                             return f"{show_name}{item.suffix}"
         return None
@@ -1097,7 +1174,6 @@ class PosterRenamerr:
             if self.clean_assets and not single_item:
                 self.logger.info(f"Cleaning orphan assets in {self.target_path}")
                 self.clean_asset_dir(media_dict, collections_dict)
-                self.logger.info("Done.")
             self.clean_cache()
             if single_item:
                 return media_dict

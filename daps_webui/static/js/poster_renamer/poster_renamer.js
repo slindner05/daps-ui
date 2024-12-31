@@ -23,7 +23,21 @@ fetch("/poster-renamer/get-file-paths")
   .then((data) => {
     if (data.success) {
       const sortedFiles = data.sorted_files;
-      // console.log(sortedFiles);
+      console.log(sortedFiles);
+
+      const isSortedFilesEmpty =
+        sortedFiles.movies.length === 0 &&
+        Object.keys(sortedFiles.shows).length === 0 &&
+        sortedFiles.collections.length === 0;
+
+      const unmatchedContainer = document.getElementById("unmatched-container");
+      if (isSortedFilesEmpty) {
+        if (unmatchedContainer) {
+          unmatchedContainer.style.display = "none";
+        }
+        return;
+      }
+
       const allFiles = [
         ...sortedFiles.movies,
         ...Object.values(sortedFiles.shows),
@@ -317,6 +331,7 @@ function toggleSeasonList(seasonList) {
 function populateTab(tabName, files) {
   const tabContent = document.getElementById(`${tabName}-content`);
   tabContent.innerHTML = "";
+
   const tabInner = document.createElement("div");
   tabInner.classList.add("tab-inner");
   if (typeof files === "object" && !Array.isArray(files)) {
@@ -389,7 +404,8 @@ function createFileLink(
 function previewImage(filePath, fileLink, isSeasonLink = false) {
   const previewContainer = document.getElementById("image-preview-container");
   previewContainer.innerHTML = "";
-  previewContainer.classList.add("content-box");
+  const previewDiv = document.createElement("div");
+  previewDiv.classList.add("preview-div");
 
   const allLinks = document.querySelectorAll(".file-link");
   allLinks.forEach((link) => {
@@ -408,14 +424,16 @@ function previewImage(filePath, fileLink, isSeasonLink = false) {
 
   if (filePath === "") {
     imageSourcePath.textContent = "Poster not found";
-    previewContainer.appendChild(imageSourcePath);
+    previewDiv.appendChild(imageSourcePath);
     return;
   }
 
+  const imageDiv = document.createElement("div");
+  imageDiv.classList.add("image-div");
   const imgElement = document.createElement("img");
   imgElement.src = filePath;
   imgElement.alt = "Preview Image";
-  previewContainer.appendChild(imgElement);
+  imageDiv.appendChild(imgElement);
 
   const sourcePath = fileLink.dataset.sourcePath;
   const parts = sourcePath.split("/");
@@ -429,11 +447,41 @@ function previewImage(filePath, fileLink, isSeasonLink = false) {
 
   const fileNamePart = document.createTextNode("/" + fileName);
 
+  const plexUploadRunProgress = createRunProgress(
+    "run-plex-uploader",
+    "plex-upload-progress",
+    "RUN PLEX UPLOADERR",
+  );
+  const plexUploadRunButton = plexUploadRunProgress.querySelector("button");
+  attachRunListener(
+    plexUploadRunButton,
+    "/run-plex-upload-job",
+    "PLEX UPLOADERR",
+    "plex-upload-progress",
+  );
+  const borderReplaceRunProgress = createRunProgress(
+    "run-border-replacer",
+    "border-replace-progress",
+    "RUN BORDER REPLACERR",
+  );
+  const borderReplaceRunButton =
+    borderReplaceRunProgress.querySelector("button");
+  attachRunListener(
+    borderReplaceRunButton,
+    "/run-border-replace-job",
+    "BORDER REPLACERR",
+    "border-replace-progress",
+  );
+
   imageSourcePath.appendChild(firstPart);
   imageSourcePath.appendChild(parentDirPart);
   imageSourcePath.appendChild(fileNamePart);
 
-  previewContainer.appendChild(imageSourcePath);
+  previewDiv.appendChild(imageDiv);
+  previewDiv.appendChild(imageSourcePath);
+  previewDiv.appendChild(plexUploadRunProgress);
+  previewDiv.appendChild(borderReplaceRunProgress);
+  previewContainer.appendChild(previewDiv);
 }
 
 function createTabGroup() {
@@ -537,8 +585,6 @@ function openTab(evt, tabName) {
 function createPosterRenamerBox() {
   const fileBrowserDiv = document.getElementById("file-browser-container");
   fileBrowserDiv.classList.add("file-browser");
-  const imagePreviewDiv = document.getElementById("image-preview-container");
-  imagePreviewDiv.classList.add("preview");
   const unmatchedContainer = document.getElementById("unmatched-container");
 
   const tabGroup = createTabGroup();

@@ -2,6 +2,7 @@ import json
 import logging
 import re
 import time
+from collections.abc import Callable
 from pathlib import Path
 from pprint import pformat
 
@@ -9,6 +10,7 @@ from DapsEX import utils
 from DapsEX.database_cache import Database
 from DapsEX.logger import init_logger
 from DapsEX.media import Radarr, Server, Sonarr
+from progress import ProgressState
 
 
 class PlexUploaderr:
@@ -29,7 +31,7 @@ class PlexUploaderr:
                 Settings.PLEX_UPLOADERR.value,
                 payload.log_level if payload.log_level else logging.INFO,
             )
-            self.db = Database()
+            self.db = Database(self.logger)
             self.asset_folders = payload.asset_folders
             self.reapply_posters = payload.reapply_posters
             self.plex_instances = utils.create_plex_instances(
@@ -57,11 +59,15 @@ class PlexUploaderr:
     ):
         try:
             libraries = set()
+            editions = set()
             for item in plex_media_objects:
                 try:
                     library = getattr(item, "librarySectionTitle", "Unknown Library")
+                    edition = getattr(item, "editionTitle", None)
                     item.uploadPoster(filepath=file_path)
                     libraries.add(library)
+                    if edition:
+                        editions.add(edition)
                     if show_title:
                         self.logger.info(
                             f"Successfully uploaded poster for show '{show_title}' item '{item.title}' to library '{library}'"
@@ -74,9 +80,9 @@ class PlexUploaderr:
                     self.logger.error(
                         f"Failed to upload poster for item '{item.title}': {e}"
                     )
-            self.db.update_uploaded_to_libraries(
-                file_path, list(libraries), self.logger
-            )
+            self.db.update_uploaded_to_libraries(file_path, list(libraries))
+            if editions:
+                self.db.update_uploaded_editions(file_path, list(editions))
         except Exception as e:
             if show_title:
                 self.logger.error(
@@ -94,36 +100,44 @@ class PlexUploaderr:
         plex_dict: dict,
         item_type: str,
     ):
-        for file_path, file_info in cached_items.items():
+        try:
+            for file_path, file_info in cached_items.items():
 
-            if file_path in processed_files:
-                continue
+                if file_path in processed_files:
+                    continue
 
-            if self.asset_folders:
-                asset_file_path = Path(file_path)
-                file_name = utils.remove_chars(asset_file_path.parent.name)
-            else:
-                file_name = utils.remove_chars(file_info["file_name"])
-            self.logger.debug(f"Processing cached {item_type} file: '{file_path}'")
-            uploaded_to_libraries = file_info.get("uploaded_to_libraries", [])
-            item_matches = self.find_match(
-                file_name, plex_dict[item_type], uploaded_to_libraries
-            )
-            if not item_matches:
-                self.logger.debug(
-                    "All libraries skipped for file item, no further processing."
+                if self.asset_folders:
+                    asset_file_path = Path(file_path)
+                    file_name = utils.remove_chars(asset_file_path.parent.name)
+                else:
+                    file_name = utils.remove_chars(file_info["file_name"])
+                self.logger.debug(f"Processing cached {item_type} file: '{file_path}'")
+                uploaded_to_libraries = file_info.get("uploaded_to_libraries", [])
+                uploaded_editions = file_info.get("uploaded_editions", [])
+                item_matches = self.find_match(
+                    file_name,
+                    plex_dict[item_type],
+                    uploaded_to_libraries,
+                    uploaded_editions,
                 )
-                processed_files.add(file_path)
-                continue
+                if not item_matches:
+                    self.logger.debug(
+                        "All libraries skipped for file item, no further processing."
+                    )
+                    processed_files.add(file_path)
+                    continue
 
-            for library_name, item in item_matches:
-                self.logger.debug(
-                    f"Match found for file '{file_path}' -> Plex {item_type} '{item.title}' in library '{library_name}'"
-                )
-            item_list = [item for _, item in item_matches]
-            if file_path not in processed_files:
-                processed_files.add(file_path)
-                self.add_poster_to_plex(item_list, file_path)
+                for library_name, item in item_matches:
+                    self.logger.debug(
+                        f"Match found for file '{file_path}' -> Plex {item_type} '{item.title}' in library '{library_name}'"
+                    )
+                item_list = [match[-1] for match in item_matches]
+                if file_path not in processed_files:
+                    processed_files.add(file_path)
+                    self.add_poster_to_plex(item_list, file_path)
+        except Exception as e:
+            self.logger.error(f"Unexpected error processing files: {e}")
+            raise
 
     def process_season_files(
         self,
@@ -150,8 +164,9 @@ class PlexUploaderr:
             season_num = int(season_match.group(2))
         self.logger.debug(f"Processing cached season file: '{file_path}'")
         uploaded_to_libraries = file_info.get("uploaded_to_libraries", [])
+        uploaded_editions = file_info.get("uploaded_editions", [])
         show_matches = self.find_match(
-            file_name, plex_show_dict["show"], uploaded_to_libraries
+            file_name, plex_show_dict["show"], uploaded_to_libraries, uploaded_editions
         )
 
         if not show_matches:
@@ -194,24 +209,45 @@ class PlexUploaderr:
         file_name: str,
         plex_items: dict,
         uploaded_to_libraries: list,
+        uploaded_editions: list,
     ):
         matches = []
 
         for library_name, item_dict in plex_items.items():
-            if library_name in uploaded_to_libraries:
-                self.logger.debug(
-                    f"File already uploaded to library '{library_name}', skipping."
-                )
-                continue
-
+            library_has_match = False
             for title, plex_object in item_dict.items():
                 item_name = utils.remove_chars(title)
-                # self.logger.debug(
-                #     f"Comparing file: '{file_name}' with item '{item_name}'"
-                # )
-                if file_name == item_name:
-                    matches.append((library_name, plex_object))
-
+                if isinstance(plex_object, list):
+                    for item in plex_object:
+                        edition_title = getattr(item, "editionTitle", "")
+                        if edition_title and edition_title in uploaded_editions:
+                            if file_name == item_name:
+                                self.logger.debug(
+                                    f"Edition '{edition_title}' already uploaded to library '{library_name}' for '{item_name}', skipping."
+                                )
+                                continue
+                        else:
+                            if library_name in uploaded_to_libraries:
+                                if file_name == item_name:
+                                    self.logger.debug(
+                                        f"File already uploaded to library '{library_name}' for '{item_name}', skipping."
+                                    )
+                                    continue
+                        if file_name == item_name:
+                            matches.append((library_name, item))
+                            library_has_match = True
+                else:
+                    if file_name == item_name:
+                        if (
+                            library_name in uploaded_to_libraries
+                            and not library_has_match
+                        ):
+                            self.logger.debug(
+                                f"File already uploaded to library '{library_name}', skipping."
+                            )
+                            continue
+                        matches.append((library_name, plex_object))
+                        library_has_match = True
         return matches
 
     def upload_poster(
@@ -337,11 +373,20 @@ class PlexUploaderr:
                             )
                         item_path = Path(file_part)
                         new_title = item_path.parent.name
-                        updated_movie_dict[library_title][new_title] = movie
+
+                        if new_title not in updated_movie_dict[library_title]:
+                            updated_movie_dict[library_title][new_title] = []
+                        updated_movie_dict[library_title][new_title].append(movie)
+
                     except Exception as e:
                         self.logger.warning(
                             f"Could not determine path for movie: '{plex_title}' in library '{library_title}'. Error: {e}"
                         )
+
+            for library_title, movies in updated_movie_dict.items():
+                for title in list(movies.keys()):
+                    if len(movies[title]) == 1:
+                        movies[title] = movies[title][0]
 
         if updated_movie_dict and updated_show_dict:
             return updated_movie_dict, updated_show_dict
@@ -368,9 +413,7 @@ class PlexUploaderr:
                 f"Attempt {attempt}/{max_retries}: Searching recently added items."
             )
             for name, server in self.plex_instances.items():
-                recently_added_dict = server.fetch_recently_added(
-                    media_type, self.logger
-                )
+                recently_added_dict = server.fetch_recently_added(media_type)
                 if not recently_added_dict:
                     continue
 
@@ -436,12 +479,16 @@ class PlexUploaderr:
                         f"Item '{media_title}' not found after {max_retries} retries."
                     )
 
-    def upload_posters_full(self):
+    def upload_posters_full(
+        self,
+        cb: Callable[[str, int, ProgressState], None] | None = None,
+        job_id: str | None = None,
+    ):
         plex_media_dict = {}
 
         self._log_banner()
         if self.reapply_posters:
-            self.db.clear_uploaded_to_libraries_data(self.logger)
+            self.db.clear_uploaded_to_libraries_and_editions()
             self.logger.info(
                 "Reapply posters is enabled. Clearing uploaded_to_libraries data and re-uploading them to plex."
             )
@@ -449,10 +496,14 @@ class PlexUploaderr:
             self.logger.info("Reapply posters is disabled. No action taken.")
 
         cached_files = self.db.return_all_files()
+        if job_id and cb:
+            cb(job_id, 10, ProgressState.IN_PROGRESS)
         self.logger.debug(
             "Attempting to update current has_file and has_episodes values."
         )
         self.update_cached_files(cached_files)
+        if job_id and cb:
+            cb(job_id, 20, ProgressState.IN_PROGRESS)
 
         self.logger.debug(json.dumps(cached_files, indent=4))
         valid_files = {}
@@ -469,6 +520,8 @@ class PlexUploaderr:
                     f"has_episodes={file_info.get('has_episodes')}, "
                     f"has_file={file_info.get('has_file')}"
                 )
+        if job_id and cb:
+            cb(job_id, 40, ProgressState.IN_PROGRESS)
 
         if valid_files:
             self.logger.debug(f"Total cached files: {len(cached_files)}")
@@ -486,6 +539,9 @@ class PlexUploaderr:
                     )
                     plex_media_dict[name] = {"all_movies": {}, "all_shows": {}}
 
+            if job_id and cb:
+                cb(job_id, 60, ProgressState.IN_PROGRESS)
+
             for server_name, item_dict in plex_media_dict.items():
                 updated_movie_dict, updated_show_dict = (
                     self.convert_plex_dict_titles_to_paths(
@@ -497,13 +553,19 @@ class PlexUploaderr:
                 self.logger.debug("Updated plex media dict:")
                 self.logger.debug(pformat(item_dict))
                 self.logger.info(f"Uploading posters for Plex instance: {server_name}")
+                if job_id and cb:
+                    cb(job_id, 80, ProgressState.IN_PROGRESS)
                 self.upload_poster(
                     valid_files,
                     item_dict["all_movies"],
                     item_dict["all_shows"],
                 )
+                if job_id and cb:
+                    cb(job_id, 100, ProgressState.COMPLETED)
         else:
             self.logger.info("No new files to upload to Plex")
+            if job_id and cb:
+                cb(job_id, 100, ProgressState.COMPLETED)
 
     def update_cached_files(self, cached_files: dict):
         media_dict = utils.get_combined_media_dict(
@@ -550,9 +612,7 @@ class PlexUploaderr:
                     current_has_file = movies_lookup[title]
                     if current_has_file != cached_has_file:
                         cached_item["has_file"] = int(current_has_file)
-                        self.db.update_has_file(
-                            file_path, current_has_file, self.logger
-                        )
+                        self.db.update_has_file(file_path, current_has_file)
                 else:
                     self.logger.warning(
                         f"Movie title: '{title}' not found in movies lookup when processing '{file_path}'."
@@ -573,7 +633,7 @@ class PlexUploaderr:
                                 current_season_has_episodes
                             )
                             self.db.update_has_episodes(
-                                file_path, current_season_has_episodes, self.logger
+                                file_path, current_season_has_episodes
                             )
                     else:
                         self.logger.warning(
@@ -589,7 +649,7 @@ class PlexUploaderr:
                                 current_series_has_episodes
                             )
                             self.db.update_has_episodes(
-                                file_path, current_series_has_episodes, self.logger
+                                file_path, current_series_has_episodes
                             )
                     else:
                         self.logger.warning(
@@ -601,7 +661,7 @@ class PlexUploaderr:
     ):
         self._log_banner()
         if self.reapply_posters:
-            self.db.clear_uploaded_to_libraries_data(self.logger, webhook_run=True)
+            self.db.clear_uploaded_to_libraries_and_editions(webhook_run=True)
             self.logger.info(
                 "Reapply posters is enabled. Clearing uploaded_to_libraries data for webhook-run items "
                 "and re-uploading them to Plex if they exist."

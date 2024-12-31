@@ -21,7 +21,7 @@ log_dir = Path(Settings.LOG_DIR.value) / Settings.MAIN.value
 logger = logging.getLogger("Main")
 init_logger(logger, log_dir, "main", log_level=log_level)
 logger.info(f"LOG LEVEL: {log_level_env}")
-db = Database()
+db = Database(logger)
 
 
 def start_cli_listener():

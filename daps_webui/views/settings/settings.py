@@ -25,6 +25,9 @@ def get_settings():
             ),
             "logLevelPosterRenamer": getattr(settings, "log_level_poster_renamer", ""),
             "logLevelPlexUploaderr": getattr(settings, "log_level_plex_uploaderr", ""),
+            "logLevelBorderReplacerr": getattr(
+                settings, "log_level_border_replacerr", ""
+            ),
             "posterRenamerSchedule": getattr(settings, "poster_renamer_schedule", ""),
             "unmatchedAssetsSchedule": getattr(
                 settings, "unmatched_assets_schedule", ""
@@ -50,7 +53,8 @@ def get_settings():
             "cleanAssets": getattr(settings, "clean_assets", False),
             "unmatchedAssets": getattr(settings, "unmatched_assets", True),
             "replaceBorder": getattr(settings, "replace_border", False),
-            "borderColor": getattr(settings, "border_color", False),
+            "borderSetting": getattr(settings, "border_setting", False),
+            "customColor": getattr(settings, "custom_color", ""),
             "runSingleItem": getattr(settings, "run_single_item", False),
             "uploadToPlex": getattr(settings, "upload_to_plex", False),
             "matchAlt": getattr(settings, "match_alt", False),
@@ -97,6 +101,7 @@ def save_settings():
             "log_level_unmatched_assets": data.get("logLevelUnmatchedAssets", ""),
             "log_level_poster_renamer": data.get("logLevelPosterRenamer", ""),
             "log_level_plex_uploaderr": data.get("logLevelPlexUploaderr", ""),
+            "log_level_border_replacerr": data.get("logLevelBorderReplacerr", ""),
             "poster_renamer_schedule": data.get("posterRenamerSchedule", ""),
             "unmatched_assets_schedule": data.get("unmatchedAssetsSchedule", ""),
             "plex_uploaderr_schedule": data.get("plexUploaderrSchedule", ""),
@@ -108,7 +113,8 @@ def save_settings():
             "clean_assets": data.get("cleanAssets", False),
             "unmatched_assets": data.get("unmatchedAssets", True),
             "replace_border": data.get("replaceBorder", False),
-            "border_color": data.get("borderColor", ""),
+            "border_setting": data.get("borderSetting", ""),
+            "custom_color": data.get("customColor", ""),
             "run_single_item": data.get("runSingleItem", False),
             "upload_to_plex": data.get("uploadToPlex", False),
             "match_alt": data.get("matchAlt", False),

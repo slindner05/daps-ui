@@ -6,6 +6,7 @@ from DapsEX.poster_renamerr import PosterRenamerr
 from DapsEX.unmatched_assets import UnmatchedAssets
 from DapsEX.utils import *
 from DapsEX.yaml_config import *
+from Payloads.border_replacerr_payload import Payload
 from Payloads.plex_uploader_payload import Payload
 from Payloads.poster_renamerr_payload import Payload
 from Payloads.unmatched_assets_payload import Payload

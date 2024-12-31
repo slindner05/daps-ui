@@ -75,7 +75,7 @@ def recieve_webhook():
             "item_path": item_path,
         }
 
-        is_duplicate = db.is_duplicate_webhook(logger, new_item)
+        is_duplicate = db.is_duplicate_webhook(new_item)
 
         if is_duplicate:
             logger.debug(f"Duplicate webhook detected: {new_item}")

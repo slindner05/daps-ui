@@ -9,8 +9,9 @@ from DapsEX.settings import Settings
 
 
 class Database:
-    def __init__(self) -> None:
+    def __init__(self, logger: Logger) -> None:
         self.initialize_db()
+        self.logger = logger
 
     def get_db_connection(self):
         conn = sqlite3.connect(Settings.DB_PATH.value)
@@ -34,9 +35,11 @@ class Database:
                     original_file_hash TEXT,
                     source_path TEXT,
                     border_replaced INTEGER NOT NULL DEFAULT 0,
-                    border_color TEXT,
+                    border_setting TEXT,
+                    custom_color TEXT,
                     webhook_run INTEGER,
-                    uploaded_to_libraries TEXT NOT NULL DEFAULT '[]'
+                    uploaded_to_libraries TEXT NOT NULL DEFAULT '[]',
+                    uploaded_editions TEXT NOT NULL DEFAULT '[]'
                 )
                 """
                 )
@@ -107,7 +110,6 @@ class Database:
 
     def add_file(
         self,
-        logger: Logger,
         file_path: str,
         file_name: str,
         status: str | None,
@@ -118,7 +120,8 @@ class Database:
         original_file_hash: str,
         source_path: str,
         border_replaced: bool,
-        border_color: str | None = None,
+        border_setting: str | None = None,
+        custom_color: str | None = None,
         webhook_run: bool | None = None,
     ) -> None:
         with self.get_db_connection() as conn:
@@ -129,9 +132,10 @@ class Database:
                         (file_path,),
                     )
                     uploaded_to_libraries = json.dumps([])
+                    uploaded_editions = json.dumps([])
                     row_exists = cursor.fetchone() is not None
                     cursor.execute(
-                        "INSERT OR REPLACE INTO file_cache (file_path, file_name, status, has_episodes, has_file, media_type, file_hash, original_file_hash, source_path, border_replaced, border_color, webhook_run, uploaded_to_libraries) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        "INSERT OR REPLACE INTO file_cache (file_path, file_name, status, has_episodes, has_file, media_type, file_hash, original_file_hash, source_path, border_replaced, border_setting, custom_color, webhook_run, uploaded_to_libraries, uploaded_editions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         (
                             file_path,
                             file_name,
@@ -143,26 +147,28 @@ class Database:
                             original_file_hash,
                             source_path,
                             border_replaced,
-                            border_color,
+                            border_setting,
+                            custom_color,
                             webhook_run,
                             uploaded_to_libraries,
+                            uploaded_editions,
                         ),
                     )
                     conn.commit()
                     if row_exists:
-                        logger.info(
+                        self.logger.info(
                             f"File '{file_path}' was successfully updated in file cache."
                         )
                     else:
-                        logger.debug(
+                        self.logger.debug(
                             f"File '{file_path}' was successfully added to file cache."
                         )
                 except Exception as e:
-                    logger.error(f"Failed to add file '{file_path}' to database: {e}")
+                    self.logger.error(
+                        f"Failed to add file '{file_path}' to database: {e}"
+                    )
 
-    def is_duplicate_webhook(
-        self, logger: Logger, new_item, cache_duration=600
-    ) -> bool:
+    def is_duplicate_webhook(self, new_item, cache_duration=600) -> bool:
 
         item_name = Path(new_item["item_path"]).stem
         now = datetime.now(timezone.utc)
@@ -175,7 +181,7 @@ class Database:
                         "DELETE FROM webhook_cache WHERE timestamp < ?", (cutoff,)
                     )
                     expired_count = cursor.rowcount
-                    logger.debug(f"Expired webhooks removed: {expired_count}")
+                    self.logger.debug(f"Expired webhooks removed: {expired_count}")
 
                     cursor.execute(
                         "SELECT 1 FROM webhook_cache WHERE item_type = ? AND item_name = ?",
@@ -185,56 +191,90 @@ class Database:
                         ),
                     )
                     if cursor.fetchone():
-                        logger.debug(f"Duplicate webhook detected: {item_name}")
+                        self.logger.debug(f"Duplicate webhook detected: {item_name}")
                         return True
 
                     cursor.execute(
                         "INSERT INTO webhook_cache (item_type, item_name, timestamp) VALUES (?, ?, CURRENT_TIMESTAMP)",
                         (new_item["type"], item_name),
                     )
-                    logger.debug(f"New webhook added to cache: {item_name}")
+                    self.logger.debug(f"New webhook added to cache: {item_name}")
                     conn.commit()
 
                 except sqlite3.InternalError as e:
-                    logger.debug(f"IntegrityError: {e}")
+                    self.logger.debug(f"IntegrityError: {e}")
                     return True
         return False
 
     def update_file(
         self,
-        logger: Logger,
         file_hash: str,
         original_file_hash: str,
         source_path: str,
         file_path: str,
         border_replaced: bool,
-        border_color: str | None = None,
+        border_setting: str | None = None,
+        custom_color: str | None = None,
     ) -> None:
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
                 try:
                     cursor.execute(
-                        "UPDATE file_cache SET file_hash = ?, original_file_hash = ?, source_path = ?, border_replaced = ?, border_color = ?, uploaded_to_libraries = ? WHERE file_path = ?",
+                        "UPDATE file_cache SET file_hash = ?, original_file_hash = ?, source_path = ?, border_replaced = ?, border_setting = ?, custom_color = ?, uploaded_to_libraries = ?, uploaded_editions = ? WHERE file_path = ?",
                         (
                             file_hash,
                             original_file_hash,
                             source_path,
                             int(border_replaced),
-                            border_color,
+                            border_setting,
+                            custom_color,
+                            json.dumps([]),
                             json.dumps([]),
                             file_path,
                         ),
                     )
                     conn.commit()
-                    logger.debug(
+                    self.logger.debug(
                         f"File '{file_path}' was successfully updated in file cache."
                     )
                 except Exception as e:
-                    logger.error(
+                    self.logger.error(
                         f"Failed to update file '{file_path}' to database: {e}"
                     )
 
-    def update_status(self, file_path: str, status: str, logger):
+    def update_border_replaced_hash(
+        self,
+        file_path: str,
+        file_hash: str,
+        border_replaced: bool,
+        border_setting: str,
+        custom_color: str | None = None,
+    ):
+        with self.get_db_connection() as conn:
+            with closing(conn.cursor()) as cursor:
+                try:
+                    cursor.execute(
+                        "UPDATE file_cache SET file_hash = ?, border_replaced = ?, border_setting = ?, custom_color = ?, uploaded_to_libraries = ?, uploaded_editions = ? WHERE file_path = ?",
+                        (
+                            file_hash,
+                            border_replaced,
+                            border_setting,
+                            custom_color,
+                            json.dumps([]),
+                            json.dumps([]),
+                            file_path,
+                        ),
+                    )
+                    conn.commit()
+                    self.logger.debug(
+                        f"File '{file_path}' was successfully updated in file cache."
+                    )
+                except Exception as e:
+                    self.logger.error(
+                        f"Failed to update file '{file_path}' to database {e}"
+                    )
+
+    def update_status(self, file_path: str, status: str):
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
                 try:
@@ -247,18 +287,20 @@ class Database:
                     )
                     rows_updated = cursor.rowcount
                     if rows_updated == 0:
-                        logger.warning(
+                        self.logger.warning(
                             f"No matching row found for file_path: {file_path}. Update skipped."
                         )
                     else:
-                        logger.debug(
+                        self.logger.debug(
                             f"Succesfully updated 'status' to {status} for {file_path}"
                         )
                     conn.commit()
                 except Exception as e:
-                    logger.error(f"Failed to updated 'status' for {file_path}: {e}")
+                    self.logger.error(
+                        f"Failed to updated 'status' for {file_path}: {e}"
+                    )
 
-    def update_has_episodes(self, file_path: str, has_episodes: bool, logger):
+    def update_has_episodes(self, file_path: str, has_episodes: bool):
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
                 try:
@@ -271,20 +313,20 @@ class Database:
                     )
                     rows_updated = cursor.rowcount
                     if rows_updated == 0:
-                        logger.warning(
+                        self.logger.warning(
                             f"No matching row found for file_path: {file_path}. Update skipped."
                         )
                     else:
-                        logger.debug(
+                        self.logger.debug(
                             f"Succesfully updated 'has_episodes' to {has_episodes} for {file_path}"
                         )
                     conn.commit()
                 except Exception as e:
-                    logger.error(
+                    self.logger.error(
                         f"Failed to updated 'has_episodes' for {file_path}: {e}"
                     )
 
-    def update_has_file(self, file_path: str, has_file: bool, logger):
+    def update_has_file(self, file_path: str, has_file: bool):
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
                 try:
@@ -297,20 +339,20 @@ class Database:
                     )
                     rows_updated = cursor.rowcount
                     if rows_updated == 0:
-                        logger.warning(
+                        self.logger.warning(
                             f"No matching row found for file_path: {file_path}. Update skipped."
                         )
                     else:
-                        logger.debug(
+                        self.logger.debug(
                             f"Succesfully updated 'has_file' to {has_file} for {file_path}"
                         )
                     conn.commit()
                 except Exception as e:
-                    logger.error(f"Failed to updated 'has_file' for {file_path}: {e}")
+                    self.logger.error(
+                        f"Failed to updated 'has_file' for {file_path}: {e}"
+                    )
 
-    def update_uploaded_to_libraries(
-        self, file_path: str, new_libraries: list, logger: Logger
-    ):
+    def update_uploaded_to_libraries(self, file_path: str, new_libraries: list):
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
                 try:
@@ -320,7 +362,7 @@ class Database:
                     )
                     result = cursor.fetchone()
                     if not result:
-                        logger.warning(
+                        self.logger.warning(
                             f"No matching row found for file_path: {file_path}. Update skipped"
                         )
                         return
@@ -335,20 +377,58 @@ class Database:
                     )
                     rows_updated = cursor.rowcount
                     if rows_updated > 0:
-                        logger.debug(
+                        self.logger.debug(
                             f"Successfully updated 'uploaded_to_libraries' for {file_path} with libraries: {updated_libraries}"
                         )
                         conn.commit()
                     else:
-                        logger.warning(
+                        self.logger.warning(
                             f"Failed to update 'uploaded_to_libraries' for file_path: {file_path}"
                         )
                 except Exception as e:
-                    logger.error(
+                    self.logger.error(
                         f"Failed to update 'uploaded_to_libraries' for {file_path}: {e}"
                     )
 
-    def update_webhook_flag(self, file_path: str, logger: Logger, new_value=None):
+    def update_uploaded_editions(self, file_path: str, new_editions: list):
+        with self.get_db_connection() as conn:
+            with closing(conn.cursor()) as cursor:
+                try:
+                    cursor.execute(
+                        "SELECT uploaded_editions FROM file_cache WHERE file_path = ?",
+                        (file_path,),
+                    )
+                    result = cursor.fetchone()
+                    if not result:
+                        self.logger.warning(
+                            f"No matching row found for file_path: {file_path}. Update skipped"
+                        )
+                        return
+                    current_editions = json.loads(result[0]) if result[0] else []
+                    updated_editions = list(set(current_editions + new_editions))
+                    cursor.execute(
+                        "UPDATE file_cache SET uploaded_editions = ? WHERE file_path = ?",
+                        (
+                            json.dumps(updated_editions),
+                            file_path,
+                        ),
+                    )
+                    rows_updated = cursor.rowcount
+                    if rows_updated > 0:
+                        self.logger.debug(
+                            f"Successfully updated 'uploaded_editions' for {file_path} with libraries: {updated_editions}"
+                        )
+                        conn.commit()
+                    else:
+                        self.logger.warning(
+                            f"Failed to update 'uploaded_editions' for file_path: {file_path}"
+                        )
+                except Exception as e:
+                    self.logger.error(
+                        f"Failed to update 'uploaded_editions' for {file_path}: {e}"
+                    )
+
+    def update_webhook_flag(self, file_path: str, new_value=None):
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
                 try:
@@ -361,38 +441,42 @@ class Database:
                     )
                     rows_updated = cursor.rowcount
                     if rows_updated == 0:
-                        logger.warning(
+                        self.logger.warning(
                             f"No matching row found for file_path: {file_path}. Update skipped."
                         )
                     else:
-                        logger.debug(
+                        self.logger.debug(
                             f"Succesfully updated 'webhook_run' to {new_value} for {file_path}"
                         )
                     conn.commit()
                 except Exception as e:
-                    logger.error(f"Failed to update 'webhook_run' for {file_path}: {e}")
+                    self.logger.error(
+                        f"Failed to update 'webhook_run' for {file_path}: {e}"
+                    )
 
-    def clear_uploaded_to_libraries_data(
-        self, logger: Logger, webhook_run: bool | None = None
-    ):
+    def clear_uploaded_to_libraries_and_editions(self, webhook_run: bool | None = None):
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
                 try:
                     if webhook_run is True:
                         cursor.execute(
-                            "UPDATE file_cache SET uploaded_to_libraries = ? WHERE webhook_run = ?",
-                            ("[]", 1),
+                            "UPDATE file_cache SET uploaded_to_libraries = ?, uploaded_editions = ? WHERE webhook_run = ?",
+                            ("[]", "[]", 1),
                         )
                     else:
                         cursor.execute(
-                            "UPDATE file_cache SET uploaded_to_libraries = ?",
-                            ("[]",),
+                            "UPDATE file_cache SET uploaded_to_libraries = ?, uploaded_editions = ?",
+                            ("[]", "[]"),
                         )
                     conn.commit()
-                    logger.debug("Successfully reset uploaded_to_libraries to '[]'")
+                    self.logger.debug(
+                        "Successfully reset uploaded_to_libraries and uploaded_editions to '[]'"
+                    )
                 except Exception as e:
                     conn.rollback()
-                    logger.error(f"Failed to clear uploaded_to_libraries data: {e}")
+                    self.logger.error(
+                        f"Failed to clear uploaded_to_libraries and uploaded_editions data: {e}"
+                    )
 
     def get_cached_file(self, file_path: str) -> dict[str, str] | None:
         with self.get_db_connection() as conn:
@@ -434,16 +518,25 @@ class Database:
                         "original_file_hash": original_file_hash,
                         "source_path": source_path,
                         "border_replaced": border_replaced,
-                        "border_color": border_color,
-                        "uploaded_to_libraries": (
-                            json.loads(uploaded_to_libraries)
-                            if uploaded_to_libraries
-                            else []
+                        "border_setting": border_setting,
+                        "custom_color": custom_color,
+                        "uploaded_to_libraries": self._safe_json_loads(
+                            uploaded_to_libraries
                         ),
+                        "uploaded_editions": self._safe_json_loads(uploaded_editions),
                         "webhook_run": webhook_flag,
                     }
-                    for file_path, file_name, status, has_episodes, has_file, media_type, file_hash, original_file_hash, source_path, border_replaced, border_color, webhook_flag, uploaded_to_libraries in result
+                    for file_path, file_name, status, has_episodes, has_file, media_type, file_hash, original_file_hash, source_path, border_replaced, border_setting, custom_color, webhook_flag, uploaded_to_libraries, uploaded_editions in result
                 }
+
+    def _safe_json_loads(self, json_str: str | None) -> list:
+        try:
+            if not json_str or json_str.strip() == "":
+                return []
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            self.logger.warning(f"Invalid JSON data encountered: {json_str}")
+            return []
 
     def add_unmatched_movie(
         self,

@@ -4,7 +4,8 @@ from pathlib import Path
 from flask import (Blueprint, jsonify, render_template, request,
                    send_from_directory)
 
-from daps_webui import (daps_logger, models, run_renamer_task,
+from daps_webui import (daps_logger, models, run_border_replacer_task,
+                        run_plex_uploaderr_task, run_renamer_task,
                         run_unmatched_assets_task)
 from daps_webui.utils.webhook_manager import WebhookManager
 from progress import progress_instance
@@ -58,12 +59,14 @@ def get_images():
 
         if asset_folders:
             season_pattern = re.compile(r"^Season(?P<season>\d{2})\.(?P<ext>\w+)$")
-            show_pattern = re.compile(r"^poster\.(?P<ext>\w+)$")
+            show_movie_pattern = re.compile(r"^poster\.(?P<ext>\w+)$")
         else:
             season_pattern = re.compile(
-                r"^(?P<name>.+ \(\d{4}\) \{.+\})_Season(?P<season>\d{2})\.(?P<ext>\w+)$"
+                r"^(?P<name>.+ \(\d{4}\)(?: \{.+\})?)_Season(?P<season>\d{2})\.(?P<ext>\w+)$"
             )
-            show_pattern = re.compile(r"^(?P<name>.+ \(\d{4}\) \{.+\})\.(?P<ext>\w+)$")
+            show_movie_pattern = re.compile(
+                r"^(?P<name>.+ \(\d{4}\)(?: \{.+\})?)\.(?P<ext>\w+)$"
+            )
 
         def strip_id(name: str) -> str:
             return re.sub(r"\{.*?\}", "", name)
@@ -77,6 +80,21 @@ def get_images():
 
             file_name_stripped = strip_id(file_name_without_suffix)
             parent_dir_stripped = strip_id(parent_dir)
+            if asset_folders:
+                if not season_pattern.match(file_name) and not show_movie_pattern.match(
+                    file_name
+                ):
+                    continue
+            else:
+                folder_season_pattern = re.compile(
+                    r"^Season(?P<season>\d{2})\.(?P<ext>\w+)$"
+                )
+                folder_show_movie_pattern = re.compile(r"^poster\.(?P<ext>\w+)$")
+
+                if folder_season_pattern.match(
+                    file_name
+                ) or folder_show_movie_pattern.match(file_name):
+                    continue
 
             file_data = {
                 "file_name": (
@@ -95,7 +113,7 @@ def get_images():
             elif file.media_type == "collections":
                 sorted_files["collections"].append(file_data)
             else:
-                show_match = show_pattern.match(file_name)
+                show_match = show_movie_pattern.match(file_name)
                 season_match = season_pattern.match(file_name)
                 if show_match:
                     show_name = (
@@ -411,6 +429,22 @@ def run_unmatched():
 @poster_renamer.route("/run-renamer-job", methods=["POST"])
 def run_renamer():
     result = run_renamer_task()
+    if result["success"] is False:
+        return jsonify(result), 500
+    return jsonify(result), 202
+
+
+@poster_renamer.route("/run-border-replace-job", methods=["POST"])
+def run_border_replacer():
+    result = run_border_replacer_task()
+    if result["success"] is False:
+        return jsonify(result), 500
+    return jsonify(result), 202
+
+
+@poster_renamer.route("/run-plex-upload-job", methods=["POST"])
+def run_plex_upload():
+    result = run_plex_uploaderr_task()
     if result["success"] is False:
         return jsonify(result), 500
     return jsonify(result), 202
