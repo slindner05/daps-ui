@@ -146,7 +146,7 @@ class Database:
                             file_hash,
                             original_file_hash,
                             source_path,
-                            border_replaced,
+                            int(border_replaced),
                             border_setting,
                             custom_color,
                             webhook_run,
