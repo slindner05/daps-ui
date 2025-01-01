@@ -331,7 +331,7 @@ class PlexUploaderr:
         self,
         plex_movie_dict: dict | None = None,
         plex_show_dict: dict | None = None,
-    ) -> tuple[dict, dict] | dict:
+    ) -> tuple[dict, dict]:
 
         updated_movie_dict = {}
         updated_show_dict = {}
@@ -388,14 +388,7 @@ class PlexUploaderr:
                     if len(movies[title]) == 1:
                         movies[title] = movies[title][0]
 
-        if updated_movie_dict and updated_show_dict:
-            return updated_movie_dict, updated_show_dict
-        elif updated_movie_dict:
-            return updated_movie_dict
-        elif updated_show_dict:
-            return updated_show_dict
-        else:
-            return {}
+        return updated_movie_dict, updated_show_dict
 
     def search_recently_added_for_items(
         self,
@@ -538,18 +531,21 @@ class PlexUploaderr:
                         f"Error retrieving media for Plex instance '{name}': {e}"
                     )
                     plex_media_dict[name] = {"all_movies": {}, "all_shows": {}}
-
             if job_id and cb:
                 cb(job_id, 60, ProgressState.IN_PROGRESS)
 
             for server_name, item_dict in plex_media_dict.items():
-                updated_movie_dict, updated_show_dict = (
-                    self.convert_plex_dict_titles_to_paths(
-                        item_dict["all_movies"], item_dict["all_shows"]
+                try:
+                    updated_movie_dict, updated_show_dict = (
+                        self.convert_plex_dict_titles_to_paths(
+                            item_dict["all_movies"], item_dict["all_shows"]
+                        )
                     )
-                )
-                item_dict["all_movies"]["movie"] = updated_movie_dict
-                item_dict["all_shows"]["show"] = updated_show_dict
+                    item_dict["all_movies"]["movie"] = updated_movie_dict
+                    item_dict["all_shows"]["show"] = updated_show_dict
+                except Exception as e:
+                    self.logger.error(f"Error creating updated media dict: {e}")
+
                 self.logger.debug("Updated plex media dict:")
                 self.logger.debug(pformat(item_dict))
                 self.logger.info(f"Uploading posters for Plex instance: {server_name}")
@@ -595,11 +591,13 @@ class PlexUploaderr:
             if self.asset_folders:
                 title = Path(file_path).parent.name.lower()
                 season_pattern = re.match(r"(Season\d{2})", cached_item["file_name"])
+                season = season_pattern.group(1).lower() if season_pattern else None
             else:
-                title = cached_item.get("file_name").lower()
-                season_pattern = re.match(
-                    r".*_(Season\d{2})$", cached_item["file_name"]
-                )
+                full_name = cached_item.get("file_name").lower()
+                title_pattern = re.match(r"(.*)_season\d{2}$", full_name)
+                title = title_pattern.group(1) if title_pattern else full_name
+                season_pattern = re.match(r".*_(season\d{2})$", full_name)
+                season = season_pattern.group(1).lower() if season_pattern else None
 
             media_type = cached_item.get("media_type")
 
@@ -620,10 +618,9 @@ class PlexUploaderr:
 
             if media_type == "shows":
                 cached_has_episodes = bool(cached_item.get("has_episodes"))
-                if season_pattern:
-                    season = season_pattern.group(1).lower()
-                    if title in shows_lookup:
-                        lookup_entry = shows_lookup[title]
+                if title in shows_lookup:
+                    lookup_entry = shows_lookup[title]
+                    if season:
                         current_season_has_episodes = lookup_entry["seasons"].get(
                             season, False
                         )
@@ -636,11 +633,6 @@ class PlexUploaderr:
                                 file_path, current_season_has_episodes
                             )
                     else:
-                        self.logger.warning(
-                            f"Show title: '{title}' not found in shows lookup when processing '{file_path}'."
-                        )
-                else:
-                    if title in shows_lookup:
                         current_series_has_episodes = shows_lookup[title][
                             "has_episodes"
                         ]
@@ -651,10 +643,10 @@ class PlexUploaderr:
                             self.db.update_has_episodes(
                                 file_path, current_series_has_episodes
                             )
-                    else:
-                        self.logger.warning(
-                            f"Show title: '{title}' not found in shows lookup when processing '{file_path}'."
-                        )
+                else:
+                    self.logger.warning(
+                        f"Show title: '{title}' not found in shows lookup when processing '{file_path}'."
+                    )
 
     def upload_posters_webhook(
         self,
