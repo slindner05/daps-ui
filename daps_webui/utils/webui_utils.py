@@ -109,6 +109,8 @@ def create_border_replacer_payload() -> BorderReplacerPayload:
     border_setting = settings.border_setting if settings else None
     if border_setting == "black":
         custom_color = "#000000"
+    elif border_setting == "remove":
+        custom_color = ""
     else:
         custom_color = settings.custom_color if settings else ""
 

@@ -489,11 +489,13 @@ class PlexUploaderr:
             self.logger.info("Reapply posters is disabled. No action taken.")
 
         cached_files = self.db.return_all_files()
+
         if job_id and cb:
             cb(job_id, 10, ProgressState.IN_PROGRESS)
         self.logger.debug(
             "Attempting to update current has_file and has_episodes values."
         )
+
         self.update_cached_files(cached_files)
         if job_id and cb:
             cb(job_id, 20, ProgressState.IN_PROGRESS)
@@ -685,7 +687,7 @@ class PlexUploaderr:
         self.update_cached_files(webhook_cached_files)
         self.logger.debug(json.dumps(webhook_cached_files, indent=4))
         for file_path in webhook_cached_files.keys():
-            self.db.update_webhook_flag(file_path, self.logger)
+            self.db.update_webhook_flag(file_path)
 
         if webhook_cached_files:
             for name, server in self.plex_instances.items():
@@ -705,10 +707,11 @@ class PlexUploaderr:
                     )
                     plex_media_dict[name] = {}
 
+            self.logger.debug("Attempting to get updated media dict")
             for server_name, item_dict in plex_media_dict.items():
                 found_item = False
                 if item_type == "movie":
-                    updated_movie_dict = self.convert_plex_dict_titles_to_paths(
+                    updated_movie_dict, _ = self.convert_plex_dict_titles_to_paths(
                         plex_movie_dict=item_dict["all_movies"],
                         plex_show_dict=None,
                     )
@@ -751,7 +754,7 @@ class PlexUploaderr:
                         )
 
                 else:
-                    updated_show_dict = self.convert_plex_dict_titles_to_paths(
+                    _, updated_show_dict = self.convert_plex_dict_titles_to_paths(
                         plex_movie_dict=None,
                         plex_show_dict=item_dict["all_shows"],
                     )

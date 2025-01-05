@@ -13,6 +13,7 @@ from daps_webui.utils import webui_utils
 from daps_webui.utils.logger_utils import init_logger
 from daps_webui.utils.webui_utils import get_instances
 from DapsEX.border_replacerr import BorderReplacerr
+from DapsEX.database_cache import Database
 from DapsEX.plex_upload import PlexUploaderr
 from DapsEX.poster_renamerr import PosterRenamerr
 from DapsEX.unmatched_assets import UnmatchedAssets
@@ -23,7 +24,7 @@ global_config = Config()
 db = SQLAlchemy()
 migrate = Migrate()
 progress_dict = {}
-executor = ThreadPoolExecutor(max_workers=3)
+executor = ThreadPoolExecutor(max_workers=2)
 
 # define all loggers
 daps_logger = logging.getLogger("daps-web")
@@ -243,7 +244,9 @@ def handle_plex_uploaderr_task(
         daps_logger.info(f"Job Plex Uploaderr: '{job_id}' added.")
         if webhook_item and media_dict:
             plex_uploaderr = PlexUploaderr(
-                plex_uploader_payload, webhook_item=webhook_item, media_dict=media_dict
+                plex_uploader_payload,
+                webhook_item=webhook_item,
+                media_dict=media_dict,
             )
 
             daps_logger.debug("Submitting webhook plex uploaderr task to thread pool")
