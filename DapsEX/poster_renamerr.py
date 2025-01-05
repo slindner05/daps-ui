@@ -210,8 +210,8 @@ class PosterRenamerr:
 
         return source_files
 
+    # TODO: add ability to match with id's for edge case files
     # TODO: add alternate titles for movies for matching
-    # TODO: make alternate titles optional
     def match_files_with_media(
         self,
         source_files: dict[str, list[Path]],
@@ -706,10 +706,14 @@ class PosterRenamerr:
                     self.db.update_webhook_flag(str(target_path), True)
                 return
 
+        # TODO: only create a backup if the file does not exist
         if not backup_dir:
             backup_dir = self.backup_dir
         try:
             shutil.copy2(file_path, backup_path)
+            self.logger.debug(
+                f"Created backup of file {file_path} in {backup_dir}: {file_path}"
+            )
         except Exception as e:
             self.logger.error(f"Error copying backup file {file_path}: {e}")
 

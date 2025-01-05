@@ -30,7 +30,7 @@ if [ "$APP_MODE" = "WEB" ]; then
 			exit 1
 		}
 		echo "Starting Gunicorn in production mode as $PUID:$PGID"
-		exec gosu appuser poetry run gunicorn --timeout 120 -w 3 --threads 4 -b 0.0.0.0:8000 daps_webui:app
+		exec gosu appuser poetry run gunicorn --timeout 120 -w 3 -b 0.0.0.0:8000 daps_webui:app
 	fi
 else
 	echo "Running main.py as $PUID:$PGID"
