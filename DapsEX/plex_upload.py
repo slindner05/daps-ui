@@ -48,7 +48,7 @@ class PlexUploaderr:
 
     def _log_banner(self):
         self.logger.info("\n" + "#" * 80)
-        self.logger.info("### New PlexUplaoaderr Run")
+        self.logger.info("### New PlexUploaderr Run")
         self.logger.info("\n" + "#" * 80)
 
     def add_poster_to_plex(
@@ -102,7 +102,6 @@ class PlexUploaderr:
     ):
         try:
             for file_path, file_info in cached_items.items():
-
                 if file_path in processed_files:
                     continue
 
@@ -256,7 +255,6 @@ class PlexUploaderr:
         plex_movie_dict: dict | None = None,
         plex_show_dict: dict | None = None,
     ) -> None:
-
         def filter_cached_files_by_type(cached_files, media_type):
             filtered_files = {
                 file_path: file_info
@@ -332,7 +330,6 @@ class PlexUploaderr:
         plex_movie_dict: dict | None = None,
         plex_show_dict: dict | None = None,
     ) -> tuple[dict, dict]:
-
         updated_movie_dict = {}
         updated_show_dict = {}
 
@@ -414,7 +411,7 @@ class PlexUploaderr:
                 plex_media_dict[name] = {key: recently_added_dict}
 
                 for server_name, item_dict in plex_media_dict.items():
-                    updated_item_dict = self.convert_plex_dict_titles_to_paths(
+                    movie_dict, show_dict = self.convert_plex_dict_titles_to_paths(
                         plex_movie_dict=(
                             item_dict[key] if media_type == "movie" else None
                         ),
@@ -422,13 +419,9 @@ class PlexUploaderr:
                             item_dict[key] if media_type == "show" else None
                         ),
                     )
-                    if not isinstance(updated_item_dict, dict):
-                        self.logger.error(
-                            f"Expected a dictionary, but got {type(updated_item_dict)}"
-                        )
-                        continue
+                    relevant_dict = movie_dict if media_type == "movie" else show_dict
 
-                    for library_name, items in updated_item_dict.items():
+                    for library_name, items in relevant_dict.items():
                         for item_title, item_obj in items.items():
                             if item_title == media_title:
                                 found_item = True
