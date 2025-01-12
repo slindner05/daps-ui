@@ -807,10 +807,10 @@ class PosterRenamerr:
             self.logger.info(f"Copied and renamed: {file_path} -> {target_path}")
             if cached_file:
                 self.db.update_file(
-                    file_hash,
-                    original_file_hash,
-                    current_source,
-                    str(target_path),
+                    file_hash=file_hash,
+                    original_file_hash=original_file_hash,
+                    source_path=current_source,
+                    file_path=str(target_path),
                     border_replaced=replace_border,
                     border_setting=self.border_setting,
                     custom_color=self.custom_color,
@@ -820,19 +820,28 @@ class PosterRenamerr:
                     self.db.update_webhook_flag(str(target_path), True)
             else:
                 self.db.add_file(
-                    str(target_path),
-                    file_name_without_extension,
-                    status,
-                    has_episodes,
-                    has_file,
-                    media_type,
-                    file_hash,
-                    original_file_hash,
-                    current_source,
+                    file_path=str(target_path),
+                    file_name=file_name_without_extension,
+                    status=status,
+                    has_episodes=has_episodes,
+                    has_file=has_file,
+                    media_type=media_type,
+                    file_hash=file_hash,
+                    original_file_hash=original_file_hash,
+                    source_path=current_source,
                     border_replaced=replace_border,
                     border_setting=self.border_setting,
                     custom_color=self.custom_color,
                     webhook_run=webhook_run,
+                )
+                self.logger.debug(
+                    f"add_file called with: "
+                    f"file_path={file_path}, file_name={file_name_without_extension}, status={status}, "
+                    f"has_episodes={has_episodes}, has_file={has_file}, media_type={media_type}, "
+                    f"file_hash={file_hash}, original_file_hash={original_file_hash}, "
+                    f"source_path={current_source}, border_replaced={replace_border}, "
+                    f"border_setting={self.border_setting}, custom_color={self.custom_color}, "
+                    f"webhook_run={webhook_run}"
                 )
                 self.logger.debug(f"Adding new file to database cache: {target_path}")
         except Exception as e:
