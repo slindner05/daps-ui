@@ -51,6 +51,7 @@ class YamlConfig:
         return config
 
     def create_poster_renamer_payload(self) -> PosterRenamerPayload:
+        plex_uploader_config = self.config.get(Settings.PLEX_UPLOADERR.value)
         script_config = self.config.get(Settings.POSTER_RENAMERR.value)
         log_level_str = self.log_level_config.get("poster_renamerr", "INFO").upper()
         log_level = LOG_LEVELS.get(log_level_str, logging.INFO)
@@ -73,7 +74,7 @@ class YamlConfig:
             "upload_to_plex": script_config.get("upload_to_plex", False),
             "match_alt": script_config.get("match_alt", False),
             "only_unmatched": script_config.get("only_unmatched", False),
-            "reapply_posters": script_config.get("reapply_posters", False),
+            "reapply_posters": plex_uploader_config.get("reapply_posters", False),
             "library_names": script_config.get("library_names", []),
             "instances": script_config.get("instances", []),
             "radarr": self.radarr_config,
