@@ -72,6 +72,7 @@ class YamlConfig:
             "custom_color": custom_color,
             "upload_to_plex": script_config.get("upload_to_plex", False),
             "match_alt": script_config.get("match_alt", False),
+            "only_unmatched": script_config.get("only_unmatched", False),
             "reapply_posters": script_config.get("reapply_posters", False),
             "library_names": script_config.get("library_names", []),
             "instances": script_config.get("instances", []),

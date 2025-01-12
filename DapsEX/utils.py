@@ -41,9 +41,9 @@ def get_combined_media_dict(
                     season_number = season["season"]
                     if season_number in existing_seasons_lookup:
                         if season.get("has_episodes", False):
-                            existing_seasons_lookup[season_number][
-                                "has_episodes"
-                            ] = True
+                            existing_seasons_lookup[season_number]["has_episodes"] = (
+                                True
+                            )
                     else:
                         existing_seasons_lookup[season_number] = season
                 combined_series_dict[series_title]["seasons"] = list(
@@ -99,13 +99,19 @@ def create_arr_instances(
         if key in payload_class.instances:
             radarr_name = f"{key}"
             radarr_instances[radarr_name] = radarr_class(
-                base_url=value["url"], api=value["api"], logger=logger
+                base_url=value["url"],
+                api=value["api"],
+                instance_name=radarr_name,
+                logger=logger,
             )
     for key, value in payload_class.sonarr.items():
         if key in payload_class.instances:
             sonarr_name = f"{key}"
             sonarr_instances[sonarr_name] = sonarr_class(
-                base_url=value["url"], api=value["api"], logger=logger
+                base_url=value["url"],
+                api=value["api"],
+                instance_name=sonarr_name,
+                logger=logger,
             )
     return radarr_instances, sonarr_instances
 

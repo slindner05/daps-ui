@@ -13,7 +13,6 @@ from daps_webui.utils import webui_utils
 from daps_webui.utils.logger_utils import init_logger
 from daps_webui.utils.webui_utils import get_instances
 from DapsEX.border_replacerr import BorderReplacerr
-from DapsEX.database_cache import Database
 from DapsEX.plex_upload import PlexUploaderr
 from DapsEX.poster_renamerr import PosterRenamerr
 from DapsEX.unmatched_assets import UnmatchedAssets

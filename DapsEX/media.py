@@ -1,7 +1,6 @@
 import re
 from logging import Logger
 from pathlib import Path
-from pprint import pformat
 
 from arrapi import RadarrAPI, SonarrAPI
 from arrapi.apis.sonarr import Series
@@ -9,22 +8,25 @@ from arrapi.exceptions import ConnectionFailure
 from arrapi.exceptions import Unauthorized as ArrApiUnauthorized
 from arrapi.objs.reload import Movie
 from plexapi.collection import LibrarySection
-from plexapi.exceptions import BadRequest
+from plexapi.exceptions import BadRequest, UnknownType
 from plexapi.exceptions import Unauthorized as PlexApiUnauthorized
-from plexapi.exceptions import UnknownType
 from plexapi.server import PlexServer
 
 
 class Media:
-    def get_series_with_seasons(self, logger, all_series_objects: list[Series]):
+    def get_series_with_seasons(
+        self, logger, all_series_objects: list[Series], instance_name: str
+    ):
         titles_with_seasons = []
         for media_object in all_series_objects:
             dict_with_seasons = {
                 "title": "",
+                "id": None,
                 "seasons": [],
                 "status": "",
                 "has_episodes": False,
                 "alternate_titles": [],
+                "instance": instance_name,
             }
             series_id = media_object.id
             path = Path(media_object.path)  # type: ignore
@@ -33,6 +35,7 @@ class Media:
             season_object = media_object.seasons
             dict_with_seasons["title"] = title
             dict_with_seasons["status"] = series_status
+            dict_with_seasons["id"] = series_id
 
             try:
                 raw_api = media_object._raw
@@ -69,7 +72,7 @@ class Media:
         return titles_with_seasons
 
     def get_movies_with_years(
-        self, all_movie_objects: list[Movie]
+        self, all_movie_objects: list[Movie], instance_name: str
     ) -> list[dict[str, str | list[str]]]:
         titles_with_years = []
         release_years = re.compile(r"^\d{4}")
@@ -83,12 +86,15 @@ class Media:
         for media_object in all_movie_objects:
             dict_with_years = {
                 "title": "",
+                "id": None,
                 "years": [],
                 "status": "",
                 "has_file": False,
+                "instance": instance_name,
             }
 
             path = Path(media_object.path)  # type: ignore
+            movie_id = media_object.id
             title = path.name
             title_year = str(media_object.year)
             status = media_object.status
@@ -102,6 +108,7 @@ class Media:
             dict_with_years["title"] = title
             dict_with_years["status"] = status
             dict_with_years["has_file"] = has_file
+            dict_with_years["id"] = movie_id
 
             for year in years:
                 if year and year not in dict_with_years["years"] and year != title_year:
@@ -121,13 +128,16 @@ class Media:
 
 
 class Radarr(Media):
-    def __init__(self, base_url: str, api: str, logger: Logger):
+    def __init__(self, base_url: str, api: str, instance_name: str, logger: Logger):
         super().__init__()
         self.logger = logger
         try:
             self.radarr = RadarrAPI(base_url, api)
+            self.instance_name = instance_name
             self.all_movie_objects = self.get_all_movies()
-            self.movies = self.get_movies_with_years(self.all_movie_objects)
+            self.movies = self.get_movies_with_years(
+                self.all_movie_objects, self.instance_name
+            )
         except ArrApiUnauthorized as e:
             self.logger.error(
                 "Error: Unauthorized access to Radarr. Please check your API key."
@@ -146,18 +156,19 @@ class Radarr(Media):
         movie_list = []
         movie = self.radarr.get_movie(id)
         movie_list.append(movie)
-        return self.get_movies_with_years(movie_list)
+        return self.get_movies_with_years(movie_list, self.instance_name)
 
 
 class Sonarr(Media):
-    def __init__(self, base_url: str, api: str, logger: Logger):
+    def __init__(self, base_url: str, api: str, instance_name: str, logger: Logger):
         super().__init__()
         self.logger = logger
         try:
             self.sonarr = SonarrAPI(base_url, api)
+            self.instance_name = instance_name
             self.all_series_objects = self.get_all_series()
             self.series = self.get_series_with_seasons(
-                self.logger, self.all_series_objects
+                self.logger, self.all_series_objects, self.instance_name
             )
         except ArrApiUnauthorized as e:
             self.logger.error(
@@ -177,7 +188,7 @@ class Sonarr(Media):
         show_list = []
         show = self.sonarr.get_series(id)
         show_list.append(show)
-        return self.get_series_with_seasons(self.logger, show_list)
+        return self.get_series_with_seasons(self.logger, show_list, self.instance_name)
 
 
 class Server:
@@ -276,7 +287,6 @@ class Server:
         item_dict: dict[str, dict],
         fetch_collections: bool = True,
     ) -> None:
-
         library_title = library.title
 
         if library_title not in item_dict[library.type]:

@@ -22,6 +22,7 @@ class Settings(db.Model):
     border_setting = db.Column(db.String, nullable=True)
     custom_color = db.Column(db.String, nullable=True)
     run_single_item = db.Column(db.Integer, default=0, nullable=False)
+    only_unmatched = db.Column(db.Integer, default=0, nullable=False)
     upload_to_plex = db.Column(db.Integer, default=0, nullable=False)
     match_alt = db.Column(db.Integer, default=0, nullable=False)
     reapply_posters = db.Column(db.Integer, default=0, nullable=False)

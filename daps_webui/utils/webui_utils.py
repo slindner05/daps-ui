@@ -51,6 +51,7 @@ def create_poster_renamer_payload(radarr, sonarr, plex) -> PosterRenamerPayload:
         custom_color=custom_color,
         upload_to_plex=bool(settings.upload_to_plex) if settings else False,
         match_alt=bool(settings.match_alt) if settings else False,
+        only_unmatched=bool(settings.only_unmatched) if settings else False,
         reapply_posters=bool(settings.reapply_posters) if settings else False,
         library_names=settings.library_names.split(",") if settings else [],
         instances=settings.instances.split(",") if settings else [],

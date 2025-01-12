@@ -47,7 +47,9 @@ class Database:
                     """
                     CREATE TABLE IF NOT EXISTS unmatched_movies (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        title TEXT UNIQUE NOT NULL
+                        title TEXT UNIQUE NOT NULL,
+                        arr_id INTEGER,
+                        instance TEXT
                     )
                     """
                 )
@@ -64,7 +66,9 @@ class Database:
                     CREATE TABLE IF NOT EXISTS unmatched_shows (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         title TEXT UNIQUE NOT NULL,
-                        main_poster_missing INTEGER NOT NULL DEFAULT 0  
+                        arr_id INTEGER,
+                        main_poster_missing INTEGER NOT NULL DEFAULT 0,
+                        instance TEXT
                     )
                     """
                 )
@@ -169,7 +173,6 @@ class Database:
                     )
 
     def is_duplicate_webhook(self, new_item, cache_duration=600) -> bool:
-
         item_name = Path(new_item["item_path"]).stem
         now = datetime.now(timezone.utc)
         cutoff = now - timedelta(seconds=cache_duration)
@@ -292,7 +295,7 @@ class Database:
                         )
                     else:
                         self.logger.debug(
-                            f"Succesfully updated 'status' to {status} for {file_path}"
+                            f"Successfully updated 'status' to {status} for {file_path}"
                         )
                     conn.commit()
                 except Exception as e:
@@ -318,7 +321,7 @@ class Database:
                         )
                     else:
                         self.logger.debug(
-                            f"Succesfully updated 'has_episodes' to {has_episodes} for {file_path}"
+                            f"Successfully updated 'has_episodes' to {has_episodes} for {file_path}"
                         )
                     conn.commit()
                 except Exception as e:
@@ -344,7 +347,7 @@ class Database:
                         )
                     else:
                         self.logger.debug(
-                            f"Succesfully updated 'has_file' to {has_file} for {file_path}"
+                            f"Successfully updated 'has_file' to {has_file} for {file_path}"
                         )
                     conn.commit()
                 except Exception as e:
@@ -446,7 +449,7 @@ class Database:
                         )
                     else:
                         self.logger.debug(
-                            f"Succesfully updated 'webhook_run' to {new_value} for {file_path}"
+                            f"Successfully updated 'webhook_run' to {new_value} for {file_path}"
                         )
                     conn.commit()
                 except Exception as e:
@@ -538,98 +541,176 @@ class Database:
             self.logger.warning(f"Invalid JSON data encountered: {json_str}")
             return []
 
-    def add_unmatched_movie(
-        self,
-        title: str,
-    ) -> None:
-        with self.get_db_connection() as conn:
-            with closing(conn.cursor()) as cursor:
-                cursor.execute(
-                    "SELECT id FROM unmatched_movies WHERE title = ?", (title,)
-                )
-                existing = cursor.fetchone()
-                if existing is None:
+    def add_unmatched_movie(self, title: str, arr_id: int, instance: str) -> None:
+        try:
+            with self.get_db_connection() as conn:
+                with closing(conn.cursor()) as cursor:
                     cursor.execute(
-                        """
-                        INSERT INTO unmatched_movies (title)
-                        VALUES (?)
-                        """,
+                        "SELECT id, arr_id, instance FROM unmatched_movies WHERE title = ?",
                         (title,),
                     )
-            conn.commit()
+                    existing = cursor.fetchone()
+                    if existing is None:
+                        cursor.execute(
+                            """
+                            INSERT INTO unmatched_movies (title, arr_id, instance)
+                            VALUES (?, ?, ?)
+                            """,
+                            (title, arr_id, instance),
+                        )
+                        self.logger.debug(
+                            f"Added unmatched movie: title={title}, arr_id={arr_id}, instance={instance}"
+                        )
+                    else:
+                        movie_id, existing_arr_id, existing_instance = existing
+                        if existing_arr_id is None or existing_arr_id != arr_id:
+                            cursor.execute(
+                                """
+                                UPDATE unmatched_movies
+                                SET arr_id = ?
+                                WHERE id = ?
+                                """,
+                                (arr_id, movie_id),
+                            )
+                            self.logger.debug(
+                                f"Updated unmatched movie: title={title}, arr_id={arr_id}"
+                            )
+                        if existing_instance is None or existing_instance != instance:
+                            cursor.execute(
+                                """
+                                UPDATE unmatched_movies
+                                SET instance = ?
+                                WHERE id = ?
+                                """,
+                                (instance, movie_id),
+                            )
+                            self.logger.debug(
+                                f"Updated unmatched movie: title={title}, instance={instance}"
+                            )
+                conn.commit()
+        except Exception as e:
+            self.logger.error(f"Error adding unmatched movie: {e}")
 
     def add_unmatched_collection(
         self,
         title: str,
     ) -> None:
-        with self.get_db_connection() as conn:
-            with closing(conn.cursor()) as cursor:
-                cursor.execute(
-                    "SELECT id FROM unmatched_collections WHERE title = ?", (title,)
-                )
-                existing = cursor.fetchone()
-                if existing is None:
+        try:
+            with self.get_db_connection() as conn:
+                with closing(conn.cursor()) as cursor:
                     cursor.execute(
-                        """
-                        INSERT INTO unmatched_collections (title)
-                        VALUES (?)
-                        """,
-                        (title,),
+                        "SELECT id FROM unmatched_collections WHERE title = ?", (title,)
                     )
-            conn.commit()
-
-    def add_unmatched_show(self, title: str, main_poster_missing: bool) -> int:
-        with self.get_db_connection() as conn:
-            with closing(conn.cursor()) as cursor:
-                cursor.execute(
-                    "SELECT id, main_poster_missing FROM unmatched_shows WHERE title = ?",
-                    (title,),
-                )
-                existing = cursor.fetchone()
-                show_id = None
-                if existing is None:
-                    cursor.execute(
-                        """
-                        INSERT INTO unmatched_shows (title, main_poster_missing)
-                        VALUES (?, ?)
-                        """,
-                        (title, int(main_poster_missing)),
-                    )
-                    show_id = cursor.lastrowid
-                else:
-                    show_id, current_main_poster_missing = existing
-                    if current_main_poster_missing != int(main_poster_missing):
+                    existing = cursor.fetchone()
+                    if existing is None:
                         cursor.execute(
                             """
-                            UPDATE unmatched_shows
-                            SET main_poster_missing = ?
-                            WHERE id = ?
+                            INSERT INTO unmatched_collections (title)
+                            VALUES (?)
                             """,
-                            (int(main_poster_missing), show_id),
+                            (title,),
                         )
-            conn.commit()
+                        self.logger.debug(f"Added unmatched collection: title={title}")
+                conn.commit()
+        except Exception as e:
+            self.logger.error(f"Error adding unmatched collection: {e}")
 
-        if show_id is None:
-            raise ValueError("Failed to insert unmatched show into the database.")
-        return show_id
+    def add_unmatched_show(
+        self, title: str, arr_id: int, main_poster_missing: bool, instance: str
+    ) -> int:
+        try:
+            with self.get_db_connection() as conn:
+                with closing(conn.cursor()) as cursor:
+                    cursor.execute(
+                        "SELECT id, arr_id, main_poster_missing, instance FROM unmatched_shows WHERE title = ?",
+                        (title,),
+                    )
+                    existing = cursor.fetchone()
+                    show_id = None
+                    if existing is None:
+                        cursor.execute(
+                            """
+                            INSERT INTO unmatched_shows (title, arr_id, main_poster_missing, instance)
+                            VALUES (?, ?, ?, ?)
+                            """,
+                            (title, arr_id, int(main_poster_missing), instance),
+                        )
+                        show_id = cursor.lastrowid
+                        self.logger.debug(
+                            f"Added unmatched show: title={title}, arr_id={arr_id}, main_poster_missing={bool(main_poster_missing)}"
+                        )
+                    else:
+                        (
+                            show_id,
+                            current_arr_id,
+                            current_main_poster_missing,
+                            current_instance,
+                        ) = existing
+                        if current_arr_id is None or current_arr_id != arr_id:
+                            cursor.execute(
+                                """
+                                UPDATE unmatched_shows
+                                SET arr_id = ?
+                                WHERE id = ?
+                                """,
+                                (arr_id, show_id),
+                            )
+                            self.logger.debug(
+                                f"Updated unmatched show: title={title} arr_id={arr_id}"
+                            )
+                        if current_main_poster_missing != int(main_poster_missing):
+                            cursor.execute(
+                                """
+                                UPDATE unmatched_shows
+                                SET main_poster_missing = ?
+                                WHERE id = ?
+                                """,
+                                (int(main_poster_missing), show_id),
+                            )
+                            self.logger.debug(
+                                f"Updated unmatched show: title={title} main_poster_missing={bool(main_poster_missing)}"
+                            )
+                        if current_instance != instance:
+                            cursor.execute(
+                                """
+                                UPDATE unmatched_shows
+                                SET instance = ?
+                                WHERE id = ?
+                                """,
+                                (instance, show_id),
+                            )
+                            self.logger.debug(
+                                f"Updated unmatched show: title={title}, instance={instance}"
+                            )
+                conn.commit()
+            if show_id is None:
+                raise ValueError("Failed to insert unmatched show into the database.")
+
+            return show_id
+        except Exception as e:
+            self.logger.error(f"Error adding unmatched show: {e}")
+            raise
 
     def add_unmatched_season(self, show_id: int, season: str) -> None:
-        with self.get_db_connection() as conn:
-            with closing(conn.cursor()) as cursor:
-                cursor.execute(
-                    "SELECT id FROM unmatched_seasons WHERE show_id = ? AND season = ?",
-                    (show_id, season),
-                )
-                existing = cursor.fetchone()
-                if existing is None:
+        try:
+            with self.get_db_connection() as conn:
+                with closing(conn.cursor()) as cursor:
                     cursor.execute(
-                        """
-                        INSERT INTO unmatched_seasons (show_id, season)
-                        VALUES (?, ?)
-                        """,
+                        "SELECT id FROM unmatched_seasons WHERE show_id = ? AND season = ?",
                         (show_id, season),
                     )
-            conn.commit()
+                    existing = cursor.fetchone()
+                    if existing is None:
+                        cursor.execute(
+                            """
+                            INSERT INTO unmatched_seasons (show_id, season)
+                            VALUES (?, ?)
+                            """,
+                            (show_id, season),
+                        )
+                conn.commit()
+        except Exception as e:
+            self.logger.error(f"Error adding unmatched season: {e}")
 
     def get_unmatched_assets(self, db_table: str) -> list[dict[str, str]]:
         with self.get_db_connection() as conn:
@@ -637,10 +718,10 @@ class Database:
                 if db_table == "unmatched_shows":
                     cursor.execute(
                         """
-                    SELECT unmatched_shows.id, unmatched_shows.title, unmatched_shows.main_poster_missing, unmatched_seasons.season
-                    FROM unmatched_shows
-                    LEFT JOIN unmatched_seasons ON unmatched_shows.id = unmatched_seasons.show_id
-                """
+                        SELECT unmatched_shows.id, unmatched_shows.title, unmatched_shows.main_poster_missing, unmatched_seasons.season
+                        FROM unmatched_shows
+                        LEFT JOIN unmatched_seasons ON unmatched_shows.id = unmatched_seasons.show_id
+                        """
                     )
                     results = cursor.fetchall()
                     unmatched_shows = {}
@@ -660,6 +741,24 @@ class Database:
                     cursor.execute(f"SELECT * FROM {db_table}")
                     results = cursor.fetchall()
                 return [dict(result) for result in results]
+
+    def get_unmatched_arr_ids(self, db_table: str) -> list[tuple[int, str]]:
+        unmatched_data = []
+        with self.get_db_connection() as conn:
+            with closing(conn.cursor()) as cursor:
+                try:
+                    cursor.execute(
+                        f"""
+                        SELECT arr_id, instance FROM {db_table}
+                        """
+                    )
+                    results = cursor.fetchall()
+                    unmatched_data = [(int(row[0]), row[1]) for row in results]
+                except Exception as e:
+                    self.logger.error(
+                        f"Failed to fetch unmatched arr_ids from {db_table}: {e}"
+                    )
+        return unmatched_data
 
     def get_all_unmatched_assets(self):
         unmatched_media = {

@@ -12,6 +12,7 @@
   width: auto;
   height: auto;
 }
+
 .row {
   display: flex;
   flex-direction: row;
@@ -98,6 +99,7 @@
   display: flex;
   gap: 10px;
 }
+
 .checkbox-container {
   display: flex;
   flex-direction: column;
@@ -143,13 +145,15 @@
 }
 
 /* Style when the checkbox is checked */
-.custom-checkbox:checked + .slider {
+.custom-checkbox:checked+.slider {
   background-color: var(--primary);
 }
 
-.custom-checkbox:checked + .slider::before {
-  transform: translateX(20px); /* Move the slider knob to the right */
+.custom-checkbox:checked+.slider::before {
+  transform: translateX(20px);
+  /* Move the slider knob to the right */
 }
+
 /* /* The custom icon box */
 */
 /* .custom-checkbox-label .checkmark-icon { */
@@ -157,34 +161,44 @@
 /*   width: 18px; */
 /*   height: 18px; */
 /*   border: 2px solid red; */
-/*   /* Red border when unchecked */ */
+/*   /* Red border when unchecked */
+*/
 /*   border-radius: 4px; */
-/*   /* Optional: Rounded corners */ */
+/*   /* Optional: Rounded corners */
+*/
 /*   background-color: white; */
-/*   /* White background */ */
+/*   /* White background */
+*/
 /*   text-align: center; */
 /*   line-height: 16px; */
-/*   /* Center icon vertically */ */
+/*   /* Center icon vertically */
+*/
 /*   color: transparent; */
-/*   /* Hide the icon initially */ */
+/*   /* Hide the icon initially */
+*/
 /*   transition: */
 /*     background-color 0.3s ease, */
 /*     border-color 0.3s ease; */
 /* } */
 /**/
-/* /* Show the checkmark when checked */ */
+/* /* Show the checkmark when checked */
+*/
 /* .custom-checkbox-label input[type="checkbox"]:checked + .checkmark-icon { */
 /*   background-color: red; */
-/*   /* Red background when checked */ */
+/*   /* Red background when checked */
+*/
 /*   border-color: red; */
 /*   color: white; */
-/*   /* Make the icon visible */ */
+/*   /* Make the icon visible */
+*/
 /* } */
 /**/
-/* /* Hover effect */ */
+/* /* Hover effect */
+*/
 /* .custom-checkbox-label:hover .checkmark-icon { */
 /*   border-color: #ff6666; */
-/*   /* Lighter red on hover */ */
+/*   /* Lighter red on hover */
+*/
 /* } */
 
 /* Basic form styling */
@@ -192,10 +206,12 @@
   display: flex;
   flex-direction: column;
 }
+
 .border-color-div {
   display: flex;
   flex-direction: column;
 }
+
 .form-select {
   width: 100%;
   margin-top: 6px;
@@ -206,7 +222,8 @@
   border-radius: 4px;
   background-color: var(--dark);
   color: var(--light);
-  appearance: none; /* Removes the default dropdown arrow */
+  appearance: none;
+  /* Removes the default dropdown arrow */
   outline: none;
   box-shadow: none;
   transition: border-color 0.15s ease-in-out;

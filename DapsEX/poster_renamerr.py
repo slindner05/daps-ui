@@ -40,6 +40,7 @@ class PosterRenamerr:
             self.clean_assets = payload.clean_assets
             self.upload_to_plex = payload.upload_to_plex
             self.match_alt = payload.match_alt
+            self.only_unmatched = payload.only_unmatched
             self.replace_border = payload.replace_border
 
             if payload.border_setting in supported_options:
@@ -304,9 +305,9 @@ class PosterRenamerr:
                                 "status": movie_status,
                             }
                             if webhook_run:
-                                matched_files["movies"][file][
-                                    "webhook_run"
-                                ] = webhook_run
+                                matched_files["movies"][file]["webhook_run"] = (
+                                    webhook_run
+                                )
                             unique_items.add(sanitized_name_without_extension)
                             self.logger.debug(
                                 f"Found exact match for movie: {movie_title} with {file}"
@@ -329,9 +330,9 @@ class PosterRenamerr:
                                         "status": movie_status,
                                     }
                                     if webhook_run:
-                                        matched_files["movies"][file][
-                                            "webhook_run"
-                                        ] = webhook_run
+                                        matched_files["movies"][file]["webhook_run"] = (
+                                            webhook_run
+                                        )
                                     unique_items.add(sanitized_name_without_extension)
                                     self.logger.debug(
                                         f"Found year based match for movie: {movie_title} with {file}"
@@ -431,9 +432,9 @@ class PosterRenamerr:
                                 "has_episodes": show_has_episodes,
                             }
                             if webhook_run:
-                                matched_files["shows"][file][
-                                    "webhook_run"
-                                ] = webhook_run
+                                matched_files["shows"][file]["webhook_run"] = (
+                                    webhook_run
+                                )
                             unique_items.add(sanitized_name_without_extension)
                             if alt_titles_clean:
                                 unique_items.update(alt_titles_clean)
@@ -455,9 +456,9 @@ class PosterRenamerr:
                                         "has_episodes": show_has_episodes,
                                     }
                                     if webhook_run:
-                                        matched_files["shows"][file][
-                                            "webhook_run"
-                                        ] = webhook_run
+                                        matched_files["shows"][file]["webhook_run"] = (
+                                            webhook_run
+                                        )
                                     unique_items.add(sanitized_show_name)
                                     unique_items.update(alt_titles_clean)
                                     self.logger.debug(
@@ -589,6 +590,45 @@ class PosterRenamerr:
                     return main_title, alt_titles
         return False
 
+    def get_unmatched_media_dict(self) -> dict[str, list]:
+        media_dict = {"movies": [], "shows": []}
+        unmatched_show_arr_ids = self.db.get_unmatched_arr_ids("unmatched_shows")
+        unmatched_movie_arr_ids = self.db.get_unmatched_arr_ids("unmatched_movies")
+
+        for arr_id, instance_name in unmatched_movie_arr_ids:
+            instance = self.radarr_instances.get(instance_name)
+            if instance:
+                try:
+                    media_dict["movies"].extend(instance.get_movie(arr_id))
+                except Exception as e:
+                    self.logger.error(
+                        f"Failed to fetch movie with ID {arr_id} from instance '{instance_name}': {e}"
+                    )
+            else:
+                self.logger.error(f"No Radarr instance found for '{instance_name}'")
+
+        for arr_id, instance_name in unmatched_show_arr_ids:
+            instance = self.sonarr_instances.get(instance_name)
+            if instance:
+                try:
+                    media_dict["shows"].extend(instance.get_show(arr_id))
+                except Exception as e:
+                    self.logger.error(
+                        f"Failed to fetch show with ID {arr_id} from instance '{instance_name}': {e}"
+                    )
+            else:
+                self.logger.error(f"No Sonarr instance found for '{instance_name}'")
+
+        return media_dict
+
+    def get_unmatched_collections_dict(self):
+        collections_dict = {"all_collections": []}
+        unmatched_collections = self.db.get_unmatched_assets("unmatched_collections")
+        for collection in unmatched_collections:
+            if "title" in collection:
+                collections_dict["all_collections"].append(collection["title"])
+        return collections_dict
+
     def log_matched_file(
         self, type: str, name: str, file_name: str, season_special_name: str = ""
     ) -> None:
@@ -706,14 +746,23 @@ class PosterRenamerr:
                     self.db.update_webhook_flag(str(target_path), True)
                 return
 
-        # TODO: only create a backup if the file does not exist
         if not backup_dir:
             backup_dir = self.backup_dir
         try:
-            shutil.copy2(file_path, backup_path)
-            self.logger.debug(
-                f"Created backup of file {file_path} in {backup_dir}: {file_path}"
-            )
+            if not backup_path.exists():
+                shutil.copy2(file_path, backup_path)
+                self.logger.debug(
+                    f"Created backup of file {file_path} in {backup_dir}: {file_path}"
+                )
+            else:
+                backed_up_hash = utils.hash_file(backup_path, self.logger)
+                if original_file_hash != backed_up_hash:
+                    shutil.copy2(file_path, backup_path)
+                    self.logger.debug(
+                        f"Updated backup at {backup_path}. Previous hash: {backed_up_hash}, New hash: {original_file_hash}"
+                    )
+                else:
+                    self.logger.debug("Backup hashes match; no update needed")
         except Exception as e:
             self.logger.error(f"Error copying backup file {file_path}: {e}")
 
@@ -722,10 +771,7 @@ class PosterRenamerr:
                 if self.border_setting.lower() == "remove":
                     final_image = self.border_replacerr.remove_border(file_path)
                     self.logger.info(f"Removed border on {file_path.name}")
-                elif (
-                    self.border_setting.lower() == "custom"
-                    or self.border_setting.lower() == "black"
-                ):
+                elif self.border_setting.lower() in {"custom", "black"}:
                     final_image = self.border_replacerr.replace_border(file_path)
                     self.logger.info(f"Replaced border on {file_path.name}")
                 else:
@@ -1062,7 +1108,6 @@ class PosterRenamerr:
         single_item: dict,
         upload_to_plex: bool,
     ) -> dict[str, list] | None:
-
         self.logger.debug(pformat(single_item))
         media_dict = {"movies": [], "shows": []}
         instance_name = single_item.get("instance_name", "").lower()
@@ -1115,6 +1160,10 @@ class PosterRenamerr:
         from DapsEX import utils
 
         try:
+            unmatched_media_dict = {}
+            unmatched_collections_dict = {}
+            media_dict = {}
+            collections_dict = {}
             self._log_banner()
             if single_item:
                 self.logger.info("Run triggered for a single item via webhook")
@@ -1130,31 +1179,75 @@ class PosterRenamerr:
                 )
                 if not media_dict:
                     self.logger.error(
-                        "Failed to create media dictonary for single item.. Exiting."
+                        "Failed to create media dictionary for single item.. Exiting."
                     )
+                    if job_id and cb:
+                        cb(job_id, 100, ProgressState.COMPLETED)
                     return
             else:
-                self.logger.debug(
-                    "Creating media and collections dict of all items in library"
-                )
+                if self.only_unmatched and not single_item:
+                    self.logger.debug(
+                        "Creating media and collections dict of unmatched items in library"
+                    )
+                    unmatched_media_dict = self.get_unmatched_media_dict()
+                    unmatched_collections_dict = self.get_unmatched_collections_dict()
+                else:
+                    self.logger.debug(
+                        "Creating media and collections dict of all items in library"
+                    )
+
                 media_dict = utils.get_combined_media_dict(
                     self.radarr_instances, self.sonarr_instances
                 )
                 collections_dict = utils.get_combined_collections_dict(
                     self.plex_instances
                 )
+
+            effective_media_dict = (
+                unmatched_media_dict
+                if self.only_unmatched and not single_item
+                else media_dict
+            )
+            effective_collections_dict = (
+                unmatched_collections_dict
+                if self.only_unmatched and not single_item
+                else collections_dict
+            )
+
+            if not any(effective_media_dict.values()) and not any(
+                effective_collections_dict.values()
+            ):
+                self.logger.warning(
+                    "Media and collections dictionaries are empty. Skipping processing."
+                )
+                if self.clean_assets:
+                    self.logger.info(f"Cleaning orphan assets in {self.target_path}")
+                    self.clean_asset_dir(media_dict, collections_dict)
+                self.logger.info("Cleaning cache.")
+                self.clean_cache()
+                self.logger.info("Done.")
+                if job_id and cb:
+                    cb(job_id, 100, ProgressState.COMPLETED)
+                return
+
             self.logger.debug(
-                "Media dict summary:\n%s", json.dumps(media_dict, indent=4)
+                "Media dict summary:\n%s", json.dumps(effective_media_dict, indent=4)
             )
             self.logger.debug(
-                "Collections dict summary:\n%s", json.dumps(collections_dict, indent=4)
+                "Collections dict summary:\n%s",
+                json.dumps(effective_collections_dict, indent=4),
             )
+
             if job_id and cb:
                 cb(job_id, 10, ProgressState.IN_PROGRESS)
             source_files = self.get_source_files()
             self.logger.debug("Matching files with media")
             matched_files = self.match_files_with_media(
-                source_files, media_dict, collections_dict, cb, job_id
+                source_files,
+                effective_media_dict,
+                effective_collections_dict,
+                cb,
+                job_id,
             )
             if self.asset_folders:
                 self.logger.debug(
@@ -1170,17 +1263,22 @@ class PosterRenamerr:
                 self.logger.debug("Starting file copying and renaming")
 
             self.copy_rename_files(
-                matched_files, media_dict, collections_dict, self.asset_folders
+                matched_files,
+                effective_media_dict,
+                effective_collections_dict,
+                self.asset_folders,
             )
 
-            if job_id and cb:
-                cb(job_id, 100, ProgressState.COMPLETED)
             if self.clean_assets and not single_item:
                 self.logger.info(f"Cleaning orphan assets in {self.target_path}")
                 self.clean_asset_dir(media_dict, collections_dict)
+            self.logger.info("Cleaning cache.")
             self.clean_cache()
+            self.logger.info("Done.")
+            if job_id and cb:
+                cb(job_id, 100, ProgressState.COMPLETED)
             if single_item:
                 return media_dict
         except Exception as e:
-            self.logger.critical(f"Unexpected error occured: {e}", exc_info=True)
+            self.logger.critical(f"Unexpected error occurred: {e}", exc_info=True)
             raise

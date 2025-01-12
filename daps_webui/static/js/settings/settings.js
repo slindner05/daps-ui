@@ -176,6 +176,8 @@ function preFillForm(data) {
     data.unmatchedAssets || false;
   document.getElementById("run_single_item").checked =
     data.runSingleItem || false;
+  document.getElementById("only_unmatched").checked =
+    data.onlyUnmatched || false;
   document.getElementById("upload_to_plex").checked =
     data.uploadToPlex || false;
   document.getElementById("reapply_posters").checked =
@@ -514,6 +516,7 @@ function createPosterRenamer() {
   );
   const uploadToPlex = createCheckboxInput("Plex Upload", "upload_to_plex");
   const matchAltCheckbox = createCheckboxInput("Match Alt Titles", "match_alt");
+  const onlyUnmatched = createCheckboxInput("Only Unmatched", "only_unmatched");
 
   const addSourceDirButton = createAddButton("source_dir", "Add Source Dir");
   attachAddButtonListener(
@@ -555,6 +558,7 @@ function createPosterRenamer() {
   checkboxDiv.appendChild(borderReplacerCheckbox);
   checkboxDiv.appendChild(unmatchedAssetsCheckbox);
   checkboxDiv.appendChild(runSingleItemCheckbox);
+  checkboxDiv.appendChild(onlyUnmatched);
   checkboxDiv.appendChild(uploadToPlex);
   checkboxDiv.appendChild(matchAltCheckbox);
 
@@ -773,8 +777,8 @@ function createLogLevelGroup(name, inputId) {
   const scriptName = document.createElement("label");
   scriptName.classList.add("form-name");
   scriptName.textContent = `${name}`;
-  const seperator = document.createElement("hr");
-  seperator.classList.add("separator");
+  const separator = document.createElement("hr");
+  separator.classList.add("separator");
 
   const checkboxDiv = document.createElement("div");
   checkboxDiv.classList.add("form-group-checkbox");
@@ -806,7 +810,7 @@ function createLogLevelGroup(name, inputId) {
 
   wrapperDiv.appendChild(scriptName);
   wrapperDiv.appendChild(checkboxDiv);
-  wrapperDiv.appendChild(seperator);
+  wrapperDiv.appendChild(separator);
   return wrapperDiv;
 }
 
@@ -875,6 +879,7 @@ document.getElementById("save-settings").addEventListener("click", function () {
   const replaceBorder = document.getElementById("replace_border").checked;
   const unmatchedAssets = document.getElementById("unmatched_assets").checked;
   const runSingleItem = document.getElementById("run_single_item").checked;
+  const onlyUnmatched = document.getElementById("only_unmatched").checked;
   const uploadToPlex = document.getElementById("upload_to_plex").checked;
   const reapplyPosters = document.getElementById("reapply_posters").checked;
   const cleanAssets = document.getElementById("clean_assets").checked;
@@ -958,6 +963,7 @@ document.getElementById("save-settings").addEventListener("click", function () {
       unmatchedAssets: unmatchedAssets,
       replaceBorder: replaceBorder,
       runSingleItem: runSingleItem,
+      onlyUnmatched: onlyUnmatched,
       uploadToPlex: uploadToPlex,
       matchAlt: matchAlt,
       reapplyPosters: reapplyPosters,
@@ -973,14 +979,14 @@ document.getElementById("save-settings").addEventListener("click", function () {
     .then((response) => response.json())
     .then((data) => {
       if (data.success) {
-        alert("Settings saved succesfully!");
+        alert("Settings saved successfully!");
       } else {
         alert("Error saving settings: " + data.message);
       }
     })
     .catch((error) => {
       console.error("Error", error);
-      alert("An unexpected error occured.");
+      alert("An unexpected error occurred.");
     });
 });
 

@@ -21,6 +21,7 @@ body {
   flex-direction: column;
   overflow: hidden;
 }
+
 /* Navbar at the top */
 .navbar {
   position: fixed;
