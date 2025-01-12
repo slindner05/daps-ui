@@ -32,7 +32,7 @@ schedule:
 log_level:
   unmatched_assets: # INFO
   poster_renamerr: # DEBUG
-  plex_uploaderr:
+  plex_uploaderr: # INFO
 
 unmatched_assets:
   show_all_unmatched: # False -- show true unmatched assets (unreleased items + items not on disk)
@@ -46,9 +46,10 @@ poster_renamerr:
   unmatched_assets: # True -- run unmatched assets after every renamer run
   show_all_unmatched: # False -- show true unmatched assets (all series/seasons + shows added in the arrs)
   replace_border: # False -- only remove borders currently implemented
-  border_color:
+  border_setting:
   # SUPPORTED COLORS:
-  # "black", "red", "green", "blue", "yellow", "cyan", "magenta", "gray"
+  # "black", "remove"
+  hex_code: #123456 ## HEX CODE
   run_on_single_item: # True -- must have ports exposed and instances must be setup in arr settings and match instances in config
   upload_to_plex: # False -- when true will change poster in plex to posters in asset directory
   match_alt: # False -- match alternate titles for series only
