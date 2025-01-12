@@ -110,16 +110,18 @@ class UnmatchedAssets:
         for movie in movies_list_dict:
             if movie["title"].lower() not in movie_assets:
                 if show_all_unmatched:
-                    unmatched_assets["movies"].append(movie["title"])
-                    self.db.add_unmatched_movie(title=movie["title"])
-                    self.logger.debug(
-                        f"Added unmatched movie: {movie['title']} to database"
+                    unmatched_assets["movies"].append(utils.strip_id(movie["title"]))
+                    self.db.add_unmatched_movie(
+                        title=utils.strip_id(movie["title"]),
+                        arr_id=movie["id"],
+                        instance=movie["instance"],
                     )
                 elif movie.get("has_file", False):
-                    unmatched_assets["movies"].append(movie["title"])
-                    self.db.add_unmatched_movie(title=movie["title"])
-                    self.logger.debug(
-                        f"Added unmatched movie: {movie['title']} to database"
+                    unmatched_assets["movies"].append(utils.strip_id(movie["title"]))
+                    self.db.add_unmatched_movie(
+                        title=utils.strip_id(movie["title"]),
+                        arr_id=movie["id"],
+                        instance=movie["instance"],
                     )
                 else:
                     self.logger.debug(f"Skipping {movie['title']} -> No file on disk")
@@ -131,21 +133,23 @@ class UnmatchedAssets:
                 if collection_clean not in collection_assets:
                     unmatched_assets["collections"].append(collection)
                     self.db.add_unmatched_collection(title=collection)
-                    self.logger.debug(
-                        f"Added unmatched collection: {collection} to database"
-                    )
 
         for item in shows_list_dict:
+            show_title = utils.strip_id(item["title"])
             unmatched_show = {
-                "title": utils.strip_id(item["title"]),
+                "title": show_title,
                 "seasons": [],
                 "main_poster_missing": False,
             }
+
             show_id = None
             if item["title"].lower() not in show_assets:
                 if show_all_unmatched or item.get("has_episodes", False):
                     show_id = self.db.add_unmatched_show(
-                        title=unmatched_show["title"], main_poster_missing=True
+                        title=show_title,
+                        arr_id=item["id"],
+                        main_poster_missing=True,
+                        instance=item["instance"],
                     )
                     unmatched_show["main_poster_missing"] = True
                 else:
@@ -161,8 +165,10 @@ class UnmatchedAssets:
                         unmatched_show["seasons"].append(season["season"])
                         if show_id is None:
                             show_id = self.db.add_unmatched_show(
-                                title=utils.strip_id(item["title"]),
+                                title=show_title,
+                                arr_id=item["id"],
                                 main_poster_missing=False,
+                                instance=item["instance"],
                             )
                         self.db.add_unmatched_season(
                             show_id=show_id, season=season["season"]

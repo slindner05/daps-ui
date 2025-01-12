@@ -42,6 +42,8 @@ class UnmatchedMovies(db.Model):
     __tablename__ = "unmatched_movies"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     title = db.Column(db.String, unique=True, nullable=False)
+    arr_id = db.Column(db.Integer, nullable=True)
+    instance = db.Column(db.String, nullable=True)
 
 
 class UnmatchedCollections(db.Model):
@@ -54,7 +56,9 @@ class UnmatchedShows(db.Model):
     __tablename__ = "unmatched_shows"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     title = db.Column(db.String, unique=True, nullable=False)
+    arr_id = db.Column(db.Integer, nullable=True)
     main_poster_missing = db.Column(db.Integer, default=0, nullable=False)
+    instance = db.Column(db.String, nullable=True)
     seasons = db.relationship(
         "UnmatchedSeasons", backref="show", cascade="all, delete-orphan", lazy=True
     )
