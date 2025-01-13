@@ -1,8 +1,8 @@
-"""initial migration
+"""Initial migration
 
-Revision ID: 3e5915a6bca0
-Revises:
-Create Date: 2025-01-12 12:22:10.247336
+Revision ID: 31f9073ee748
+Revises: 
+Create Date: 2024-12-24 17:16:37.898189
 
 """
 
@@ -12,7 +12,7 @@ from alembic import op
 from daps_webui.models.file_cache import JSONEncodedText
 
 # revision identifiers, used by Alembic.
-revision = "3e5915a6bca0"
+revision = "31f9073ee748"
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -31,19 +31,10 @@ def upgrade():
         sa.Column("file_hash", sa.String(), nullable=True),
         sa.Column("original_file_hash", sa.String(), nullable=True),
         sa.Column("source_path", sa.String(), nullable=True),
-        sa.Column("border_replaced", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("border_setting", sa.String(), nullable=True),
-        sa.Column("custom_color", sa.String(), nullable=True),
+        sa.Column("border_replaced", sa.Integer(), nullable=False),
+        sa.Column("border_color", sa.String(), nullable=True),
         sa.Column("webhook_run", sa.Integer(), nullable=True),
-        sa.Column(
-            "uploaded_to_libraries",
-            JSONEncodedText(),
-            nullable=False,
-            server_default="[]",
-        ),
-        sa.Column(
-            "uploaded_editions", JSONEncodedText(), nullable=False, server_default="[]"
-        ),
+        sa.Column("uploaded_to_libraries", JSONEncodedText(), nullable=False),
         sa.PrimaryKeyConstraint("file_path"),
     )
     op.create_table(
@@ -68,7 +59,6 @@ def upgrade():
         sa.Column("log_level_unmatched_assets", sa.String(), nullable=False),
         sa.Column("log_level_poster_renamer", sa.String(), nullable=False),
         sa.Column("log_level_plex_uploaderr", sa.String(), nullable=False),
-        sa.Column("log_level_border_replacerr", sa.String(), nullable=False),
         sa.Column("poster_renamer_schedule", sa.String(), nullable=True),
         sa.Column("unmatched_assets_schedule", sa.String(), nullable=True),
         sa.Column("plex_uploaderr_schedule", sa.String(), nullable=True),
@@ -77,15 +67,11 @@ def upgrade():
         sa.Column("library_names", sa.String(), nullable=True),
         sa.Column("instances", sa.String(), nullable=True),
         sa.Column("asset_folders", sa.Integer(), nullable=False),
-        sa.Column("clean_assets", sa.Integer(), nullable=False),
         sa.Column("unmatched_assets", sa.Integer(), nullable=False),
         sa.Column("replace_border", sa.Integer(), nullable=False),
-        sa.Column("border_setting", sa.String(), nullable=True),
-        sa.Column("custom_color", sa.String(), nullable=True),
+        sa.Column("border_color", sa.String(), nullable=True),
         sa.Column("run_single_item", sa.Integer(), nullable=False),
-        sa.Column("only_unmatched", sa.Integer(), nullable=False),
         sa.Column("upload_to_plex", sa.Integer(), nullable=False),
-        sa.Column("match_alt", sa.Integer(), nullable=False),
         sa.Column("reapply_posters", sa.Integer(), nullable=False),
         sa.Column("show_all_unmatched", sa.Integer(), nullable=False),
         sa.Column("disable_unmatched_collections", sa.Integer(), nullable=False),
@@ -110,8 +96,6 @@ def upgrade():
         "unmatched_movies",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("title", sa.String(), nullable=False),
-        sa.Column("arr_id", sa.Integer(), nullable=True),
-        sa.Column("instance", sa.String(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("title"),
     )
@@ -119,31 +103,21 @@ def upgrade():
         "unmatched_shows",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("title", sa.String(), nullable=False),
-        sa.Column("arr_id", sa.Integer(), nullable=True),
-        sa.Column(
-            "main_poster_missing", sa.Integer(), nullable=False, server_default="0"
-        ),
-        sa.Column("instance", sa.String(), nullable=True),
+        sa.Column("main_poster_missing", sa.Integer(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("title"),
     )
     op.create_table(
         "unmatched_stats",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("total_movies", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("total_series", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("total_seasons", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column(
-            "total_collections", sa.Integer(), nullable=False, server_default="0"
-        ),
-        sa.Column("unmatched_movies", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("unmatched_series", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column(
-            "unmatched_seasons", sa.Integer(), nullable=False, server_default="0"
-        ),
-        sa.Column(
-            "unmatched_collections", sa.Integer(), nullable=False, server_default="0"
-        ),
+        sa.Column("total_movies", sa.Integer(), nullable=False),
+        sa.Column("total_series", sa.Integer(), nullable=False),
+        sa.Column("total_seasons", sa.Integer(), nullable=False),
+        sa.Column("total_collections", sa.Integer(), nullable=False),
+        sa.Column("unmatched_movies", sa.Integer(), nullable=False),
+        sa.Column("unmatched_series", sa.Integer(), nullable=False),
+        sa.Column("unmatched_seasons", sa.Integer(), nullable=False),
+        sa.Column("unmatched_collections", sa.Integer(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_table(

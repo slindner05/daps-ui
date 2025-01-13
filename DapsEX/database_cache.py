@@ -135,57 +135,29 @@ class Database:
                         "SELECT 1 FROM file_cache WHERE file_path = ?",
                         (file_path,),
                     )
+                    uploaded_to_libraries = json.dumps([])
+                    uploaded_editions = json.dumps([])
                     row_exists = cursor.fetchone() is not None
-                    sql_query = """
-                        INSERT OR REPLACE INTO file_cache (
-                            file_path, file_name, status, has_episodes, has_file, media_type,
-                            file_hash, original_file_hash, source_path, border_replaced,
-                            border_setting, custom_color, webhook_run,
-                            uploaded_to_libraries, uploaded_editions
-                        ) VALUES (
-                            :file_path, :file_name, :status, :has_episodes, :has_file, :media_type, :file_hash, :original_file_hash, :source_path, :border_replaced, :border_setting, :custom_color, :webhook_run, :uploaded_to_libraries, :uploaded_editions
-                        )
-                    """
-                    values = {
-                        "file_path": file_path,
-                        "file_name": file_name,
-                        "status": status,
-                        "has_episodes": has_episodes,
-                        "has_file": has_file,
-                        "media_type": media_type,
-                        "file_hash": file_hash,
-                        "original_file_hash": original_file_hash,
-                        "source_path": source_path,
-                        "border_replaced": int(border_replaced),
-                        "border_setting": border_setting,
-                        "custom_color": custom_color,
-                        "webhook_run": webhook_run,
-                        "uploaded_to_libraries": json.dumps([]),
-                        "uploaded_editions": json.dumps([]),
-                    }
-                    self.logger.debug(f"Executing SQL: {sql_query}")
-                    self.logger.debug(f"Values: {values}")
-                    cursor.execute(sql_query, values)
-                    # cursor.execute(
-                    #     "INSERT OR REPLACE INTO file_cache (file_path, file_name, status, has_episodes, has_file, media_type, file_hash, original_file_hash, source_path, border_replaced, border_setting, custom_color, uploaded_to_libraries, uploaded_editions, webhook_run) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    #     (
-                    #         file_path,
-                    #         file_name,
-                    #         status,
-                    #         has_episodes,
-                    #         has_file,
-                    #         media_type,
-                    #         file_hash,
-                    #         original_file_hash,
-                    #         source_path,
-                    #         int(border_replaced),
-                    #         border_setting,
-                    #         custom_color,
-                    #         uploaded_to_libraries,
-                    #         uploaded_editions,
-                    #         webhook_run,
-                    #     ),
-                    # )
+                    cursor.execute(
+                        "INSERT OR REPLACE INTO file_cache (file_path, file_name, status, has_episodes, has_file, media_type, file_hash, original_file_hash, source_path, border_replaced, border_setting, custom_color, webhook_run, uploaded_to_libraries, uploaded_editions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (
+                            file_path,
+                            file_name,
+                            status,
+                            has_episodes,
+                            has_file,
+                            media_type,
+                            file_hash,
+                            original_file_hash,
+                            source_path,
+                            int(border_replaced),
+                            border_setting,
+                            custom_color,
+                            webhook_run,
+                            uploaded_to_libraries,
+                            uploaded_editions,
+                        ),
+                    )
                     conn.commit()
                     if row_exists:
                         self.logger.info(
