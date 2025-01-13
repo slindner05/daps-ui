@@ -362,8 +362,11 @@ class PosterRenamerr:
                                 for alt in show_data.get("alternate_titles", [])
                             ]
                             if show_year:
+                                year_pattern = re.compile(r"\b(19|20)\d{2}\b")
                                 alt_titles_clean = [
-                                    f"{alt} {show_year.group(1)}"
+                                    alt
+                                    if year_pattern.search(alt)
+                                    else f"{alt} {show_year.group(1)}"
                                     for alt in alt_titles_clean
                                 ]
                         else:
@@ -1022,6 +1025,7 @@ class PosterRenamerr:
 
         def is_match(file_name, media_dict_name, alt_titles_clean):
             year = re.search(r"\((\d{4})\)", media_dict_name)
+            alt_year_pattern = re.compile(r"\b(19|20)\d{2}\b")
             media_dict_name_clean = clean_show_name(media_dict_name)
             file_name_clean = utils.remove_chars(file_name)
 
@@ -1029,9 +1033,12 @@ class PosterRenamerr:
                 return True
             else:
                 for title in alt_titles_clean:
-                    alt_title_with_year = (
-                        f"{title} {year.group(1) if year else ''}".strip()
-                    )
+                    if alt_year_pattern.search(title):
+                        alt_title_with_year = title
+                    else:
+                        alt_title_with_year = (
+                            f"{title} {year.group(1) if year else ''}".strip()
+                        )
                     if alt_title_with_year == file_name_clean:
                         return True
             return False
