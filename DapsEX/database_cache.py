@@ -163,29 +163,9 @@ class Database:
                         "uploaded_to_libraries": json.dumps([]),
                         "uploaded_editions": json.dumps([]),
                     }
-                    self.logger.debug(f"Executing SQL: {sql_query}")
-                    self.logger.debug(f"Values: {values}")
+                    # self.logger.debug(f"Executing SQL: {sql_query}")
+                    # self.logger.debug(f"Values: {values}")
                     cursor.execute(sql_query, values)
-                    # cursor.execute(
-                    #     "INSERT OR REPLACE INTO file_cache (file_path, file_name, status, has_episodes, has_file, media_type, file_hash, original_file_hash, source_path, border_replaced, border_setting, custom_color, uploaded_to_libraries, uploaded_editions, webhook_run) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    #     (
-                    #         file_path,
-                    #         file_name,
-                    #         status,
-                    #         has_episodes,
-                    #         has_file,
-                    #         media_type,
-                    #         file_hash,
-                    #         original_file_hash,
-                    #         source_path,
-                    #         int(border_replaced),
-                    #         border_setting,
-                    #         custom_color,
-                    #         uploaded_to_libraries,
-                    #         uploaded_editions,
-                    #         webhook_run,
-                    #     ),
-                    # )
                     conn.commit()
                     if row_exists:
                         self.logger.info(

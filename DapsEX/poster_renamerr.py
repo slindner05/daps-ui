@@ -837,15 +837,15 @@ class PosterRenamerr:
                     custom_color=self.custom_color,
                     webhook_run=webhook_run,
                 )
-                self.logger.debug(
-                    f"add_file called with: "
-                    f"file_path={file_path}, file_name={file_name_without_extension}, status={status}, "
-                    f"has_episodes={has_episodes}, has_file={has_file}, media_type={media_type}, "
-                    f"file_hash={file_hash}, original_file_hash={original_file_hash}, "
-                    f"source_path={current_source}, border_replaced={replace_border}, "
-                    f"border_setting={self.border_setting}, custom_color={self.custom_color}, "
-                    f"webhook_run={webhook_run}"
-                )
+                # self.logger.debug(
+                #     f"add_file called with: "
+                #     f"file_path={file_path}, file_name={file_name_without_extension}, status={status}, "
+                #     f"has_episodes={has_episodes}, has_file={has_file}, media_type={media_type}, "
+                #     f"file_hash={file_hash}, original_file_hash={original_file_hash}, "
+                #     f"source_path={current_source}, border_replaced={replace_border}, "
+                #     f"border_setting={self.border_setting}, custom_color={self.custom_color}, "
+                #     f"webhook_run={webhook_run}"
+                # )
                 self.logger.debug(f"Adding new file to database cache: {target_path}")
         except Exception as e:
             self.logger.error(f"Error copying file {file_path}: {e}")
