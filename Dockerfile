@@ -35,7 +35,7 @@ COPY migrate_db.py /code/migrate_db.py
 # Set environment variables to switch between development and production
 ENV APP_MODE="WEB" 
 ENV MAIN_LOG_LEVEL="INFO"
-ENV VERSION="1.0.0.alpha.13"
+ENV VERSION="1.0.0.alpha.14"
 
 # Use entrypoint script
 ENTRYPOINT [ "/entrypoint.sh" ]

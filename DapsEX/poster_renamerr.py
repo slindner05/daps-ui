@@ -211,7 +211,6 @@ class PosterRenamerr:
 
         return source_files
 
-    # TODO: add ability to match with id's for edge case files
     # TODO: add alternate titles for movies for matching
     def match_files_with_media(
         self,
@@ -240,6 +239,7 @@ class PosterRenamerr:
         for directory, files in source_files.items():
             for file in tqdm(files, desc=f"Matching files in {directory}"):
                 name_without_extension = file.stem
+                poster_id_pattern = re.compile(r"\{(imdb|tmdb|tvdb)-\d+\}")
 
                 sanitized_name_without_extension = utils.remove_chars(
                     name_without_extension
@@ -295,9 +295,33 @@ class PosterRenamerr:
                         sanitized_movie_title_without_year = utils.remove_chars(
                             utils.strip_year(utils.strip_id(movie_title))
                         )
-                        # self.logger.debug(
-                        #     f"comparing file '{sanitized_name_without_extension}' with movie: '{sanitized_movie_title}'"
-                        # )
+
+                        id_match = False
+                        has_id = bool(poster_id_pattern.search(name_without_extension))
+
+                        if has_id:
+                            id_match = self._match_id(
+                                name_without_extension, movie_title, poster_id_pattern
+                            )
+
+                        if id_match:
+                            matched = True
+                            matched_files["movies"][file] = {
+                                "has_file": movie_has_file,
+                                "status": movie_status,
+                            }
+                            if webhook_run:
+                                matched_files["movies"][file]["webhook_run"] = (
+                                    webhook_run
+                                )
+                            unique_items.add(sanitized_name_without_extension)
+                            unique_items.add(sanitized_movie_title)
+                            self.logger.debug(
+                                f"Found exact match for movie (by ID): {movie_title} with {file}"
+                            )
+                            movies_list_copy.remove(movie_data)
+                            break
+
                         if sanitized_name_without_extension == sanitized_movie_title:
                             matched = True
                             matched_files["movies"][file] = {
@@ -309,6 +333,7 @@ class PosterRenamerr:
                                     webhook_run
                                 )
                             unique_items.add(sanitized_name_without_extension)
+                            unique_items.add(utils.remove_chars(movie_title))
                             self.logger.debug(
                                 f"Found exact match for movie: {movie_title} with {file}"
                             )
@@ -356,6 +381,8 @@ class PosterRenamerr:
                         sanitized_show_name = utils.remove_chars(
                             utils.strip_id(show_name)
                         )
+                        has_id = bool(poster_id_pattern.search(name_without_extension))
+
                         if self.match_alt or webhook_run:
                             alt_titles_clean = [
                                 utils.remove_chars(alt)
@@ -382,11 +409,15 @@ class PosterRenamerr:
                         )
                         if season_num_match:
                             season_num = int(season_num_match.group(1))
+
                             result = self._match_show_season(
-                                sanitized_name_without_extension,
-                                sanitized_show_name,
+                                name_without_extension,
+                                show_name,
                                 alt_titles_clean,
+                                poster_id_pattern,
+                                check_id=has_id,
                             )
+
                             if isinstance(result, tuple):
                                 main_match, alt_matches = result
                                 for season in show_seasons[:]:
@@ -410,6 +441,9 @@ class PosterRenamerr:
                                                     "webhook_run"
                                                 ] = webhook_run
                                             unique_items.add(main_match)
+                                            unique_items.add(
+                                                sanitized_name_without_extension
+                                            )
                                             if alt_matches:
                                                 unique_items.update(alt_matches)
                                             show_seasons.remove(season)
@@ -426,64 +460,15 @@ class PosterRenamerr:
                                         )
                                     break
 
-                        if (
-                            not matched_season
-                            and sanitized_name_without_extension == sanitized_show_name
-                        ):
-                            matched_files["shows"][file] = {
-                                "status": show_status,
-                                "has_episodes": show_has_episodes,
-                            }
-                            if webhook_run:
-                                matched_files["shows"][file]["webhook_run"] = (
-                                    webhook_run
-                                )
-                            unique_items.add(sanitized_name_without_extension)
-                            if alt_titles_clean:
-                                unique_items.update(alt_titles_clean)
-                            self.logger.debug(
-                                f"Matched series poster for show: {show_name} with {file}"
-                            )
-                            show_data["series_poster_matched"] = True
-                            if not show_seasons and show_data["series_poster_matched"]:
-                                shows_list_copy.remove(show_data)
-                                self.logger.debug(
-                                    f"All seasons and series poster matched. Removed show: {show_name}"
-                                )
-                            break
-                        elif alt_titles_clean:
-                            for alt_title in alt_titles_clean:
-                                if sanitized_name_without_extension == alt_title:
-                                    matched_files["shows"][file] = {
-                                        "status": show_status,
-                                        "has_episodes": show_has_episodes,
-                                    }
-                                    if webhook_run:
-                                        matched_files["shows"][file]["webhook_run"] = (
-                                            webhook_run
-                                        )
-                                    unique_items.add(sanitized_show_name)
-                                    unique_items.update(alt_titles_clean)
-                                    self.logger.debug(
-                                        f"Matched series poster for show: {show_name} with {file}"
-                                    )
-                                    show_data["series_poster_matched"] = True
-                                    if (
-                                        not show_seasons
-                                        and show_data["series_poster_matched"]
-                                    ):
-                                        shows_list_copy.remove(show_data)
-                                        self.logger.debug(
-                                            f"All seasons and series poster matched. Removed show: {show_name}"
-                                        )
-                                    break
-
                         if not matched_season:
                             result = self._match_show_special(
-                                sanitized_name_without_extension,
-                                sanitized_show_name,
+                                name_without_extension,
+                                show_name,
                                 alt_titles_clean,
+                                poster_id_pattern,
+                                check_id=has_id,
                             )
+
                             if isinstance(result, tuple):
                                 main_match, alt_matches = result
                                 for season in show_seasons:
@@ -499,6 +484,9 @@ class PosterRenamerr:
                                                 "webhook_run"
                                             ] = webhook_run
                                         unique_items.add(main_match)
+                                        unique_items.add(
+                                            sanitized_name_without_extension
+                                        )
                                         if alt_matches:
                                             unique_items.update(alt_matches)
                                         show_seasons.remove(season)
@@ -515,6 +503,92 @@ class PosterRenamerr:
                                     )
                                 break
 
+                        if not matched_season:
+                            id_match = False
+                            if has_id:
+                                id_match = self._match_id(
+                                    name_without_extension, show_name, poster_id_pattern
+                                )
+                            if id_match:
+                                matched_files["shows"][file] = {
+                                    "status": show_status,
+                                    "has_episodes": show_has_episodes,
+                                }
+                                if webhook_run:
+                                    matched_files["shows"][file]["webhook_run"] = (
+                                        webhook_run
+                                    )
+                                unique_items.add(sanitized_name_without_extension)
+                                unique_items.add(sanitized_show_name)
+                                if alt_titles_clean:
+                                    unique_items.update(alt_titles_clean)
+                                self.logger.debug(
+                                    f"Matched series poster for show (by ID): {show_name} with {file}"
+                                )
+                                show_data["series_poster_matched"] = True
+                                if (
+                                    not show_seasons
+                                    and show_data["series_poster_matched"]
+                                ):
+                                    shows_list_copy.remove(show_data)
+                                    self.logger.debug(
+                                        f"All seasons and series poster matched. Removed show: {show_name}"
+                                    )
+                                break
+
+                            if sanitized_name_without_extension == sanitized_show_name:
+                                matched_files["shows"][file] = {
+                                    "status": show_status,
+                                    "has_episodes": show_has_episodes,
+                                }
+                                if webhook_run:
+                                    matched_files["shows"][file]["webhook_run"] = (
+                                        webhook_run
+                                    )
+                                unique_items.add(sanitized_name_without_extension)
+                                if alt_titles_clean:
+                                    unique_items.update(alt_titles_clean)
+                                self.logger.debug(
+                                    f"Matched series poster for show: {show_name} with {file}"
+                                )
+                                show_data["series_poster_matched"] = True
+                                if (
+                                    not show_seasons
+                                    and show_data["series_poster_matched"]
+                                ):
+                                    shows_list_copy.remove(show_data)
+                                    self.logger.debug(
+                                        f"All seasons and series poster matched. Removed show: {show_name}"
+                                    )
+                                break
+
+                            if alt_titles_clean:
+                                for alt_title in alt_titles_clean:
+                                    if sanitized_name_without_extension == alt_title:
+                                        matched_files["shows"][file] = {
+                                            "status": show_status,
+                                            "has_episodes": show_has_episodes,
+                                        }
+                                        if webhook_run:
+                                            matched_files["shows"][file][
+                                                "webhook_run"
+                                            ] = webhook_run
+                                        unique_items.add(sanitized_show_name)
+                                        unique_items.update(alt_titles_clean)
+                                        self.logger.debug(
+                                            f"Matched series poster for show: {show_name} with {file}"
+                                        )
+                                        show_data["series_poster_matched"] = True
+                                        if (
+                                            not show_seasons
+                                            and show_data["series_poster_matched"]
+                                        ):
+                                            shows_list_copy.remove(show_data)
+                                            self.logger.debug(
+                                                f"All seasons and series poster matched. Removed show: {show_name}"
+                                            )
+                                        break
+
                 processed_files += 1
                 if job_id and cb:
                     progress = int((processed_files / total_files) * 70)
@@ -524,22 +598,42 @@ class PosterRenamerr:
         self.logger.debug(pformat(matched_files))
         return matched_files
 
+    def _match_id(self, file_name: str, media_name: str, poster_id_pattern: re.Pattern):
+        poster_id_match = poster_id_pattern.search(file_name)
+        media_id_match = poster_id_pattern.search(media_name)
+
+        if poster_id_match and media_id_match:
+            return poster_id_match.group(0) == media_id_match.group(0)
+
+        return False
+
     def _match_show_season(
-        self, file_name: str, show_name: str, alternate_titles: list
+        self,
+        file_name: str,
+        show_name: str,
+        alternate_titles: list,
+        poster_id_pattern: re.Pattern,
+        check_id: bool = False,
     ) -> bool | tuple[str, set[str]]:
+        if check_id and not self._match_id(file_name, show_name, poster_id_pattern):
+            return False
+
+        sanitized_show_name_with_id = utils.remove_chars(show_name)
+        sanitized_show_name = utils.remove_chars(utils.strip_id(show_name))
+        sanitized_file_name = utils.remove_chars(utils.strip_id(file_name))
         alt_titles = set()
         season_pattern = re.compile(
-            rf"{re.escape(show_name)} season (\d+)", re.IGNORECASE
+            rf"{re.escape(sanitized_show_name)} season (\d+)", re.IGNORECASE
         )
-        main_match = season_pattern.match(file_name)
+        main_match = season_pattern.match(sanitized_file_name)
+
         if main_match:
             season_num = main_match.group(1)
-            main_title = f"{show_name} season {season_num}"
+            main_title = f"{sanitized_show_name} season {season_num}"
+            id_title = f"{sanitized_show_name_with_id} season {season_num}"
+            alt_titles.add(id_title)
             for alt_title in alternate_titles:
                 alt_titles.add(f"{alt_title} season {season_num}")
-            # self.logger.debug(
-            #     f"Matched main title: {main_title}, Alt titles: {alt_titles}"
-            # )
             return main_title, alt_titles
         else:
             for alt_title in alternate_titles:
@@ -547,33 +641,40 @@ class PosterRenamerr:
                     rf"{re.escape(alt_title)} season (\d+)",
                     re.IGNORECASE,
                 )
-                alt_match = season_pattern_alt.match(file_name)
+                alt_match = season_pattern_alt.match(sanitized_file_name)
                 if alt_match:
                     season_num = alt_match.group(1)
-                    main_title = f"{show_name} season {season_num}"
+                    main_title = f"{sanitized_show_name} season {season_num}"
                     for alt_title in alternate_titles:
                         alt_titles.add(f"{alt_title} season {season_num}")
-                    # self.logger.debug(
-                    #     f"Matched alt title: {alt_match.group()}, Main title: {main_title}, Alt titles: {alt_titles}"
-                    # )
                     return main_title, alt_titles
         return False
 
     def _match_show_special(
-        self, file_name: str, show_name: str, alternate_titles: list
+        self,
+        file_name: str,
+        show_name: str,
+        alternate_titles: list,
+        poster_id_pattern: re.Pattern,
+        check_id: bool = False,
     ) -> bool | tuple[str, set[str]]:
+        if check_id and not self._match_id(file_name, show_name, poster_id_pattern):
+            return False
+
+        sanitized_show_name_with_id = utils.remove_chars(show_name)
+        sanitized_show_name = utils.remove_chars(utils.strip_id(show_name))
+        sanitized_file_name = utils.remove_chars(utils.strip_id(file_name))
         alt_titles = set()
         specials_pattern = re.compile(
-            rf"{re.escape(show_name)} specials", re.IGNORECASE
+            rf"{re.escape(sanitized_show_name)} specials", re.IGNORECASE
         )
-        main_match = specials_pattern.match(file_name)
+        main_match = specials_pattern.match(sanitized_file_name)
         if main_match:
-            main_title = f"{show_name} specials"
+            main_title = f"{sanitized_show_name} specials"
+            id_title = f"{sanitized_show_name_with_id} specials"
+            alt_titles.add(id_title)
             for alt_title in alternate_titles:
                 alt_titles.add(f"{alt_title} specials")
-            # self.logger.debug(
-            #     f"Matched main title: {main_title}, Alt titles: {alt_titles}"
-            # )
             return main_title, alt_titles
 
         else:
@@ -582,14 +683,11 @@ class PosterRenamerr:
                     rf"{re.escape(alt_title)} specials",
                     re.IGNORECASE,
                 )
-                alt_match = specials_pattern_alt.match(file_name)
+                alt_match = specials_pattern_alt.match(sanitized_file_name)
                 if alt_match:
-                    main_title = f"{show_name} specials"
+                    main_title = f"{sanitized_show_name} specials"
                     for alt_title in alternate_titles:
                         alt_titles.add(f"{alt_title} specials")
-                    # self.logger.debug(
-                    #     f"Matched alt title: {alt_match.group()}, Main title: {main_title}, Alt titles: {alt_titles}"
-                    # )
                     return main_title, alt_titles
         return False
 
@@ -960,18 +1058,23 @@ class PosterRenamerr:
     def _handle_movie(
         self, item: Path, movies_list_dict: list[dict], asset_folders: bool
     ) -> str | tuple[Path, Path, str] | None:
+        poster_id_pattern = re.compile(r"\{(imdb|tmdb|tvdb)-\d+\}")
+        has_id = bool(poster_id_pattern.search(item.stem))
+
         matched_file = utils.remove_chars(item.stem)
 
         for item_dict in movies_list_dict:
             movie_title = item_dict.get("title", "")
             movie_years = item_dict.get("years", [])
-
             movie_clean = utils.remove_chars((utils.strip_id(movie_title)))
             movie_clean_without_year = utils.remove_chars(
                 utils.strip_year(utils.strip_id(movie_title))
             )
+            id_match = False
+            if has_id:
+                id_match = self._match_id(item.stem, movie_title, poster_id_pattern)
 
-            if matched_file == movie_clean:
+            if id_match or matched_file == movie_clean:
                 self.log_matched_file("movie", movie_title, str(item))
                 if item.exists() and item.is_file():
                     if asset_folders:
@@ -1026,17 +1129,31 @@ class PosterRenamerr:
         show_list_dict: list[dict],
         asset_folders,
     ) -> str | tuple[Path, Path, str] | None:
+        poster_id_pattern = re.compile(r"\{(imdb|tmdb|tvdb)-\d+\}")
+        has_id = bool(poster_id_pattern.search(item.stem))
+
         match_season = re.match(r"(.+?) - Season (\d+)", item.stem)
         match_specials = re.match(r"(.+?) - Specials", item.stem)
 
         def clean_show_name(show: str) -> str:
             return utils.remove_chars(utils.strip_id(show))
 
-        def is_match(file_name, media_dict_name, alt_titles_clean):
+        def is_match(
+            file_name,
+            media_dict_name,
+            alt_titles_clean,
+            poster_id_pattern: re.Pattern,
+            check_id: bool = False,
+        ):
+            if check_id and not self._match_id(
+                file_name, media_dict_name, poster_id_pattern
+            ):
+                return False
+
             year = re.search(r"\((\d{4})\)", media_dict_name)
             alt_year_pattern = re.compile(r"\b(19|20)\d{2}\b")
             media_dict_name_clean = clean_show_name(media_dict_name)
-            file_name_clean = utils.remove_chars(file_name)
+            file_name_clean = clean_show_name(file_name)
 
             if media_dict_name_clean == file_name_clean:
                 return True
@@ -1056,13 +1173,20 @@ class PosterRenamerr:
             show_name_season = match_season.group(1)
             season_num = int(match_season.group(2))
             formatted_season_num = f"Season{season_num:02}"
+
             for item_dict in show_list_dict:
                 alt_titles_clean = [
                     utils.remove_chars(alt)
                     for alt in item_dict.get("alternate_titles", [])
                 ]
                 show_name = item_dict.get("title", "")
-                match = is_match(show_name_season, show_name, alt_titles_clean)
+                match = is_match(
+                    show_name_season,
+                    show_name,
+                    alt_titles_clean,
+                    poster_id_pattern,
+                    check_id=has_id,
+                )
                 if match:
                     self.log_matched_file(
                         "season", show_name, str(item), formatted_season_num
@@ -1084,7 +1208,13 @@ class PosterRenamerr:
                     for alt in item_dict.get("alternate_titles", [])
                 ]
                 show_name = item_dict.get("title", "")
-                match = is_match(show_name_specials, show_name, alt_titles_clean)
+                match = is_match(
+                    show_name_specials,
+                    show_name,
+                    alt_titles_clean,
+                    poster_id_pattern,
+                    check_id=has_id,
+                )
                 if match:
                     self.log_matched_file("special", show_name, str(item), "Season00")
                     if item.exists() and item.is_file():
@@ -1104,7 +1234,13 @@ class PosterRenamerr:
                     for alt in item_dict.get("alternate_titles", [])
                 ]
                 show_name = item_dict.get("title", "")
-                match = is_match(show_name_normal, show_name, alt_titles_clean)
+                match = is_match(
+                    show_name_normal,
+                    show_name,
+                    alt_titles_clean,
+                    poster_id_pattern,
+                    check_id=has_id,
+                )
                 if match:
                     self.log_matched_file("series", show_name, str(item))
                     if item.exists() and item.is_file():
