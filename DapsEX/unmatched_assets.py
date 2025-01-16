@@ -128,7 +128,8 @@ class UnmatchedAssets:
 
         for _, value_list in collections_dict.items():
             for collection in value_list:
-                collection_clean = remove_chars(collection)
+                collection_clean = collection.replace("/", "")
+                collection_clean = remove_chars(collection_clean)
                 if collection_clean not in collection_assets:
                     unmatched_assets["collections"].append(collection)
                     self.db.add_unmatched_collection(title=collection)
