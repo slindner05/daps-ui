@@ -120,13 +120,13 @@ class PosterRenamerr:
                 )
                 .union(
                     set(
-                        utils.remove_chars(collection)
+                        utils.remove_chars(collection.replace("/", ""))
                         for collection in collections_dict.get("movies", [])
                     )
                 )
                 .union(
                     set(
-                        utils.remove_chars(collection)
+                        utils.remove_chars(collection.replace("/", ""))
                         for collection in collections_dict.get("shows", [])
                     )
                 )

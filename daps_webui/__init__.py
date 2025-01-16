@@ -92,6 +92,9 @@ def run_renamer_task(webhook_item: dict | None = None):
         daps_logger.debug(
             f"Unmatched assets flag: {poster_renamer_payload.unmatched_assets}"
         )
+        daps_logger.debug(
+            f"Only unmatched flag: {poster_renamer_payload.only_unmatched}"
+        )
 
         job_id = progress_instance.add_job()
         daps_logger.info(f"Job Poster Renamerr: '{job_id}' added.")
@@ -108,6 +111,16 @@ def run_renamer_task(webhook_item: dict | None = None):
             )
             daps_logger.debug("Task submitted successfully")
         else:
+            if (
+                poster_renamer_payload.unmatched_assets
+                and poster_renamer_payload.only_unmatched
+            ):
+                daps_logger.debug("Running unmatched assets task first...")
+                unmatched_assets_future = executor.submit(
+                    handle_unmatched_assets_task, radarr, sonarr, plex
+                )
+                unmatched_assets_future.result()
+
             daps_logger.debug("Submitting renamer task to thread pool")
             future = executor.submit(renamer.run, progress_instance, job_id)
             daps_logger.debug("Task submitted successfully")
@@ -117,26 +130,26 @@ def run_renamer_task(webhook_item: dict | None = None):
             progress_instance.remove_job(job_id)
             daps_logger.info(f"Poster Renamerr Job: {job_id} has been removed")
 
+        def run_unmatched_assets_callback(fut):
+            handle_unmatched_assets_task(radarr, sonarr, plex)
+
+        def run_plex_upload_callback(fut):
+            try:
+                media_dict = fut.result()
+                daps_logger.debug(f"Media dict from renamer: {media_dict}")
+                handle_plex_uploaderr_task(
+                    plex, radarr, sonarr, webhook_item, media_dict
+                )
+            except Exception as e:
+                daps_logger.error(f"Error in Plex Upload Callback: {e}")
+
         if poster_renamer_payload.upload_to_plex:
             daps_logger.debug("Upload to plex flag is true, setting up callback...")
-
-            def run_plex_upload_callback(fut):
-                try:
-                    media_dict = fut.result()
-                    daps_logger.debug(f"Media dict from renamer: {media_dict}")
-                    handle_plex_uploaderr_task(
-                        plex, radarr, sonarr, webhook_item, media_dict
-                    )
-                except Exception as e:
-                    daps_logger.error(f"Error in Plex Upload Callback: {e}")
 
             future.add_done_callback(run_plex_upload_callback)
 
         if poster_renamer_payload.unmatched_assets:
             daps_logger.debug("Unmatched assets flag is true, setting up callback...")
-
-            def run_unmatched_assets_callback(fut):
-                handle_unmatched_assets_task(radarr, sonarr, plex)
 
             future.add_done_callback(run_unmatched_assets_callback)
 
