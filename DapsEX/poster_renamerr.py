@@ -239,7 +239,7 @@ class PosterRenamerr:
         for directory, files in source_files.items():
             for file in tqdm(files, desc=f"Matching files in {directory}"):
                 name_without_extension = file.stem
-                poster_id_pattern = re.compile(r"\{(imdb|tmdb|tvdb)-\d+\}")
+                poster_id_pattern = re.compile(r"\{(imdb|tmdb|tvdb)-([a-zA-Z0-9]+)\}")
 
                 sanitized_name_without_extension = utils.remove_chars(
                     name_without_extension
@@ -1058,7 +1058,7 @@ class PosterRenamerr:
     def _handle_movie(
         self, item: Path, movies_list_dict: list[dict], asset_folders: bool
     ) -> str | tuple[Path, Path, str] | None:
-        poster_id_pattern = re.compile(r"\{(imdb|tmdb|tvdb)-\d+\}")
+        poster_id_pattern = re.compile(r"\{(imdb|tmdb|tvdb)-([a-zA-Z0-9]+)\}")
         has_id = bool(poster_id_pattern.search(item.stem))
 
         matched_file = utils.remove_chars(item.stem)
@@ -1129,7 +1129,7 @@ class PosterRenamerr:
         show_list_dict: list[dict],
         asset_folders,
     ) -> str | tuple[Path, Path, str] | None:
-        poster_id_pattern = re.compile(r"\{(imdb|tmdb|tvdb)-\d+\}")
+        poster_id_pattern = re.compile(r"\{(imdb|tmdb|tvdb)-([a-zA-Z0-9]+)\}")
         has_id = bool(poster_id_pattern.search(item.stem))
 
         match_season = re.match(r"(.+?) - Season (\d+)", item.stem)
@@ -1303,6 +1303,7 @@ class PosterRenamerr:
             )
             return None
 
+    # TODO: Make unmatched assets run first when only unmatched is on
     def run(
         self,
         cb: Callable[[str, int, ProgressState], None] | None = None,
