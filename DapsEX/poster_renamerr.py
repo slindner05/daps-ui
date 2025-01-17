@@ -192,22 +192,28 @@ class PosterRenamerr:
         source_files = {}
         unique_files = set()
 
-        for source_dir in source_directories:
-            posters = list(source_dir.glob("*"))
-            for poster in tqdm(
-                posters, desc=f"Processing source files from {source_dir}"
-            ):
-                if not poster.is_file():
-                    self.logger.error(f"{poster} is not a file")
+        with tqdm(
+            total=len(source_directories), desc="Processing directories"
+        ) as dir_progress:
+            for source_dir in source_directories:
+                if not source_dir.is_dir():
+                    self.logger.warning(f"{source_dir} is not a valid directory.")
+                    dir_progress.update(1)
                     continue
-                if poster.suffix.lower() not in self.image_exts:
-                    self.logger.debug(f"⏩ Skipping non-image file: {poster}")
-                    continue
-                if poster.name in unique_files:
-                    # self.logger.debug(f"⏩ Skipping duplicate file: {poster}")
-                    continue
-                unique_files.add(poster.name)
-                source_files.setdefault(source_dir, []).append(poster)
+                for poster in source_dir.rglob("*"):
+                    if not poster.is_file():
+                        self.logger.error(f"{poster} is not a file")
+                        continue
+                    if poster.suffix.lower() not in self.image_exts:
+                        self.logger.debug(f"⏩ Skipping non-image file: {poster}")
+                        continue
+                    if poster.name in unique_files:
+                        # self.logger.debug(f"⏩ Skipping duplicate file: {poster}")
+                        continue
+                    unique_files.add(poster.name)
+                    source_files.setdefault(source_dir, []).append(poster)
+
+                dir_progress.update(1)
 
         return source_files
 
@@ -234,202 +240,263 @@ class PosterRenamerr:
         shows_list_copy = media_dict.get("shows", [])[:]
 
         total_files = sum(len(files) for files in source_files.values())
+        total_directories = len(source_files)
         processed_files = 0
 
-        for directory, files in source_files.items():
-            for file in tqdm(files, desc=f"Matching files in {directory}"):
-                name_without_extension = file.stem
-                poster_id_pattern = re.compile(r"\{(imdb|tmdb|tvdb)-([a-zA-Z0-9]+)\}")
+        with tqdm(
+            total=total_directories, desc="Processing directories"
+        ) as progress_bar:
+            for directory, files in source_files.items():
+                self.logger.info(f"Processing directory: {directory}")
+                for file in files:
+                    name_without_extension = file.stem
+                    poster_id_pattern = re.compile(
+                        r"\{(imdb|tmdb|tvdb)-([a-zA-Z0-9]+)\}"
+                    )
 
-                sanitized_name_without_extension = utils.remove_chars(
-                    name_without_extension
-                )
-                sanitized_file_name_without_collection = (
-                    sanitized_name_without_extension.removesuffix(" collection")
-                )
+                    sanitized_name_without_extension = utils.remove_chars(
+                        name_without_extension
+                    )
+                    sanitized_file_name_without_collection = (
+                        sanitized_name_without_extension.removesuffix(" collection")
+                    )
 
-                if (
-                    sanitized_name_without_extension in unique_items
-                    or sanitized_file_name_without_collection in unique_items
-                ):
-                    self.logger.debug(f"Skipping already matched file '{file}'")
-                    continue
+                    if (
+                        sanitized_name_without_extension in unique_items
+                        or sanitized_file_name_without_collection in unique_items
+                    ):
+                        self.logger.debug(f"Skipping already matched file '{file}'")
+                        continue
 
-                year_match = re.search(r"\((\d{4})\)", file.stem)
-                season_match = re.search(
-                    r"\b- (season|specials)\b", file.stem, re.IGNORECASE
-                )
-                poster_file_year = year_match.group(1) if year_match else None
-                matched = False
+                    year_match = re.search(r"\((\d{4})\)", file.stem)
+                    season_match = re.search(
+                        r"\b- (season|specials)\b", file.stem, re.IGNORECASE
+                    )
+                    poster_file_year = year_match.group(1) if year_match else None
+                    matched = False
 
-                if not poster_file_year and not season_match:
-                    for collection_name in flattened_col_list:
-                        sanitized_collection_name = utils.remove_chars(
-                            collection_name
-                        ).removesuffix(" collection")
-                        if (
-                            sanitized_file_name_without_collection
-                            == sanitized_collection_name
-                        ):
-                            matched_files["collections"].append(file)
-                            unique_items.add(sanitized_file_name_without_collection)
-                            matched = True
-                            self.logger.debug(
-                                f"Matched collection poster for {collection_name} with {file}"
-                            )
-                            flattened_col_list.remove(collection_name)
-                            break
-                if matched:
-                    continue
-
-                if poster_file_year and not season_match:
-                    for movie_data in movies_list_copy:
-                        movie_title = movie_data.get("title", "")
-                        movie_years = movie_data.get("years", [])
-                        movie_status = movie_data.get("status", "")
-                        movie_has_file = movie_data.get("has_file", None)
-                        webhook_run = movie_data.get("webhook_run", None)
-                        sanitized_movie_title = utils.remove_chars(
-                            utils.strip_id(movie_title)
-                        )
-                        sanitized_movie_title_without_year = utils.remove_chars(
-                            utils.strip_year(utils.strip_id(movie_title))
-                        )
-
-                        id_match = False
-                        has_id = bool(poster_id_pattern.search(name_without_extension))
-
-                        if has_id:
-                            id_match = self._match_id(
-                                name_without_extension, movie_title, poster_id_pattern
-                            )
-
-                        if id_match:
-                            matched = True
-                            matched_files["movies"][file] = {
-                                "has_file": movie_has_file,
-                                "status": movie_status,
-                            }
-                            if webhook_run:
-                                matched_files["movies"][file]["webhook_run"] = (
-                                    webhook_run
+                    if not poster_file_year and not season_match:
+                        for collection_name in flattened_col_list:
+                            sanitized_collection_name = utils.remove_chars(
+                                collection_name
+                            ).removesuffix(" collection")
+                            if (
+                                sanitized_file_name_without_collection
+                                == sanitized_collection_name
+                            ):
+                                matched_files["collections"].append(file)
+                                unique_items.add(sanitized_file_name_without_collection)
+                                matched = True
+                                self.logger.debug(
+                                    f"Matched collection poster for {collection_name} with {file}"
                                 )
-                            unique_items.add(sanitized_name_without_extension)
-                            unique_items.add(sanitized_movie_title)
-                            self.logger.debug(
-                                f"Found exact match for movie (by ID): {movie_title} with {file}"
-                            )
-                            movies_list_copy.remove(movie_data)
-                            break
+                                flattened_col_list.remove(collection_name)
+                                break
+                    if matched:
+                        continue
 
-                        if sanitized_name_without_extension == sanitized_movie_title:
-                            matched = True
-                            matched_files["movies"][file] = {
-                                "has_file": movie_has_file,
-                                "status": movie_status,
-                            }
-                            if webhook_run:
-                                matched_files["movies"][file]["webhook_run"] = (
-                                    webhook_run
-                                )
-                            unique_items.add(sanitized_name_without_extension)
-                            unique_items.add(utils.remove_chars(movie_title))
-                            self.logger.debug(
-                                f"Found exact match for movie: {movie_title} with {file}"
+                    if poster_file_year and not season_match:
+                        for movie_data in movies_list_copy:
+                            movie_title = movie_data.get("title", "")
+                            movie_years = movie_data.get("years", [])
+                            movie_status = movie_data.get("status", "")
+                            movie_has_file = movie_data.get("has_file", None)
+                            webhook_run = movie_data.get("webhook_run", None)
+                            sanitized_movie_title = utils.remove_chars(
+                                utils.strip_id(movie_title)
                             )
-                            movies_list_copy.remove(movie_data)
-                            break
+                            sanitized_movie_title_without_year = utils.remove_chars(
+                                utils.strip_year(utils.strip_id(movie_title))
+                            )
 
-                        elif movie_years:
-                            for year in movie_years:
-                                sanitized_movie_title_alternate_year = (
-                                    f"{sanitized_movie_title_without_year} {year}"
+                            id_match = False
+                            has_id = bool(
+                                poster_id_pattern.search(name_without_extension)
+                            )
+
+                            if has_id:
+                                id_match = self._match_id(
+                                    name_without_extension,
+                                    movie_title,
+                                    poster_id_pattern,
                                 )
-                                if (
-                                    sanitized_name_without_extension
-                                    == sanitized_movie_title_alternate_year
-                                ):
-                                    matched = True
-                                    matched_files["movies"][file] = {
-                                        "has_file": movie_has_file,
-                                        "status": movie_status,
-                                    }
-                                    if webhook_run:
-                                        matched_files["movies"][file]["webhook_run"] = (
-                                            webhook_run
-                                        )
-                                    unique_items.add(sanitized_name_without_extension)
-                                    self.logger.debug(
-                                        f"Found year based match for movie: {movie_title} with {file}"
+
+                            if id_match:
+                                matched = True
+                                matched_files["movies"][file] = {
+                                    "has_file": movie_has_file,
+                                    "status": movie_status,
+                                }
+                                if webhook_run:
+                                    matched_files["movies"][file]["webhook_run"] = (
+                                        webhook_run
                                     )
-                                    movies_list_copy.remove(movie_data)
-                                    break
-                        if matched:
-                            break
+                                unique_items.add(sanitized_name_without_extension)
+                                unique_items.add(sanitized_movie_title)
+                                self.logger.debug(
+                                    f"Found exact match for movie (by ID): {movie_title} with {file}"
+                                )
+                                movies_list_copy.remove(movie_data)
+                                break
 
-                if matched:
-                    continue
+                            if (
+                                sanitized_name_without_extension
+                                == sanitized_movie_title
+                            ):
+                                matched = True
+                                matched_files["movies"][file] = {
+                                    "has_file": movie_has_file,
+                                    "status": movie_status,
+                                }
+                                if webhook_run:
+                                    matched_files["movies"][file]["webhook_run"] = (
+                                        webhook_run
+                                    )
+                                unique_items.add(sanitized_name_without_extension)
+                                unique_items.add(utils.remove_chars(movie_title))
+                                self.logger.debug(
+                                    f"Found exact match for movie: {movie_title} with {file}"
+                                )
+                                movies_list_copy.remove(movie_data)
+                                break
 
-                if poster_file_year:
-                    for show_data in shows_list_copy:
-                        show_name = show_data.get("title", "")
-                        show_year = re.search(r"\((\d{4})\)", show_name)
-                        show_status = show_data.get("status", "")
-                        show_seasons = show_data.get("seasons", [])
-                        show_has_episodes = show_data.get("has_episodes", None)
-                        webhook_run = show_data.get("webhook_run", None)
-                        sanitized_show_name = utils.remove_chars(
-                            utils.strip_id(show_name)
-                        )
-                        has_id = bool(poster_id_pattern.search(name_without_extension))
+                            elif movie_years:
+                                for year in movie_years:
+                                    sanitized_movie_title_alternate_year = (
+                                        f"{sanitized_movie_title_without_year} {year}"
+                                    )
+                                    if (
+                                        sanitized_name_without_extension
+                                        == sanitized_movie_title_alternate_year
+                                    ):
+                                        matched = True
+                                        matched_files["movies"][file] = {
+                                            "has_file": movie_has_file,
+                                            "status": movie_status,
+                                        }
+                                        if webhook_run:
+                                            matched_files["movies"][file][
+                                                "webhook_run"
+                                            ] = webhook_run
+                                        unique_items.add(
+                                            sanitized_name_without_extension
+                                        )
+                                        self.logger.debug(
+                                            f"Found year based match for movie: {movie_title} with {file}"
+                                        )
+                                        movies_list_copy.remove(movie_data)
+                                        break
+                            if matched:
+                                break
 
-                        if self.match_alt or webhook_run:
-                            alt_titles_clean = [
-                                utils.remove_chars(alt)
-                                for alt in show_data.get("alternate_titles", [])
-                            ]
-                            if show_year:
-                                year_pattern = re.compile(r"\b(19|20)\d{2}\b")
+                    if matched:
+                        continue
+
+                    if poster_file_year:
+                        for show_data in shows_list_copy:
+                            show_name = show_data.get("title", "")
+                            show_year = re.search(r"\((\d{4})\)", show_name)
+                            show_status = show_data.get("status", "")
+                            show_seasons = show_data.get("seasons", [])
+                            show_has_episodes = show_data.get("has_episodes", None)
+                            webhook_run = show_data.get("webhook_run", None)
+                            sanitized_show_name = utils.remove_chars(
+                                utils.strip_id(show_name)
+                            )
+                            has_id = bool(
+                                poster_id_pattern.search(name_without_extension)
+                            )
+
+                            if self.match_alt or webhook_run:
                                 alt_titles_clean = [
-                                    alt
-                                    if year_pattern.search(alt)
-                                    else f"{alt} {show_year.group(1)}"
-                                    for alt in alt_titles_clean
+                                    utils.remove_chars(alt)
+                                    for alt in show_data.get("alternate_titles", [])
                                 ]
-                        else:
-                            alt_titles_clean = []
+                                if show_year:
+                                    year_pattern = re.compile(r"\b(19|20)\d{2}\b")
+                                    alt_titles_clean = [
+                                        alt
+                                        if year_pattern.search(alt)
+                                        else f"{alt} {show_year.group(1)}"
+                                        for alt in alt_titles_clean
+                                    ]
+                            else:
+                                alt_titles_clean = []
 
-                        matched_season = False
-                        series_poster_matched = show_data.get(
-                            "series_poster_matched", False
-                        )
-
-                        season_num_match = re.search(
-                            r"- Season (\d+)", file.stem, re.IGNORECASE
-                        )
-                        if season_num_match:
-                            season_num = int(season_num_match.group(1))
-
-                            result = self._match_show_season(
-                                name_without_extension,
-                                show_name,
-                                alt_titles_clean,
-                                poster_id_pattern,
-                                check_id=has_id,
+                            matched_season = False
+                            series_poster_matched = show_data.get(
+                                "series_poster_matched", False
                             )
 
-                            if isinstance(result, tuple):
-                                main_match, alt_matches = result
-                                for season in show_seasons[:]:
-                                    season_str = season.get("season", "")
-                                    season_str_match = re.match(
-                                        r"season(\d+)", season_str
-                                    )
-                                    if season_str_match:
-                                        media_season_num = int(
-                                            season_str_match.group(1)
+                            season_num_match = re.search(
+                                r"- Season (\d+)", file.stem, re.IGNORECASE
+                            )
+                            if season_num_match:
+                                season_num = int(season_num_match.group(1))
+
+                                result = self._match_show_season(
+                                    name_without_extension,
+                                    show_name,
+                                    alt_titles_clean,
+                                    poster_id_pattern,
+                                    check_id=has_id,
+                                )
+
+                                if isinstance(result, tuple):
+                                    main_match, alt_matches = result
+                                    for season in show_seasons[:]:
+                                        season_str = season.get("season", "")
+                                        season_str_match = re.match(
+                                            r"season(\d+)", season_str
                                         )
-                                        if season_num == media_season_num:
+                                        if season_str_match:
+                                            media_season_num = int(
+                                                season_str_match.group(1)
+                                            )
+                                            if season_num == media_season_num:
+                                                season_has_episodes = season.get(
+                                                    "has_episodes", None
+                                                )
+                                                matched_files["shows"][file] = {
+                                                    "has_episodes": season_has_episodes
+                                                }
+                                                if webhook_run:
+                                                    matched_files["shows"][file][
+                                                        "webhook_run"
+                                                    ] = webhook_run
+                                                unique_items.add(main_match)
+                                                unique_items.add(
+                                                    sanitized_name_without_extension
+                                                )
+                                                if alt_matches:
+                                                    unique_items.update(alt_matches)
+                                                show_seasons.remove(season)
+                                                self.logger.debug(
+                                                    f"Matched season {season_num} for show: {show_name} with {file}"
+                                                )
+                                                matched_season = True
+                                                break
+                                    if matched_season:
+                                        if not show_seasons and series_poster_matched:
+                                            shows_list_copy.remove(show_data)
+                                            self.logger.debug(
+                                                f"All seasons and series poster matched. Removed show: {show_name}"
+                                            )
+                                        break
+
+                            if not matched_season:
+                                result = self._match_show_special(
+                                    name_without_extension,
+                                    show_name,
+                                    alt_titles_clean,
+                                    poster_id_pattern,
+                                    check_id=has_id,
+                                )
+
+                                if isinstance(result, tuple):
+                                    main_match, alt_matches = result
+                                    for season in show_seasons:
+                                        if "season00" in season.get("season", ""):
                                             season_has_episodes = season.get(
                                                 "has_episodes", None
                                             )
@@ -448,7 +515,7 @@ class PosterRenamerr:
                                                 unique_items.update(alt_matches)
                                             show_seasons.remove(season)
                                             self.logger.debug(
-                                                f"Matched season {season_num} for show: {show_name} with {file}"
+                                                f"Matched special season for show: {show_name}"
                                             )
                                             matched_season = True
                                             break
@@ -460,139 +527,106 @@ class PosterRenamerr:
                                         )
                                     break
 
-                        if not matched_season:
-                            result = self._match_show_special(
-                                name_without_extension,
-                                show_name,
-                                alt_titles_clean,
-                                poster_id_pattern,
-                                check_id=has_id,
-                            )
-
-                            if isinstance(result, tuple):
-                                main_match, alt_matches = result
-                                for season in show_seasons:
-                                    if "season00" in season.get("season", ""):
-                                        season_has_episodes = season.get(
-                                            "has_episodes", None
+                            if not matched_season:
+                                id_match = False
+                                if has_id:
+                                    id_match = self._match_id(
+                                        name_without_extension,
+                                        show_name,
+                                        poster_id_pattern,
+                                    )
+                                if id_match:
+                                    matched_files["shows"][file] = {
+                                        "status": show_status,
+                                        "has_episodes": show_has_episodes,
+                                    }
+                                    if webhook_run:
+                                        matched_files["shows"][file]["webhook_run"] = (
+                                            webhook_run
                                         )
-                                        matched_files["shows"][file] = {
-                                            "has_episodes": season_has_episodes
-                                        }
-                                        if webhook_run:
-                                            matched_files["shows"][file][
-                                                "webhook_run"
-                                            ] = webhook_run
-                                        unique_items.add(main_match)
-                                        unique_items.add(
-                                            sanitized_name_without_extension
-                                        )
-                                        if alt_matches:
-                                            unique_items.update(alt_matches)
-                                        show_seasons.remove(season)
-                                        self.logger.debug(
-                                            f"Matched special season for show: {show_name}"
-                                        )
-                                        matched_season = True
-                                        break
-                            if matched_season:
-                                if not show_seasons and series_poster_matched:
-                                    shows_list_copy.remove(show_data)
-                                    self.logger.debug(
-                                        f"All seasons and series poster matched. Removed show: {show_name}"
-                                    )
-                                break
-
-                        if not matched_season:
-                            id_match = False
-                            if has_id:
-                                id_match = self._match_id(
-                                    name_without_extension, show_name, poster_id_pattern
-                                )
-                            if id_match:
-                                matched_files["shows"][file] = {
-                                    "status": show_status,
-                                    "has_episodes": show_has_episodes,
-                                }
-                                if webhook_run:
-                                    matched_files["shows"][file]["webhook_run"] = (
-                                        webhook_run
-                                    )
-                                unique_items.add(sanitized_name_without_extension)
-                                unique_items.add(sanitized_show_name)
-                                if alt_titles_clean:
-                                    unique_items.update(alt_titles_clean)
-                                self.logger.debug(
-                                    f"Matched series poster for show (by ID): {show_name} with {file}"
-                                )
-                                show_data["series_poster_matched"] = True
-                                if (
-                                    not show_seasons
-                                    and show_data["series_poster_matched"]
-                                ):
-                                    shows_list_copy.remove(show_data)
-                                    self.logger.debug(
-                                        f"All seasons and series poster matched. Removed show: {show_name}"
-                                    )
-                                break
-
-                            if sanitized_name_without_extension == sanitized_show_name:
-                                matched_files["shows"][file] = {
-                                    "status": show_status,
-                                    "has_episodes": show_has_episodes,
-                                }
-                                if webhook_run:
-                                    matched_files["shows"][file]["webhook_run"] = (
-                                        webhook_run
-                                    )
-                                unique_items.add(sanitized_name_without_extension)
-                                if alt_titles_clean:
-                                    unique_items.update(alt_titles_clean)
-                                self.logger.debug(
-                                    f"Matched series poster for show: {show_name} with {file}"
-                                )
-                                show_data["series_poster_matched"] = True
-                                if (
-                                    not show_seasons
-                                    and show_data["series_poster_matched"]
-                                ):
-                                    shows_list_copy.remove(show_data)
-                                    self.logger.debug(
-                                        f"All seasons and series poster matched. Removed show: {show_name}"
-                                    )
-                                break
-
-                            if alt_titles_clean:
-                                for alt_title in alt_titles_clean:
-                                    if sanitized_name_without_extension == alt_title:
-                                        matched_files["shows"][file] = {
-                                            "status": show_status,
-                                            "has_episodes": show_has_episodes,
-                                        }
-                                        if webhook_run:
-                                            matched_files["shows"][file][
-                                                "webhook_run"
-                                            ] = webhook_run
-                                        unique_items.add(sanitized_show_name)
+                                    unique_items.add(sanitized_name_without_extension)
+                                    unique_items.add(sanitized_show_name)
+                                    if alt_titles_clean:
                                         unique_items.update(alt_titles_clean)
+                                    self.logger.debug(
+                                        f"Matched series poster for show (by ID): {show_name} with {file}"
+                                    )
+                                    show_data["series_poster_matched"] = True
+                                    if (
+                                        not show_seasons
+                                        and show_data["series_poster_matched"]
+                                    ):
+                                        shows_list_copy.remove(show_data)
                                         self.logger.debug(
-                                            f"Matched series poster for show: {show_name} with {file}"
+                                            f"All seasons and series poster matched. Removed show: {show_name}"
                                         )
-                                        show_data["series_poster_matched"] = True
-                                        if (
-                                            not show_seasons
-                                            and show_data["series_poster_matched"]
-                                        ):
-                                            shows_list_copy.remove(show_data)
-                                            self.logger.debug(
-                                                f"All seasons and series poster matched. Removed show: {show_name}"
-                                            )
-                                        break
+                                    break
 
-                processed_files += 1
-                if job_id and cb:
-                    progress = int((processed_files / total_files) * 70)
-                    cb(job_id, progress + 10, ProgressState.IN_PROGRESS)
+                                if (
+                                    sanitized_name_without_extension
+                                    == sanitized_show_name
+                                ):
+                                    matched_files["shows"][file] = {
+                                        "status": show_status,
+                                        "has_episodes": show_has_episodes,
+                                    }
+                                    if webhook_run:
+                                        matched_files["shows"][file]["webhook_run"] = (
+                                            webhook_run
+                                        )
+                                    unique_items.add(sanitized_name_without_extension)
+                                    if alt_titles_clean:
+                                        unique_items.update(alt_titles_clean)
+                                    self.logger.debug(
+                                        f"Matched series poster for show: {show_name} with {file}"
+                                    )
+                                    show_data["series_poster_matched"] = True
+                                    if (
+                                        not show_seasons
+                                        and show_data["series_poster_matched"]
+                                    ):
+                                        shows_list_copy.remove(show_data)
+                                        self.logger.debug(
+                                            f"All seasons and series poster matched. Removed show: {show_name}"
+                                        )
+                                    break
+
+                                if alt_titles_clean:
+                                    for alt_title in alt_titles_clean:
+                                        if (
+                                            sanitized_name_without_extension
+                                            == alt_title
+                                        ):
+                                            matched_files["shows"][file] = {
+                                                "status": show_status,
+                                                "has_episodes": show_has_episodes,
+                                            }
+                                            if webhook_run:
+                                                matched_files["shows"][file][
+                                                    "webhook_run"
+                                                ] = webhook_run
+                                            unique_items.add(sanitized_show_name)
+                                            unique_items.update(alt_titles_clean)
+                                            self.logger.debug(
+                                                f"Matched series poster for show: {show_name} with {file}"
+                                            )
+                                            show_data["series_poster_matched"] = True
+                                            if (
+                                                not show_seasons
+                                                and show_data["series_poster_matched"]
+                                            ):
+                                                shows_list_copy.remove(show_data)
+                                                self.logger.debug(
+                                                    f"All seasons and series poster matched. Removed show: {show_name}"
+                                                )
+                                            break
+
+                    processed_files += 1
+                    if job_id and cb:
+                        progress = int((processed_files / total_files) * 70)
+                        cb(job_id, progress + 10, ProgressState.IN_PROGRESS)
+
+                progress_bar.update(1)
 
         self.logger.debug("Matched files summary:")
         self.logger.debug(pformat(matched_files))
@@ -1294,7 +1328,6 @@ class PosterRenamerr:
             )
             return None
 
-    # TODO: Make unmatched assets run first when only unmatched is on
     def run(
         self,
         cb: Callable[[str, int, ProgressState], None] | None = None,
