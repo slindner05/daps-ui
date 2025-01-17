@@ -1,16 +1,24 @@
+import os
 import re
 from pathlib import Path
 
-from flask import (Blueprint, jsonify, render_template, request,
-                   send_from_directory)
+from flask import Blueprint, jsonify, render_template, request, send_from_directory
 
-from daps_webui import (daps_logger, models, run_border_replacer_task,
-                        run_plex_uploaderr_task, run_renamer_task,
-                        run_unmatched_assets_task)
+from daps_webui import (
+    daps_logger,
+    db,
+    models,
+    run_border_replacer_task,
+    run_plex_uploaderr_task,
+    run_renamer_task,
+    run_unmatched_assets_task,
+)
+from daps_webui.utils.database import Database
 from daps_webui.utils.webhook_manager import WebhookManager
 from progress import progress_instance
 
 poster_renamer = Blueprint("poster_renamer", __name__)
+database = Database(db, daps_logger)
 
 
 @poster_renamer.route("/poster-renamer")
@@ -192,8 +200,38 @@ def get_images():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-def fetch_unmatched_stats_from_db() -> dict[str, int | str]:
+@poster_renamer.route("/delete-poster", methods=["DELETE"])
+def delete_poster():
+    try:
+        data = request.get_json()
+        serve_image_path = data.get("filePath")
+        if not serve_image_path:
+            return jsonify({"success": False, "message": "File path is required"}), 400
+        relative_path = serve_image_path.replace("/serve-image/", "").lstrip("/")
+        settings = models.Settings.query.first()
+        assets_directory = getattr(settings, "target_path", "").strip()
+        if not assets_directory:
+            return jsonify(
+                {"success": False, "message": "Target path is not configured"}
+            ), 500
+        file_path = Path(os.path.join(assets_directory, relative_path)).resolve()
+        if not str(file_path).startswith(str(Path(assets_directory).resolve())):
+            return jsonify({"success": False, "message": "Invalid file path"}), 400
 
+        if file_path.exists() and file_path.is_file():
+            file_path.unlink()
+            database.delete_file_cache_entry(str(file_path))
+            return jsonify(
+                {"success": True, "message": "Poster deleted successfully."}
+            ), 200
+        else:
+            return jsonify({"success": False, "message": "File does not exist."}), 404
+
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+def fetch_unmatched_stats_from_db() -> dict[str, int | str]:
     stats = models.UnmatchedStats.query.get(1)
     if stats:
         grand_total = (
@@ -348,15 +386,15 @@ def recieve_webhook():
     try:
         data = request.json
         if not data:
-            daps_logger.error("No data recieved in the webhook")
-            return "No data recieved", 400
+            daps_logger.error("No data received in the webhook")
+            return "No data received", 400
         daps_logger.debug(f"===== Webhook data =====\n{data}")
 
         valid_event_types = ["Download", "Grab", "MovieAdded", "SeriesAdd"]
         webhook_event_type = data.get("eventType", "")
 
         if webhook_event_type == "Test":
-            daps_logger.info("Test event recived successfully")
+            daps_logger.info("Test event received successfully")
             return "OK", 200
 
         if webhook_event_type not in valid_event_types:

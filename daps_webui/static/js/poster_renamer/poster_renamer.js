@@ -435,6 +435,36 @@ function previewImage(filePath, fileLink, isSeasonLink = false) {
   imgElement.alt = "Preview Image";
   imageDiv.appendChild(imgElement);
 
+  const deleteButton = document.createElement("button");
+  deleteButton.classList.add("delete-button");
+  deleteButton.title = "Delete Poster";
+
+  const trashIcon = document.createElement("i");
+  trashIcon.classList.add("fas", "fa-trash");
+  deleteButton.appendChild(trashIcon);
+
+  deleteButton.onclick = () => {
+    if (confirm("Are you sure you want to delete this poster?")) {
+      fetch("/delete-poster", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ filePath }),
+      })
+        .then((response) => {
+          if (response.ok) {
+            alert("Poster deleted successfully");
+          } else {
+            response.text().then((text) => alert(`Error: ${text}`));
+          }
+        })
+        .catch((error) => alert(`Request failed ${error}`));
+    }
+  };
+
+  imageDiv.appendChild(deleteButton);
+
   const sourcePath = fileLink.dataset.sourcePath;
   const parts = sourcePath.split("/");
   const parentDir = parts[parts.length - 2];
@@ -662,12 +692,19 @@ function attachRunListener(button, jobRoute, jobName, progressId) {
     })
       .then((response) => response.json())
       .then((data) => {
-        if (data.job_id) {
-          console.log("Job started", data);
-          const jobId = data.job_id;
-          checkProgress(jobId, button, progressId, jobName);
+        if (data.success && data.message) {
+          if (data.job_id) {
+            console.log("Job started", data);
+            const jobId = data.job_id;
+            checkProgress(jobId, button, progressId, jobName);
+          } else {
+            console.warn("Task skipped:", data.message);
+            alert(data.message);
+            button.disabled = false;
+            button.textContent = `RUN ${jobName}`;
+          }
         } else {
-          console.error("Job ID missing from response", data);
+          console.error("Unexpected response", data);
           button.disabled = false;
           button.textContent = `RUN ${jobName}`;
         }
