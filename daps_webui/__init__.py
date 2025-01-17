@@ -46,14 +46,6 @@ def create_app() -> Flask:
             conn.execute(db.text("PRAGMA journal_mode=WAL;"))
         daps_logger.info("WAL mode enabled for SQLite database")
 
-    @app.teardown_appcontext
-    def shutdown_scheduler(exception=None):
-        if app.debug:
-            scheduler = BackgroundScheduler()
-            if scheduler.running:
-                scheduler.shutdown()
-                daps_logger.info("Scheduler stopped in development server")
-
     with app.app_context():
         if app.debug:
             from daps_webui.utils.scheduler import schedule_jobs
@@ -89,17 +81,44 @@ def run_renamer_task(webhook_item: dict | None = None):
         )
         daps_logger.debug("Poster Renamerr Payload:")
         daps_logger.debug(pformat(poster_renamer_payload))
-        daps_logger.debug(
-            f"Unmatched assets flag: {poster_renamer_payload.unmatched_assets}"
-        )
-        daps_logger.debug(
-            f"Only unmatched flag: {poster_renamer_payload.only_unmatched}"
-        )
 
         job_id = progress_instance.add_job()
         daps_logger.info(f"Job Poster Renamerr: '{job_id}' added.")
 
         renamer = PosterRenamerr(poster_renamer_payload)
+
+        def remove_job_cb(fut):
+            try:
+                fut.result()
+                sleep(2)
+                progress_instance.remove_job(job_id)
+                daps_logger.info(f"Poster Renamerr Job: {job_id} has been removed")
+            except Exception as e:
+                daps_logger.error(f"Error removing job {job_id}: {e}")
+
+        def run_unmatched_assets():
+            handle_unmatched_assets_task(radarr, sonarr, plex)
+
+        def run_plex_upload_callback(fut):
+            try:
+                media_dict = fut.result()
+                if media_dict:
+                    daps_logger.debug(f"Media dict from renamer: {media_dict}")
+                else:
+                    daps_logger.warning(
+                        "No media dict from renamer. Proceeding with full upload."
+                    )
+                run_plex_upload(media_dict)
+            except Exception as e:
+                daps_logger.error(f"Error in plex upload callback: {e}")
+
+        def run_plex_upload(media_dict=None):
+            try:
+                handle_plex_uploaderr_task(
+                    plex, radarr, sonarr, webhook_item, media_dict
+                )
+            except Exception as e:
+                daps_logger.error(f"Error in Plex Upload Callback: {e}")
 
         if webhook_item:
             daps_logger.debug("Submitting webhook task to thread pool")
@@ -109,49 +128,24 @@ def run_renamer_task(webhook_item: dict | None = None):
                 job_id,
                 webhook_item,
             )
-            daps_logger.debug("Task submitted successfully")
         else:
             if (
                 poster_renamer_payload.unmatched_assets
                 and poster_renamer_payload.only_unmatched
             ):
                 daps_logger.debug("Running unmatched assets task first...")
-                unmatched_assets_future = executor.submit(
-                    handle_unmatched_assets_task, radarr, sonarr, plex
-                )
-                unmatched_assets_future.result()
+                run_unmatched_assets()
 
             daps_logger.debug("Submitting renamer task to thread pool")
             future = executor.submit(renamer.run, progress_instance, job_id)
-            daps_logger.debug("Task submitted successfully")
-
-        def remove_job_cb(fut):
-            sleep(2)
-            progress_instance.remove_job(job_id)
-            daps_logger.info(f"Poster Renamerr Job: {job_id} has been removed")
-
-        def run_unmatched_assets_callback(fut):
-            handle_unmatched_assets_task(radarr, sonarr, plex)
-
-        def run_plex_upload_callback(fut):
-            try:
-                media_dict = fut.result()
-                daps_logger.debug(f"Media dict from renamer: {media_dict}")
-                handle_plex_uploaderr_task(
-                    plex, radarr, sonarr, webhook_item, media_dict
-                )
-            except Exception as e:
-                daps_logger.error(f"Error in Plex Upload Callback: {e}")
 
         if poster_renamer_payload.upload_to_plex:
-            daps_logger.debug("Upload to plex flag is true, setting up callback...")
-
+            daps_logger.debug("Setting up Plex upload callback...")
             future.add_done_callback(run_plex_upload_callback)
 
         if poster_renamer_payload.unmatched_assets:
-            daps_logger.debug("Unmatched assets flag is true, setting up callback...")
-
-            future.add_done_callback(run_unmatched_assets_callback)
+            daps_logger.debug("Setting up unmatched assets callback...")
+            future.add_done_callback(lambda _: run_unmatched_assets())
 
         future.add_done_callback(remove_job_cb)
 
@@ -167,13 +161,37 @@ def run_renamer_task(webhook_item: dict | None = None):
 
 def run_border_replacer_task():
     try:
-        border_replacerr_payload = webui_utils.create_border_replacer_payload()
+        from daps_webui.utils.database import Database
 
-        daps_logger.debug("Border Replacerr Payload:")
-        daps_logger.debug(pformat(border_replacerr_payload))
+        db_instance = Database(db, daps_logger)
+        first_file_settings = db_instance.get_first_file_settings()
+
+        border_replacerr_payload = webui_utils.create_border_replacer_payload()
+        border_setting = border_replacerr_payload.border_setting
+        custom_color = border_replacerr_payload.custom_color
+
+        if first_file_settings:
+            current_border_setting = first_file_settings.get("border_setting")
+            current_custom_color = first_file_settings.get("custom_color")
+
+            if (
+                current_border_setting == border_setting
+                and current_custom_color == custom_color
+            ):
+                daps_logger.info(
+                    "Skipping task: Border and color settings already applied to files."
+                )
+                return {
+                    "message": "Border and color settings already applied. Task skipped.",
+                    "success": True,
+                    "job_id": None,
+                }
 
         job_id = progress_instance.add_job()
         daps_logger.debug(f"Job Border Replacerr: '{job_id}' added.")
+
+        daps_logger.debug("Border Replacerr Payload:")
+        daps_logger.debug(pformat(border_replacerr_payload))
 
         border_replacerr = BorderReplacerr(
             custom_color=None, payload=border_replacerr_payload
@@ -182,14 +200,18 @@ def run_border_replacer_task():
         future = executor.submit(
             border_replacerr.replace_current_assets, progress_instance, job_id
         )
-        daps_logger.debug("Task submitted successfully")
 
         def remove_job_cb(fut):
-            sleep(2)
-            progress_instance.remove_job(job_id)
-            daps_logger.info(f"Border Replacer Job: {job_id} has been removed")
+            try:
+                fut.result()
+                sleep(2)
+                progress_instance.remove_job(job_id)
+                daps_logger.info(f"Border Replacer Job: {job_id} has been removed")
+            except Exception as e:
+                daps_logger.error(f"Error removing job {job_id}: {e}")
 
         future.add_done_callback(remove_job_cb)
+        future.result()
 
         return {
             "message": "Border replacer task started",
@@ -222,11 +244,17 @@ def handle_unmatched_assets_task(radarr, sonarr, plex):
             daps_logger.debug("Task submitted successfully")
 
             def remove_job_cb(fut):
-                sleep(2)
-                progress_instance.remove_job(job_id)
-                daps_logger.info(f"Unmatched Assets Job: {job_id} has been removed")
+                try:
+                    fut.result()
+                    sleep(2)
+                    progress_instance.remove_job(job_id)
+                    daps_logger.info(f"Unmatched Assets Job: {job_id} has been removed")
+                except Exception as e:
+                    daps_logger.error(f"Error removing job {job_id}: {e}")
 
             future.add_done_callback(remove_job_cb)
+            future.result()
+
             return {
                 "message": "Unmatched assets task started",
                 "job_id": job_id,
@@ -275,14 +303,19 @@ def handle_plex_uploaderr_task(
                 progress_instance,
                 job_id,
             )
-            daps_logger.debug("Task submitted successfully")
 
         def remove_job_cb(fut):
-            sleep(2)
-            progress_instance.remove_job(job_id)
-            daps_logger.info(f"Plex uploaderr: {job_id} has been removed")
+            try:
+                fut.result()
+                sleep(2)
+                progress_instance.remove_job(job_id)
+                daps_logger.info(f"Plex uploaderr: {job_id} has been removed")
+            except Exception as e:
+                daps_logger.debug(f"Error removing job {job_id}: {e}")
 
         future.add_done_callback(remove_job_cb)
+        future.result()
+
         return {
             "message": "Plex uploaderr task started",
             "job_id": job_id,
