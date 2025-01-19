@@ -1,81 +1,218 @@
 document.addEventListener("DOMContentLoaded", function () {
   createPosterRenamerBox();
-  function handleClick() {
-    const firstTabLink = document.querySelector(".tab-links");
-    const firstFileLink = document.querySelector(".file-link");
-    if (firstTabLink && firstFileLink) {
-      setTimeout(() => {
-        firstTabLink.click();
-      }, 100);
-      firstFileLink.click();
-      observer.disconnect();
-    }
-  }
-  const observer = new MutationObserver(handleClick);
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
+  refreshSortedFiles(() => {
+    clickFirstFileLink();
   });
+  refreshUnmatched();
 });
 
-fetch("/poster-renamer/get-file-paths")
-  .then((response) => response.json())
-  .then((data) => {
-    if (data.success) {
-      const sortedFiles = data.sorted_files;
-      console.log(sortedFiles);
+let activePosterIdentifier = null;
+let activeSeriesIdentifier = null;
 
-      const isSortedFilesEmpty =
-        sortedFiles.movies.length === 0 &&
-        Object.keys(sortedFiles.shows).length === 0 &&
-        sortedFiles.collections.length === 0;
+function saveActiveFileLink() {
+  const activePoster = document.querySelector(".file-link.active");
+  if (activePoster) {
+    activePosterIdentifier = activePoster.getAttribute("data-identifier");
 
-      const unmatchedContainer = document.getElementById("unmatched-container");
-      if (isSortedFilesEmpty) {
-        if (unmatchedContainer) {
-          unmatchedContainer.style.display = "none";
-        }
-        return;
+    const seasonList = activePoster.closest(".season-list.active");
+    if (seasonList) {
+      const seriesLink = seasonList.closest(".file-link");
+      if (seriesLink) {
+        activeSeriesIdentifier = seriesLink.getAttribute("data-identifier");
       }
-
-      const allFiles = [
-        ...sortedFiles.movies,
-        ...Object.values(sortedFiles.shows),
-        ...sortedFiles.collections,
-      ];
-      populateTab("all", allFiles);
-      populateTab("movies", sortedFiles.movies);
-      populateTab("series", sortedFiles.shows);
-      populateTab("collections", sortedFiles.collections);
-    } else {
-      console.error("Error fetching images: " + data.message);
     }
-  })
-  .catch((error) => {
-    console.error("Error:", error);
-  });
+  }
+  console.log("Active Poster Identifier:", activePosterIdentifier);
+  console.log("Active Series Identifier:", activeSeriesIdentifier);
+}
 
-fetch("/poster-renamer/unmatched")
-  .then((response) => response.json())
-  .then((data) => {
-    if (data.success) {
-      const unmatchedMedia = data.unmatched_media;
-      const unmatchedCounts = data.unmatched_counts;
-      const disableCollections = data.disable_collections;
-      populateUnmatchedAssetsTable(
-        unmatchedMedia,
-        unmatchedCounts,
-        disableCollections,
+function clickFirstFileLink() {
+  const firstTabLink = document.querySelector(".tab-links");
+  const firstFileLink = document.querySelector(".file-link");
+  if (firstTabLink && firstFileLink) {
+    setTimeout(() => {
+      firstTabLink.click();
+      firstFileLink.click();
+    }, 100);
+  }
+}
+
+function clickActiveFileLink() {
+  const activeTab = document.querySelector(".tab-content.active");
+  if (!activeTab) {
+    console.warn("No active tab found.");
+    return;
+  }
+  const activeSeriesLink = null;
+  if (activeSeriesIdentifier) {
+    const activeSeriesLink = activeTab.querySelector(
+      `.file-link[data-identifier="${activeSeriesIdentifier}"]`,
+    );
+    if (activeSeriesLink) {
+      activeSeriesLink.click();
+      console.log("Clicked series link for:", activeSeriesIdentifier);
+    } else {
+      console.warn("Series link not found for:", activeSeriesIdentifier);
+    }
+  }
+  if (activePosterIdentifier) {
+    const activeFileLink = activeTab.querySelector(
+      `.file-link[data-identifier="${activePosterIdentifier}"]`,
+    );
+    if (activeFileLink) {
+      if (activeSeriesLink) {
+        setTimeout(() => {
+          activeFileLink.click();
+        }, 100);
+      } else {
+        activeFileLink.click();
+      }
+      console.log("Clicked active poster link for:", activePosterIdentifier);
+    } else {
+      console.warn("Active poster link not found for:", activeFileLink);
+    }
+  }
+}
+
+const routeMap = {
+  renamer: "/poster-renamer/get-file-paths",
+  unmatched: "/poster-renamer/unmatched",
+};
+
+function refreshSortedFiles(callback) {
+  const endpoint = routeMap.renamer;
+  saveActiveFileLink();
+  fetch(endpoint)
+    .then((response) => response.json())
+    .then((data) => {
+      if (data.success) {
+        const sortedFiles = data.sorted_files;
+        console.log(sortedFiles);
+
+        const isSortedFilesEmpty =
+          sortedFiles.movies.length === 0 &&
+          Object.keys(sortedFiles.shows).length === 0 &&
+          sortedFiles.collections.length === 0;
+
+        const unmatchedContainer = document.getElementById(
+          "unmatched-container",
+        );
+        if (isSortedFilesEmpty) {
+          if (unmatchedContainer) {
+            unmatchedContainer.style.display = "none";
+          }
+          return;
+        }
+
+        const allFiles = [
+          ...sortedFiles.movies,
+          ...Object.values(sortedFiles.shows),
+          ...sortedFiles.collections,
+        ];
+        populateTab("all", allFiles);
+        populateTab("movies", sortedFiles.movies);
+        populateTab("series", sortedFiles.shows);
+        populateTab("collections", sortedFiles.collections);
+        if (callback && typeof callback == "function") {
+          callback();
+        }
+      } else {
+        console.error("Error fetching images: " + data.message);
+      }
+    })
+    .catch((error) => {
+      console.error("Error:", error);
+    });
+}
+
+function refreshUnmatched() {
+  const endpoint = routeMap.unmatched;
+  fetch(endpoint)
+    .then((response) => response.json())
+    .then((data) => {
+      if (data.success) {
+        const unmatchedMedia = data.unmatched_media;
+        const unmatchedCounts = data.unmatched_counts;
+        const disableCollections = data.disable_collections;
+        populateUnmatchedAssetsTable(
+          unmatchedMedia,
+          unmatchedCounts,
+          disableCollections,
+        );
+        // console.log(unmatchedMedia);
+        // console.log(unmatchedCounts);
+      } else {
+        console.error("Error fetching unmatched media: " + data.message);
+      }
+    })
+    .catch((error) => {
+      console.error("Error refreshing unmatched media:", error);
+    });
+}
+function refreshUpdatedImage(clickedIdentifier) {
+  if (clickedIdentifier === activeSeriesIdentifier) {
+    const seriesImage = document.querySelector(
+      `.image-div img[data-identifier="${activeSeriesIdentifier}"]`,
+    );
+    if (seriesImage) {
+      const seriesCurrentSrc = seriesImage.src.split("?")[0];
+      const seriesNewSrc = `${seriesCurrentSrc}?t=${new Date().getTime()}`;
+      seriesImage.src = seriesNewSrc;
+      console.log("Series poster refreshed:", seriesNewSrc);
+    } else {
+      console.warn("Series poster not found:", activeSeriesIdentifier);
+    }
+  } else if (clickedIdentifier === activePosterIdentifier) {
+    const image = document.querySelector(
+      `.image-div img[data-identifier="${activePosterIdentifier}"]`,
+    );
+    if (image) {
+      const currentSrc = image.src.split("?")[0];
+      const newSrc = `${currentSrc}?t=${new Date().getTime()}`;
+      image.src = newSrc;
+      console.log("Active poster refreshed:", newSrc);
+    } else {
+      console.warn("Active poster not found:", activePosterIdentifier);
+    }
+  }
+}
+
+function addFileLinkListeners() {
+  if (activeSeriesIdentifier) {
+    const seriesFileLinks = document.querySelectorAll(
+      `.file-link[data-identifier="${activeSeriesIdentifier}"]`,
+    );
+    if (seriesFileLinks.length > 0) {
+      seriesFileLinks.forEach((link) => {
+        link.removeEventListener("click", refreshUpdatedImage);
+        link.addEventListener("click", () =>
+          refreshUpdatedImage(activeSeriesIdentifier),
+        );
+      });
+      console.log(
+        "Listeners added for series posters:",
+        activeSeriesIdentifier,
       );
-      // console.log(unmatchedMedia);
-      // console.log(unmatchedCounts);
     } else {
-      console.error("Error fetching unmatched media: " + data.message);
+      console.warn("File links not found for:", activeSeriesIdentifier);
     }
-  })
-  .catch((error) => {
-    console.error("Error", error);
-  });
+  }
+
+  const refreshedFileLinks = document.querySelectorAll(
+    `.file-link[data-identifier="${activePosterIdentifier}"]`,
+  );
+  if (refreshedFileLinks.length > 0) {
+    refreshedFileLinks.forEach((link) => {
+      link.removeEventListener("click", refreshUpdatedImage);
+      link.addEventListener("click", () =>
+        refreshUpdatedImage(activePosterIdentifier),
+      );
+    });
+    console.log("Listeners added for active posters:", activePosterIdentifier);
+  } else {
+    console.warn("File links not found for:", activePosterIdentifier);
+  }
+}
 
 function createUnmatchedTable(id) {
   const wrapperDiv = document.createElement("div");
@@ -383,25 +520,28 @@ function createFileLink(
   seasonData = null,
   isSeasonLink = false,
 ) {
+  const identifier = filePath;
   const listItem = document.createElement("li");
   const fileName = document.createElement("span");
+  listItem.setAttribute("data-identifier", identifier);
   listItem.dataset.sourcePath = sourcePath;
   listItem.classList.add("file-link");
 
   if (isSeasonLink) {
-    listItem.onclick = () => previewImage(filePath, listItem, isSeasonLink);
+    listItem.onclick = () =>
+      previewImage(filePath, listItem, identifier, isSeasonLink);
     const seasonText =
       seasonData.season === 0 ? "Specials" : `Season ${seasonData.season}`;
     fileName.textContent = seasonText;
   } else {
-    listItem.onclick = () => previewImage(filePath, listItem);
+    listItem.onclick = () => previewImage(filePath, listItem, identifier);
     fileName.textContent = displayName;
   }
   listItem.appendChild(fileName);
   return listItem;
 }
 
-function previewImage(filePath, fileLink, isSeasonLink = false) {
+function previewImage(filePath, fileLink, identifier, isSeasonLink = false) {
   const previewContainer = document.getElementById("image-preview-container");
   previewContainer.innerHTML = "";
   const previewDiv = document.createElement("div");
@@ -433,6 +573,7 @@ function previewImage(filePath, fileLink, isSeasonLink = false) {
   const imgElement = document.createElement("img");
   imgElement.src = filePath;
   imgElement.alt = "Preview Image";
+  imgElement.setAttribute("data-identifier", identifier);
   imageDiv.appendChild(imgElement);
 
   const deleteButton = document.createElement("button");
@@ -454,7 +595,17 @@ function previewImage(filePath, fileLink, isSeasonLink = false) {
       })
         .then((response) => {
           if (response.ok) {
-            alert("Poster deleted successfully");
+            refreshSortedFiles(() => {
+              const firstFileLink = document.querySelector(".file-link");
+              if (firstFileLink) {
+                firstFileLink.click();
+              }
+              const runUnmatchedButton =
+                document.getElementById("run-unmatched");
+              if (runUnmatchedButton) {
+                runUnmatchedButton.click();
+              }
+            });
           } else {
             response.text().then((text) => alert(`Error: ${text}`));
           }
@@ -696,7 +847,7 @@ function attachRunListener(button, jobRoute, jobName, progressId) {
           if (data.job_id) {
             console.log("Job started", data);
             const jobId = data.job_id;
-            checkProgress(jobId, button, progressId, jobName);
+            checkProgress(jobId, button, progressId, jobName, jobRoute);
           } else {
             console.warn("Task skipped:", data.message);
             alert(data.message);
@@ -717,7 +868,7 @@ function attachRunListener(button, jobRoute, jobName, progressId) {
   });
 }
 
-function checkProgress(jobId, button, progressId, jobName) {
+function checkProgress(jobId, button, progressId, jobName, jobRoute) {
   fetch(`/progress/${jobId}`)
     .then((response) => response.json())
     .then((data) => {
@@ -736,7 +887,7 @@ function checkProgress(jobId, button, progressId, jobName) {
 
       if (state !== "Completed") {
         setTimeout(
-          () => checkProgress(jobId, button, progressId, jobName),
+          () => checkProgress(jobId, button, progressId, jobName, jobRoute),
           1000,
         );
       } else {
@@ -744,6 +895,7 @@ function checkProgress(jobId, button, progressId, jobName) {
         progressBar.textContent = "100%";
         button.disabled = false;
         button.textContent = `RUN ${jobName}`;
+        refrushUI(jobRoute);
       }
     })
     .catch((error) => {
@@ -751,4 +903,26 @@ function checkProgress(jobId, button, progressId, jobName) {
       button.disabled = false;
       button.textContent = `RUN ${jobName}`;
     });
+}
+
+function refrushUI(jobRoute) {
+  switch (jobRoute) {
+    case "/run-unmatched-job":
+      refreshUnmatched();
+      break;
+    case "/run-renamer-job":
+      refreshSortedFiles(() => {
+        addFileLinkListeners();
+        clickActiveFileLink();
+      });
+      break;
+    case "/run-border-replace-job":
+      refreshSortedFiles(() => {
+        addFileLinkListeners();
+        clickActiveFileLink();
+      });
+      break;
+    default:
+      console.warn("No refresh function defined for:", jobRoute);
+  }
 }
