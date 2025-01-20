@@ -16,7 +16,7 @@ from DapsEX.border_replacerr import BorderReplacerr
 from DapsEX.plex_upload import PlexUploaderr
 from DapsEX.poster_renamerr import PosterRenamerr
 from DapsEX.unmatched_assets import UnmatchedAssets
-from progress import progress_instance
+from progress import ProgressState, progress_instance
 
 # all globals needs to be defined here
 global_config = Config()
@@ -70,6 +70,8 @@ def create_app() -> Flask:
 
 
 def run_renamer_task(webhook_item: dict | None = None):
+    from concurrent.futures import Future
+
     from daps_webui.models import PlexInstance, RadarrInstance, SonarrInstance
 
     try:
@@ -86,10 +88,11 @@ def run_renamer_task(webhook_item: dict | None = None):
         daps_logger.info(f"Job Poster Renamerr: '{job_id}' added.")
 
         renamer = PosterRenamerr(poster_renamer_payload)
+        unmatched_future: Future | None = None
 
-        def remove_job_cb(fut):
+        def remove_job():
             try:
-                fut.result()
+                progress_instance(job_id, 100, ProgressState.COMPLETED)
                 sleep(2)
                 progress_instance.remove_job(job_id)
                 daps_logger.info(f"Poster Renamerr Job: {job_id} has been removed")
@@ -108,6 +111,7 @@ def run_renamer_task(webhook_item: dict | None = None):
                     daps_logger.warning(
                         "No media dict from renamer. Proceeding with full upload."
                     )
+                remove_job()
                 run_plex_upload(media_dict)
             except Exception as e:
                 daps_logger.error(f"Error in plex upload callback: {e}")
@@ -139,15 +143,27 @@ def run_renamer_task(webhook_item: dict | None = None):
             daps_logger.debug("Submitting renamer task to thread pool")
             future = executor.submit(renamer.run, progress_instance, job_id)
 
-        if poster_renamer_payload.upload_to_plex:
-            daps_logger.debug("Setting up Plex upload callback...")
-            future.add_done_callback(run_plex_upload_callback)
-
         if poster_renamer_payload.unmatched_assets:
             daps_logger.debug("Setting up unmatched assets callback...")
-            future.add_done_callback(lambda _: run_unmatched_assets())
+            unmatched_future = executor.submit(run_unmatched_assets)
 
-        future.add_done_callback(remove_job_cb)
+            def unmatched_done_callback(_):
+                try:
+                    sleep(2)
+                    unmatched_future.result()
+                except Exception as e:
+                    daps_logger.error(f"Error in unmatched assets task: {e}")
+                finally:
+                    if not poster_renamer_payload.upload_to_plex:
+                        remove_job()
+                    else:
+                        future.add_done_callback(run_plex_upload_callback)
+
+            unmatched_future.add_done_callback(unmatched_done_callback)
+        else:
+            if poster_renamer_payload.upload_to_plex:
+                daps_logger.debug("Setting up Plex upload callback...")
+                future.add_done_callback(run_plex_upload_callback)
 
         return {
             "message": "Poster renamer task started",
@@ -211,7 +227,6 @@ def run_border_replacer_task():
                 daps_logger.error(f"Error removing job {job_id}: {e}")
 
         future.add_done_callback(remove_job_cb)
-        future.result()
 
         return {
             "message": "Border replacer task started",
@@ -253,7 +268,6 @@ def handle_unmatched_assets_task(radarr, sonarr, plex):
                     daps_logger.error(f"Error removing job {job_id}: {e}")
 
             future.add_done_callback(remove_job_cb)
-            future.result()
 
             return {
                 "message": "Unmatched assets task started",
@@ -314,7 +328,6 @@ def handle_plex_uploaderr_task(
                 daps_logger.debug(f"Error removing job {job_id}: {e}")
 
         future.add_done_callback(remove_job_cb)
-        future.result()
 
         return {
             "message": "Plex uploaderr task started",

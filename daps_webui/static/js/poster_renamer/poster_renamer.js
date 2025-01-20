@@ -950,6 +950,7 @@ function refrushUI(jobRoute) {
       refreshSortedFiles(() => {
         addFileLinkListeners();
         clickActiveFileLink();
+        refreshUnmatched();
       });
       break;
     case "/run-border-replace-job":

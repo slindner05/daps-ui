@@ -1358,7 +1358,7 @@ class PosterRenamerr:
                         "Failed to create media dictionary for single item.. Exiting."
                     )
                     if job_id and cb:
-                        cb(job_id, 100, ProgressState.COMPLETED)
+                        cb(job_id, 95, ProgressState.IN_PROGRESS)
                     return
             else:
                 if self.only_unmatched and not single_item:
@@ -1403,7 +1403,7 @@ class PosterRenamerr:
                 self.clean_cache()
                 self.logger.info("Done.")
                 if job_id and cb:
-                    cb(job_id, 100, ProgressState.COMPLETED)
+                    cb(job_id, 95, ProgressState.IN_PROGRESS)
                 return
 
             self.logger.debug(
@@ -1452,7 +1452,7 @@ class PosterRenamerr:
             self.clean_cache()
             self.logger.info("Done.")
             if job_id and cb:
-                cb(job_id, 100, ProgressState.COMPLETED)
+                cb(job_id, 95, ProgressState.IN_PROGRESS)
             if single_item:
                 return media_dict
         except Exception as e:
