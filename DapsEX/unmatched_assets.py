@@ -15,6 +15,8 @@ from DapsEX.utils import remove_chars
 from Payloads.unmatched_assets_payload import Payload
 from progress import ProgressState
 
+# TODO: Unmatched assets showing matched if main poster is missing but season posters aren't
+
 
 class UnmatchedAssets:
     def __init__(self, payload: Payload):
@@ -457,12 +459,12 @@ class UnmatchedAssets:
             )
             collections_dict = utils.get_combined_collections_dict(self.plex_instances)
             if job_id and cb:
-                cb(job_id, 40, ProgressState.IN_PROGRESS)
+                cb(job_id, 30, ProgressState.IN_PROGRESS)
             self.logger.debug("Created media dict and collections dict")
             self.logger.debug("Getting all assets")
             assets = self.db.return_all_files()
             if job_id and cb:
-                cb(job_id, 70, ProgressState.IN_PROGRESS)
+                cb(job_id, 50, ProgressState.IN_PROGRESS)
 
             self.logger.debug("Getting all unmatched assets and asset counts")
             unmatched_assets = self.get_unmatched_assets(
@@ -480,6 +482,8 @@ class UnmatchedAssets:
                 collections_dict,
                 self.show_all_unmatched,
             )
+            if job_id and cb:
+                cb(job_id, 70, ProgressState.IN_PROGRESS)
             self.logger.debug("Cleaning up database")
 
             self.cleanup_unmatched_media(unmatched_assets)

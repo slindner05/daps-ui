@@ -11,7 +11,6 @@ from DapsEX.utils import hash_file
 from progress import ProgressState
 
 
-# TODO: add a check for if the border setting and custom color is the same as current do nothing
 class BorderReplacerr:
     def __init__(self, custom_color=None, payload=None) -> None:
         if payload:

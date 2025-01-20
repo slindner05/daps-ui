@@ -217,7 +217,6 @@ class PosterRenamerr:
 
         return source_files
 
-    # TODO: add alternate titles for movies for matching
     def match_files_with_media(
         self,
         source_files: dict[str, list[Path]],

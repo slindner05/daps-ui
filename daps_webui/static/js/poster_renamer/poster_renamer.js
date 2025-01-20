@@ -1,5 +1,11 @@
 document.addEventListener("DOMContentLoaded", function () {
   createPosterRenamerBox();
+  const fileBrowser = document.querySelector(".file-browser");
+  if (fileBrowser) {
+    setTimeout(() => {
+      fileBrowser.classList.add("loaded");
+    }, 100);
+  }
   refreshSortedFiles(() => {
     clickFirstFileLink();
   });
@@ -49,8 +55,14 @@ function clickActiveFileLink() {
       `.file-link[data-identifier="${activeSeriesIdentifier}"]`,
     );
     if (activeSeriesLink) {
-      activeSeriesLink.click();
-      console.log("Clicked series link for:", activeSeriesIdentifier);
+      activeSeriesLink.scrollIntoView({
+        behavior: "instant",
+        block: "center",
+      });
+      setTimeout(() => {
+        activeSeriesLink.click();
+        console.log("Clicked series link for:", activeSeriesIdentifier);
+      }, 200);
     } else {
       console.warn("Series link not found for:", activeSeriesIdentifier);
     }
@@ -63,9 +75,15 @@ function clickActiveFileLink() {
       if (activeSeriesLink) {
         setTimeout(() => {
           activeFileLink.click();
-        }, 100);
+        }, 200);
       } else {
-        activeFileLink.click();
+        activeFileLink.scrollIntoView({
+          behavior: "instant",
+          block: "center",
+        });
+        setTimeout(() => {
+          activeFileLink.click();
+        }, 200);
       }
       console.log("Clicked active poster link for:", activePosterIdentifier);
     } else {
@@ -520,7 +538,7 @@ function createFileLink(
   seasonData = null,
   isSeasonLink = false,
 ) {
-  const identifier = filePath;
+  const identifier = filePath === "" ? displayName : filePath;
   const listItem = document.createElement("li");
   const fileName = document.createElement("span");
   listItem.setAttribute("data-identifier", identifier);
@@ -559,21 +577,24 @@ function previewImage(filePath, fileLink, identifier, isSeasonLink = false) {
     });
   }
 
-  const imageSourcePath = document.createElement("p");
-  imageSourcePath.classList.add("image-metadata");
-
-  if (filePath === "") {
-    imageSourcePath.textContent = "Poster not found";
-    previewDiv.appendChild(imageSourcePath);
-    return;
-  }
-
+  const placeholderImagePath = "/static/images/placeholders/no-image.jpg";
   const imageDiv = document.createElement("div");
   imageDiv.classList.add("image-div");
   const imgElement = document.createElement("img");
-  imgElement.src = filePath;
-  imgElement.alt = "Preview Image";
+  if (filePath === "") {
+    imgElement.src = placeholderImagePath;
+    imgElement.alt = "No Image Available";
+  } else {
+    imgElement.src = filePath;
+    imgElement.alt = "Preview Image";
+  }
   imgElement.setAttribute("data-identifier", identifier);
+  imgElement.onload = () => {
+    previewDiv.classList.add("loaded");
+  };
+  imgElement.onerror = () => {
+    console.warn("Failed to load image:", filePath);
+  };
   imageDiv.appendChild(imgElement);
 
   const deleteButton = document.createElement("button");
@@ -584,49 +605,57 @@ function previewImage(filePath, fileLink, identifier, isSeasonLink = false) {
   trashIcon.classList.add("fas", "fa-trash");
   deleteButton.appendChild(trashIcon);
 
-  deleteButton.onclick = () => {
-    if (confirm("Are you sure you want to delete this poster?")) {
-      fetch("/delete-poster", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ filePath }),
-      })
-        .then((response) => {
-          if (response.ok) {
-            refreshSortedFiles(() => {
-              const firstFileLink = document.querySelector(".file-link");
-              if (firstFileLink) {
-                firstFileLink.click();
-              }
-              const runUnmatchedButton =
-                document.getElementById("run-unmatched");
-              if (runUnmatchedButton) {
-                runUnmatchedButton.click();
-              }
-            });
-          } else {
-            response.text().then((text) => alert(`Error: ${text}`));
-          }
+  if (filePath) {
+    deleteButton.onclick = () => {
+      if (confirm("Are you sure you want to delete this poster?")) {
+        fetch("/delete-poster", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ filePath }),
         })
-        .catch((error) => alert(`Request failed ${error}`));
-    }
-  };
+          .then((response) => {
+            if (response.ok) {
+              refreshSortedFiles(() => {
+                const firstFileLink = document.querySelector(".file-link");
+                if (firstFileLink) {
+                  firstFileLink.click();
+                }
+                const runUnmatchedButton =
+                  document.getElementById("run-unmatched");
+                if (runUnmatchedButton) {
+                  runUnmatchedButton.click();
+                }
+              });
+            } else {
+              response.text().then((text) => alert(`Error: ${text}`));
+            }
+          })
+          .catch((error) => alert(`Request failed ${error}`));
+      }
+    };
+    imageDiv.appendChild(deleteButton);
+  }
 
-  imageDiv.appendChild(deleteButton);
+  const imageSourcePathDiv = document.createElement("div");
+  imageSourcePathDiv.classList.add("image-source-div");
+  const imageSourcePath = document.createElement("p");
+  imageSourcePath.classList.add("image-metadata");
 
   const sourcePath = fileLink.dataset.sourcePath;
   const parts = sourcePath.split("/");
   const parentDir = parts[parts.length - 2];
   const fileName = parts[parts.length - 1];
 
-  const firstPart = document.createTextNode(parts.slice(0, -2).join("/") + "/");
   const parentDirPart = document.createElement("span");
   parentDirPart.classList.add("bold-text");
   parentDirPart.textContent = parentDir;
 
   const fileNamePart = document.createTextNode("/" + fileName);
+  imageSourcePath.appendChild(parentDirPart);
+  imageSourcePath.appendChild(fileNamePart);
+  imageSourcePathDiv.appendChild(imageSourcePath);
 
   const plexUploadRunProgress = createRunProgress(
     "run-plex-uploader",
@@ -654,12 +683,10 @@ function previewImage(filePath, fileLink, identifier, isSeasonLink = false) {
     "border-replace-progress",
   );
 
-  imageSourcePath.appendChild(firstPart);
-  imageSourcePath.appendChild(parentDirPart);
-  imageSourcePath.appendChild(fileNamePart);
-
   previewDiv.appendChild(imageDiv);
-  previewDiv.appendChild(imageSourcePath);
+  if (filePath) {
+    previewDiv.appendChild(imageSourcePathDiv);
+  }
   previewDiv.appendChild(plexUploadRunProgress);
   previewDiv.appendChild(borderReplaceRunProgress);
   previewContainer.appendChild(previewDiv);
@@ -834,6 +861,7 @@ function createRunProgress(buttonId, progressId, buttonText) {
 function attachRunListener(button, jobRoute, jobName, progressId) {
   button.addEventListener("click", function () {
     button.disabled = true;
+    button.classList.add("disabled");
     button.textContent = "RUNNING";
     fetch(jobRoute, {
       method: "POST",
@@ -852,6 +880,7 @@ function attachRunListener(button, jobRoute, jobName, progressId) {
             console.warn("Task skipped:", data.message);
             alert(data.message);
             button.disabled = false;
+            button.classList.remove("disabled");
             button.textContent = `RUN ${jobName}`;
           }
         } else {
@@ -869,12 +898,12 @@ function attachRunListener(button, jobRoute, jobName, progressId) {
 }
 
 function checkProgress(jobId, button, progressId, jobName, jobRoute) {
+  const progressBar = document.getElementById(progressId);
   fetch(`/progress/${jobId}`)
     .then((response) => response.json())
     .then((data) => {
       const progress = parseInt(data.value) || 0;
       const state = data.state || "Pending";
-      const progressBar = document.getElementById(progressId);
 
       progressBar.style.width = progress + "%";
       progressBar.textContent = `${progress}%`;
@@ -888,19 +917,26 @@ function checkProgress(jobId, button, progressId, jobName, jobRoute) {
       if (state !== "Completed") {
         setTimeout(
           () => checkProgress(jobId, button, progressId, jobName, jobRoute),
-          1000,
+          500,
         );
       } else {
         console.log("Job Complete");
         progressBar.textContent = "100%";
-        button.disabled = false;
-        button.textContent = `RUN ${jobName}`;
         refrushUI(jobRoute);
+        setTimeout(() => {
+          button.disabled = false;
+          button.classList.remove("disabled");
+          button.textContent = `RUN ${jobName}`;
+          progressBar.style.width = "0%";
+          progressBar.textContent = "";
+          progressBar.style.backgroundColor = "transparent";
+        }, 4000);
       }
     })
     .catch((error) => {
       console.error("Error checking progress", error);
       button.disabled = false;
+      button.classList.remove("disabled");
       button.textContent = `RUN ${jobName}`;
     });
 }
