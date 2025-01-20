@@ -20,12 +20,49 @@
   width: auto;
   height: auto;
 }
+.nav-extension {
+  position: fixed;
+  display: flex;
+  background-color: #16191f;
+  height: 65px;
+  align-items: center;
+  width: calc(100% - 250px);
+  margin-left: 250px;
+}
+.save-button {
+  display: flex;
+  flex-direction: column;
+  margin-left: 40px;
+  color: var(--light);
+  background-color: transparent;
+  border: none;
+  font-size: 12px;
+  max-width: 65px;
+}
+
+.save-button.enabled {
+  cursor: pointer;
+  color: white;
+}
+
+.save-button span {
+  font-size: 11px;
+  align-items: center;
+  word-wrap: break-word;
+  font-weight: bold;
+}
+.save-button i {
+  font-size: 20px;
+  margin-bottom: 3px;
+  color: inherit;
+}
 
 .settings-container {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  margin: 20px;
+  margin: 10px;
+  margin-top: 70px;
 }
 
 #instances-form {
@@ -145,11 +182,11 @@
 }
 
 /* Style when the checkbox is checked */
-.custom-checkbox:checked+.slider {
+.custom-checkbox:checked + .slider {
   background-color: var(--primary);
 }
 
-.custom-checkbox:checked+.slider::before {
+.custom-checkbox:checked + .slider::before {
   transform: translateX(20px);
   /* Move the slider knob to the right */
 }
@@ -345,13 +382,6 @@
 
 .btn-add {
   white-space: nowrap;
-}
-
-.btn-submit {
-  display: flex;
-  align-items: center;
-  /* margin-top: 10px; */
-  height: 100%;
 }
 
 .form-wrapper {

@@ -1,5 +1,6 @@
 // TODO: add info hover tip for schedules
 document.addEventListener("DOMContentLoaded", function () {
+  createNavExtension();
   attachNewInstance("radarr");
   attachNewInstance("sonarr");
   attachNewInstance("plex");
@@ -14,6 +15,8 @@ document.addEventListener("DOMContentLoaded", function () {
       if (data.success) {
         preFillForm(data.settings);
         console.log(data.settings);
+        captureInitialState();
+        attachInputListeners();
       } else {
         console.error("Error fetching settings: " + data.message);
       }
@@ -23,9 +26,124 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
   const sourceList = document.getElementById("source_dir_div");
+  const settingsContainer = document.getElementById("settings-container");
+  // const addButtons = document.querySelectorAll(".btn-add");
+  // addButtons.forEach((button) => {
+  //   button.addEventListener("click", () => {
+  //     disableSaveButton();
+  //   });
+  // });
   initializeDragAndDrop(sourceList);
+  const observer = new MutationObserver((mutationList) => {
+    mutationList.forEach((mutation) => {
+      if (mutation.type === "childList" && mutation.addedNodes.length > 0) {
+        mutation.addedNodes.forEach((node) => {
+          if (node.matches?.("input, select, textarea")) {
+            attachInputListener(node);
+          }
+        });
+        mutation.removedNodes.forEach(() => {
+          checkChanges();
+        });
+      }
+    });
+    attachInputListeners();
+    checkChanges();
+  });
+  observer.observe(settingsContainer, {
+    childList: true,
+    subtree: true,
+  });
 });
 
+let initialState = [];
+
+function attachInputListeners() {
+  const inputs = document.querySelectorAll("input, select, textarea");
+  inputs.forEach((input) => {
+    input.addEventListener("input", checkChanges);
+    input.addEventListener("change", checkChanges);
+  });
+}
+function attachInputListener(input) {
+  input.addEventListener("input", checkChanges);
+  input.addEventListener("change", checkChanges);
+}
+
+function captureInitialState() {
+  const inputs = document.querySelectorAll("input, select, textarea");
+  initialState = Array.from(inputs).map((input) => {
+    if (input.type === "checkbox" || input.type === "radio") {
+      return input.checked;
+    }
+    return input.value;
+  });
+  console.log("Initial state captured:", initialState);
+}
+
+function checkChanges() {
+  const inputs = Array.from(
+    document.querySelectorAll("input, select, textarea"),
+  );
+  const curentStates = inputs.map((input) => {
+    if (input.type === "checkbox" || input.type === "radio") {
+      return input.checked;
+    }
+    return input.value;
+  });
+
+  const initialStateReverted =
+    initialState.length === curentStates.length &&
+    initialState.every((state, index) => state === curentStates[index]);
+  if (initialStateReverted) {
+    disableSaveButton();
+  } else {
+    enableSaveButton();
+  }
+}
+function enableSaveButton() {
+  const saveButton = document.getElementById("save-settings");
+  saveButton.disabled = false;
+  saveButton.classList.add("enabled");
+  const saveText = saveButton.querySelector("span");
+  if (saveText) {
+    saveText.textContent = "Save Changes";
+  }
+}
+function disableSaveButton() {
+  const saveButton = document.getElementById("save-settings");
+  saveButton.disabled = true;
+  saveButton.classList.remove("enabled");
+  const saveText = saveButton.querySelector("span");
+  if (saveText) {
+    saveText.textContent = "No Changes";
+  }
+}
+
+function createNavExtension() {
+  const layoutContainer = document.getElementById("layout-wrapper");
+  const navExtension = document.createElement("div");
+  navExtension.classList.add("nav-extension");
+  layoutContainer.appendChild(navExtension);
+
+  const saveButton = document.createElement("button");
+  saveButton.id = "save-settings";
+  saveButton.classList.add("save-button");
+
+  const saveIcon = document.createElement("i");
+  saveIcon.classList.add("fa", "fa-save");
+  saveButton.appendChild(saveIcon);
+
+  const saveText = document.createElement("span");
+  saveText.textContent = "No Changes";
+  saveText.classList.add("save-text");
+  saveButton.appendChild(saveText);
+  saveButton.disabled = true;
+
+  attachSaveSettingsListener(saveButton);
+
+  navExtension.appendChild(saveButton);
+}
 function toggleCustomColorInput() {
   const borderColorSelect = document.getElementById("border_select");
   const customColorInput = document.getElementById("custom_color");
@@ -199,6 +317,7 @@ function preFillForm(data) {
       borderColorSelect.value = data.borderSetting;
     }
   }
+  attachReplaceBorderToggle();
   toggleCustomColorInput();
   document.querySelector('input[name="hex_code"]').value =
     data.customColor || "";
@@ -319,6 +438,19 @@ function createCheckboxInput(labelName, inputId, name = null, value = null) {
   div.appendChild(label);
 
   return div;
+}
+function attachReplaceBorderToggle() {
+  const borderReplacerCheckbox = document.getElementById("replace_border");
+  const borderColorDiv = document.getElementById("border_color_div");
+  function toggleBorderColorDiv() {
+    if (borderReplacerCheckbox.checked) {
+      borderColorDiv.style.display = "block";
+    } else {
+      borderColorDiv.style.display = "none";
+    }
+  }
+  borderReplacerCheckbox.addEventListener("change", toggleBorderColorDiv);
+  toggleBorderColorDiv();
 }
 
 function createAddButton(name, text) {
@@ -797,12 +929,22 @@ function createLogLevelGroup(name, inputId) {
     "debug",
   );
 
-  infoCheckbox.querySelector("input").onclick = () => {
-    debugCheckbox.querySelector("input").checked = false;
-  };
+  const infoInput = infoCheckbox.querySelector("input");
+  const debugInput = debugCheckbox.querySelector("input");
 
-  debugCheckbox.querySelector("input").onclick = () => {
-    infoCheckbox.querySelector("input").checked = false;
+  infoInput.onclick = () => {
+    if (infoInput.checked) {
+      debugInput.checked = false;
+    } else {
+      debugInput.checked = true;
+    }
+  };
+  debugInput.onclick = () => {
+    if (debugInput.checked) {
+      infoInput.checked = false;
+    } else {
+      infoInput.checked = true;
+    }
   };
 
   checkboxDiv.appendChild(infoCheckbox);
@@ -839,156 +981,184 @@ document.getElementById("add-plex").addEventListener("click", function () {
 });
 
 // Save settings to db
-document.getElementById("save-settings").addEventListener("click", function () {
-  const logLevelPosterRenamer = document.querySelector(
-    'input[name="poster-renamer_log_level"]:checked',
-  )?.value;
-  const logLevelUnmatchedAssets = document.querySelector(
-    'input[name="unmatched-assets_log_level"]:checked',
-  )?.value;
-  const logLevelPlexUploaderr = document.querySelector(
-    'input[name="plex-uploaderr_log_level"]:checked',
-  )?.value;
-  const logLevelBorderReplacerr = document.querySelector(
-    'input[name="border-replacerr_log_level"]:checked',
-  )?.value;
-  const targetPath = document.querySelector('input[name="target_path"]').value;
-  const posterRenamerSchedule = document.querySelector(
-    'input[name="poster_renamer_schedule"]',
-  ).value;
-  const unmatchedAssetsSchedule = document.querySelector(
-    'input[name="unmatched_assets_schedule"]',
-  ).value;
-  const plexUploaderrSchedule = document.querySelector(
-    'input[name="plex_uploaderr_schedule"]',
-  ).value;
-  const borderSetting = document.querySelector(
-    'select[name="border_setting"]',
-  ).value;
-  const customColor = document.querySelector('input[name="hex_code"]').value;
-  const sourceDirs = Array.from(
-    document.querySelectorAll('input[name="source_dir[]"]'),
-  ).map((input) => input.value);
-  const libraryNames = Array.from(
-    document.querySelectorAll('input[name="library_name[]"]'),
-  ).map((input) => input.value);
-  const instances = Array.from(
-    document.querySelectorAll('input[name="instance[]"]'),
-  ).map((input) => input.value);
-  const assetFolders = document.getElementById("asset_folders").checked;
-  const replaceBorder = document.getElementById("replace_border").checked;
-  const unmatchedAssets = document.getElementById("unmatched_assets").checked;
-  const runSingleItem = document.getElementById("run_single_item").checked;
-  const onlyUnmatched = document.getElementById("only_unmatched").checked;
-  const uploadToPlex = document.getElementById("upload_to_plex").checked;
-  const reapplyPosters = document.getElementById("reapply_posters").checked;
-  const cleanAssets = document.getElementById("clean_assets").checked;
-  const matchAlt = document.getElementById("match_alt").checked;
-  const disableUnmatchedCollections = document.getElementById(
-    "disable_unmatched_collections",
-  ).checked;
-  document.getElementById("reapply_posters").checked;
-  const showAllUnmatched =
-    document.getElementById("show_all_unmatched").checked;
-  // radarr
-  const radarrInstanceNames = Array.from(
-    document.querySelectorAll('input[name="radarr_instance[]"]'),
-  ).map((input) => input.value);
-  const radarrUrls = Array.from(
-    document.querySelectorAll('input[name="radarr_url[]"]'),
-  ).map((input) => input.value);
-  const radarrApiKeys = Array.from(
-    document.querySelectorAll('input[name="radarr_api[]"]'),
-  ).map((input) => input.value);
-
-  const radarrInstances = radarrInstanceNames.map((name, index) => ({
-    instanceName: name,
-    url: radarrUrls[index],
-    apiKey: radarrApiKeys[index],
-  }));
-
-  // sonarr
-  const sonarrInstanceNames = Array.from(
-    document.querySelectorAll('input[name="sonarr_instance[]"]'),
-  ).map((input) => input.value);
-  const sonarrUrls = Array.from(
-    document.querySelectorAll('input[name="sonarr_url[]"]'),
-  ).map((input) => input.value);
-  const sonarrApiKeys = Array.from(
-    document.querySelectorAll('input[name="sonarr_api[]"]'),
-  ).map((input) => input.value);
-
-  const sonarrInstances = sonarrInstanceNames.map((name, index) => ({
-    instanceName: name,
-    url: sonarrUrls[index],
-    apiKey: sonarrApiKeys[index],
-  }));
-
-  // plex
-  const plexInstanceNames = Array.from(
-    document.querySelectorAll('input[name="plex_instance[]"]'),
-  ).map((input) => input.value);
-  const plexUrls = Array.from(
-    document.querySelectorAll('input[name="plex_url[]"]'),
-  ).map((input) => input.value);
-  const plexApiKeys = Array.from(
-    document.querySelectorAll('input[name="plex_api[]"]'),
-  ).map((input) => input.value);
-
-  const plexInstances = plexInstanceNames.map((name, index) => ({
-    instanceName: name,
-    url: plexUrls[index],
-    apiKey: plexApiKeys[index],
-  }));
-
-  fetch("/save-settings", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      logLevelUnmatchedAssets: logLevelUnmatchedAssets,
-      logLevelPosterRenamer: logLevelPosterRenamer,
-      logLevelPlexUploaderr: logLevelPlexUploaderr,
-      logLevelBorderReplacerr: logLevelBorderReplacerr,
-      posterRenamerSchedule: posterRenamerSchedule,
-      unmatchedAssetsSchedule: unmatchedAssetsSchedule,
-      plexUploaderrSchedule: plexUploaderrSchedule,
-      targetPath: targetPath,
-      sourceDirs: sourceDirs,
-      libraryNames: libraryNames,
-      instances: instances,
-      assetFolders: assetFolders,
-      cleanAssets: cleanAssets,
-      unmatchedAssets: unmatchedAssets,
-      replaceBorder: replaceBorder,
-      runSingleItem: runSingleItem,
-      onlyUnmatched: onlyUnmatched,
-      uploadToPlex: uploadToPlex,
-      matchAlt: matchAlt,
-      reapplyPosters: reapplyPosters,
-      showAllUnmatched: showAllUnmatched,
-      disableUnmatchedCollections: disableUnmatchedCollections,
-      radarrInstances: radarrInstances,
-      sonarrInstances: sonarrInstances,
-      plexInstances: plexInstances,
-      borderSetting: borderSetting,
-      customColor: customColor,
-    }),
-  })
-    .then((response) => response.json())
-    .then((data) => {
-      if (data.success) {
-        alert("Settings saved successfully!");
-      } else {
-        alert("Error saving settings: " + data.message);
-      }
-    })
-    .catch((error) => {
-      console.error("Error", error);
-      alert("An unexpected error occurred.");
+function attachSaveSettingsListener(saveButton) {
+  saveButton.addEventListener("click", function () {
+    const requiredFields = [
+      'input[name="target_path"]',
+      'input[name="source_dir[]"]',
+      'input[name="library_name[]"]',
+      'input[name="instance[]"]',
+      'input[name="radarr_instance[]"]',
+      'input[name="radarr_url[]"]',
+      'input[name="radarr_api[]"]',
+      'input[name="sonarr_instance[]"]',
+      'input[name="sonarr_url[]"]',
+      'input[name="sonarr_api[]"]',
+      'input[name="plex_instance[]"]',
+      'input[name="plex_url[]"]',
+      'input[name="plex_api[]"]',
+    ];
+    const emptyFields = requiredFields.filter((selector) => {
+      const inputs = document.querySelectorAll(selector);
+      return Array.from(inputs).some((input) => !input.value.trim());
     });
-});
+    if (emptyFields.length > 0) {
+      alert("Please fill in all required empty fields before saving.");
+      return;
+    }
+    const logLevelPosterRenamer = document.querySelector(
+      'input[name="poster-renamer_log_level"]:checked',
+    )?.value;
+    const logLevelUnmatchedAssets = document.querySelector(
+      'input[name="unmatched-assets_log_level"]:checked',
+    )?.value;
+    const logLevelPlexUploaderr = document.querySelector(
+      'input[name="plex-uploaderr_log_level"]:checked',
+    )?.value;
+    const logLevelBorderReplacerr = document.querySelector(
+      'input[name="border-replacerr_log_level"]:checked',
+    )?.value;
+    const targetPath = document.querySelector(
+      'input[name="target_path"]',
+    ).value;
+    const posterRenamerSchedule = document.querySelector(
+      'input[name="poster_renamer_schedule"]',
+    ).value;
+    const unmatchedAssetsSchedule = document.querySelector(
+      'input[name="unmatched_assets_schedule"]',
+    ).value;
+    const plexUploaderrSchedule = document.querySelector(
+      'input[name="plex_uploaderr_schedule"]',
+    ).value;
+    const borderSetting = document.querySelector(
+      'select[name="border_setting"]',
+    ).value;
+    const customColor = document.querySelector('input[name="hex_code"]').value;
+    const sourceDirs = Array.from(
+      document.querySelectorAll('input[name="source_dir[]"]'),
+    ).map((input) => input.value);
+    const libraryNames = Array.from(
+      document.querySelectorAll('input[name="library_name[]"]'),
+    ).map((input) => input.value);
+    const instances = Array.from(
+      document.querySelectorAll('input[name="instance[]"]'),
+    ).map((input) => input.value);
+    const assetFolders = document.getElementById("asset_folders").checked;
+    const replaceBorder = document.getElementById("replace_border").checked;
+    const unmatchedAssets = document.getElementById("unmatched_assets").checked;
+    const runSingleItem = document.getElementById("run_single_item").checked;
+    const onlyUnmatched = document.getElementById("only_unmatched").checked;
+    const uploadToPlex = document.getElementById("upload_to_plex").checked;
+    const reapplyPosters = document.getElementById("reapply_posters").checked;
+    const cleanAssets = document.getElementById("clean_assets").checked;
+    const matchAlt = document.getElementById("match_alt").checked;
+    const disableUnmatchedCollections = document.getElementById(
+      "disable_unmatched_collections",
+    ).checked;
+    document.getElementById("reapply_posters").checked;
+    const showAllUnmatched =
+      document.getElementById("show_all_unmatched").checked;
+    // radarr
+    const radarrInstanceNames = Array.from(
+      document.querySelectorAll('input[name="radarr_instance[]"]'),
+    ).map((input) => input.value);
+    const radarrUrls = Array.from(
+      document.querySelectorAll('input[name="radarr_url[]"]'),
+    ).map((input) => input.value);
+    const radarrApiKeys = Array.from(
+      document.querySelectorAll('input[name="radarr_api[]"]'),
+    ).map((input) => input.value);
+
+    const radarrInstances = radarrInstanceNames.map((name, index) => ({
+      instanceName: name,
+      url: radarrUrls[index],
+      apiKey: radarrApiKeys[index],
+    }));
+
+    // sonarr
+    const sonarrInstanceNames = Array.from(
+      document.querySelectorAll('input[name="sonarr_instance[]"]'),
+    ).map((input) => input.value);
+    const sonarrUrls = Array.from(
+      document.querySelectorAll('input[name="sonarr_url[]"]'),
+    ).map((input) => input.value);
+    const sonarrApiKeys = Array.from(
+      document.querySelectorAll('input[name="sonarr_api[]"]'),
+    ).map((input) => input.value);
+
+    const sonarrInstances = sonarrInstanceNames.map((name, index) => ({
+      instanceName: name,
+      url: sonarrUrls[index],
+      apiKey: sonarrApiKeys[index],
+    }));
+
+    // plex
+    const plexInstanceNames = Array.from(
+      document.querySelectorAll('input[name="plex_instance[]"]'),
+    ).map((input) => input.value);
+    const plexUrls = Array.from(
+      document.querySelectorAll('input[name="plex_url[]"]'),
+    ).map((input) => input.value);
+    const plexApiKeys = Array.from(
+      document.querySelectorAll('input[name="plex_api[]"]'),
+    ).map((input) => input.value);
+
+    const plexInstances = plexInstanceNames.map((name, index) => ({
+      instanceName: name,
+      url: plexUrls[index],
+      apiKey: plexApiKeys[index],
+    }));
+
+    fetch("/save-settings", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        logLevelUnmatchedAssets: logLevelUnmatchedAssets,
+        logLevelPosterRenamer: logLevelPosterRenamer,
+        logLevelPlexUploaderr: logLevelPlexUploaderr,
+        logLevelBorderReplacerr: logLevelBorderReplacerr,
+        posterRenamerSchedule: posterRenamerSchedule,
+        unmatchedAssetsSchedule: unmatchedAssetsSchedule,
+        plexUploaderrSchedule: plexUploaderrSchedule,
+        targetPath: targetPath,
+        sourceDirs: sourceDirs,
+        libraryNames: libraryNames,
+        instances: instances,
+        assetFolders: assetFolders,
+        cleanAssets: cleanAssets,
+        unmatchedAssets: unmatchedAssets,
+        replaceBorder: replaceBorder,
+        runSingleItem: runSingleItem,
+        onlyUnmatched: onlyUnmatched,
+        uploadToPlex: uploadToPlex,
+        matchAlt: matchAlt,
+        reapplyPosters: reapplyPosters,
+        showAllUnmatched: showAllUnmatched,
+        disableUnmatchedCollections: disableUnmatchedCollections,
+        radarrInstances: radarrInstances,
+        sonarrInstances: sonarrInstances,
+        plexInstances: plexInstances,
+        borderSetting: borderSetting,
+        customColor: customColor,
+      }),
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.success) {
+          captureInitialState();
+          disableSaveButton();
+        } else {
+          alert("Error saving settings: " + data.message);
+        }
+      })
+      .catch((error) => {
+        console.error("Error", error);
+        alert("An unexpected error occurred.");
+      });
+  });
+}
 
 function attachTestButtonListener(testButton, instanceType) {
   testButton.addEventListener("click", function (event) {

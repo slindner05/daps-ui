@@ -11,23 +11,27 @@
     </head>
     <body>
         <!-- Navbar -->
-        <nav class="navbar">
-            <a href="{{ url_for("home.home_route") }}">
-                <h2 class="text-primary">DapsUI</h2>
-            </a>
+        <nav id="navbar" class="navbar">
+            <div id="nav-container" class="nav-items">
+                <a href="{{ url_for("home.home_route") }}">
+                    <h2 class="text-primary">DapsUI</h2>
+                </a>
+            </div>
         </nav>
-        <div class="layout">
+        <div id="layout" class="layout">
             <!-- Sidebar -->
-            <div class="sidebar">
-                <!-- Settings Link -->
-                <a href="{{ url_for("settings.settings_route") }}" class="sidebar-item">
-                    <i class="fa-solid fa-gear"></i> Settings
-                </a>
-                <!-- Poster Renamer Link -->
-                <a href="{{ url_for("poster_renamer.poster_renamer_route") }}"
-                   class="sidebar-item">
-                    <i class="fa-solid fa-image"></i> Poster Renamerr
-                </a>
+            <div class="layout-wrapper" id="layout-wrapper">
+                <div class="sidebar">
+                    <!-- Settings Link -->
+                    <a href="{{ url_for("settings.settings_route") }}" class="sidebar-item">
+                        <i class="fa-solid fa-gear"></i> Settings
+                    </a>
+                    <!-- Poster Renamer Link -->
+                    <a href="{{ url_for("poster_renamer.poster_renamer_route") }}"
+                       class="sidebar-item">
+                        <i class="fa-solid fa-image"></i> Poster Renamerr
+                    </a>
+                </div>
             </div>
             <div id="layout-content-div">
                 {% block layout_content_div %}

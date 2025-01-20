@@ -37,10 +37,19 @@ body {
   box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
 }
 
+.layout-wrapper {
+  display: flex;
+  flex-direction: row;
+}
+
 .navbar a {
   text-decoration: none;
   color: var(--primary);
   padding: 10px;
+}
+.nav-items {
+  display: flex;
+  flex-direction: row;
 }
 
 .layout {
