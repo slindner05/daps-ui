@@ -627,6 +627,7 @@ function previewImage(filePath, fileLink, identifier, isSeasonLink = false) {
                 if (runUnmatchedButton) {
                   runUnmatchedButton.click();
                   toggleDeleteButtons(deleteButton);
+                  filterTabContent();
                 }
               });
             } else {
@@ -979,7 +980,7 @@ function checkProgress(jobId, button, progressId, jobName, jobRoute) {
           progressBar.style.width = "0%";
           progressBar.textContent = "";
           progressBar.style.backgroundColor = "transparent";
-        }, 4000);
+        }, 3000);
       }
     })
     .catch((error) => {
@@ -997,6 +998,7 @@ function refrushUI(jobRoute) {
       break;
     case "/run-renamer-job":
       refreshSortedFiles(() => {
+        filterTabContent();
         addFileLinkListeners();
         clickActiveFileLink();
         refreshUnmatched();
@@ -1004,6 +1006,7 @@ function refrushUI(jobRoute) {
       break;
     case "/run-border-replace-job":
       refreshSortedFiles(() => {
+        filterTabContent();
         addFileLinkListeners();
         clickActiveFileLink();
       });
