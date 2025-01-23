@@ -626,16 +626,49 @@ function previewImage(filePath, fileLink, identifier, isSeasonLink = false) {
                   document.getElementById("run-unmatched");
                 if (runUnmatchedButton) {
                   runUnmatchedButton.click();
+                  toggleDeleteButtons(deleteButton);
                 }
               });
             } else {
               response.text().then((text) => alert(`Error: ${text}`));
             }
           })
-          .catch((error) => alert(`Request failed ${error}`));
+          .catch((error) => {
+            alert(`Request failed ${error}`);
+          });
       }
     };
     imageDiv.appendChild(deleteButton);
+
+    const runUnmatchedButton = document.getElementById("run-unmatched");
+    const runRenamerButton = document.getElementById("run-renamer");
+    if (runUnmatchedButton || runRenamerButton) {
+      const observer = new MutationObserver(() => {
+        toggleDeleteButtons(deleteButton);
+      });
+      if (runRenamerButton) {
+        observer.observe(runRenamerButton, {
+          attributes: true,
+          attributeFilter: ["disabled"],
+        });
+      }
+      if (runUnmatchedButton) {
+        observer.observe(runUnmatchedButton, {
+          attributes: true,
+          attributeFilter: ["disabled"],
+        });
+      }
+      if (
+        (runUnmatchedButton && runUnmatchedButton.disabled) ||
+        (runRenamerButton && runRenamerButton.disabled)
+      ) {
+        deleteButton.disabled = true;
+        deleteButton.classList.add("disabled");
+      } else {
+        deleteButton.disabled = false;
+        deleteButton.classList.remove("disabled");
+      }
+    }
   }
 
   const imageSourcePathDiv = document.createElement("div");
@@ -690,6 +723,21 @@ function previewImage(filePath, fileLink, identifier, isSeasonLink = false) {
   previewDiv.appendChild(plexUploadRunProgress);
   previewDiv.appendChild(borderReplaceRunProgress);
   previewContainer.appendChild(previewDiv);
+}
+
+function toggleDeleteButtons(deleteButton) {
+  const runUnmatchedButton = document.getElementById("run-unmatched");
+  const runRenamerButton = document.getElementById("run-renamer");
+  if (
+    (runUnmatchedButton && runUnmatchedButton.disabled) ||
+    (runRenamerButton && runRenamerButton.disabled)
+  ) {
+    deleteButton.disabled = true;
+    deleteButton.classList.add("disabled");
+  } else {
+    deleteButton.disabled = false;
+    deleteButton.classList.remove("disabled");
+  }
 }
 
 function createTabGroup() {
@@ -805,6 +853,7 @@ function createPosterRenamerBox() {
   );
   const posterRenamerRunButton =
     posterRenamerRunProgress.querySelector("button");
+
   attachRunListener(
     posterRenamerRunButton,
     "/run-renamer-job",

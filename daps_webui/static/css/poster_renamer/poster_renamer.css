@@ -376,6 +376,16 @@
   opacity: 1;
 }
 
+.delete-button.disabled {
+  background-color: var(--light);
+  cursor: not-allowed;
+  transition: none;
+}
+.delete-button.disabled:hover {
+  background-color: var(--light);
+  transform: none;
+}
+
 .image-source-div {
   background-color: var(--secondary);
   padding-top: 0px;
