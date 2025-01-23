@@ -1,5 +1,5 @@
 import logging
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from pprint import pformat
 from time import sleep
 
@@ -70,8 +70,6 @@ def create_app() -> Flask:
 
 
 def run_renamer_task(webhook_item: dict | None = None):
-    from concurrent.futures import Future
-
     from daps_webui.models import PlexInstance, RadarrInstance, SonarrInstance
 
     try:
@@ -88,7 +86,6 @@ def run_renamer_task(webhook_item: dict | None = None):
         daps_logger.info(f"Job Poster Renamerr: '{job_id}' added.")
 
         renamer = PosterRenamerr(poster_renamer_payload)
-        unmatched_future: Future | None = None
 
         def remove_job():
             try:
@@ -98,9 +95,6 @@ def run_renamer_task(webhook_item: dict | None = None):
                 daps_logger.info(f"Poster Renamerr Job: {job_id} has been removed")
             except Exception as e:
                 daps_logger.error(f"Error removing job {job_id}: {e}")
-
-        def run_unmatched_assets():
-            handle_unmatched_assets_task(radarr, sonarr, plex)
 
         def run_plex_upload_callback(fut):
             try:
@@ -115,6 +109,9 @@ def run_renamer_task(webhook_item: dict | None = None):
                 run_plex_upload(media_dict)
             except Exception as e:
                 daps_logger.error(f"Error in plex upload callback: {e}")
+
+        def run_unmatched_assets():
+            handle_unmatched_assets_task(radarr, sonarr, plex)
 
         def run_plex_upload(media_dict=None):
             try:
@@ -138,28 +135,31 @@ def run_renamer_task(webhook_item: dict | None = None):
                 and poster_renamer_payload.only_unmatched
             ):
                 daps_logger.debug("Running unmatched assets task first...")
-                run_unmatched_assets()
+                status, unmatched_future = handle_unmatched_assets_task(
+                    radarr, sonarr, plex
+                )
+                if status["success"]:
+                    unmatched_future.result()
+                    daps_logger.debug("Unmatched assets completed.")
 
             daps_logger.debug("Submitting renamer task to thread pool")
             future = executor.submit(renamer.run, progress_instance, job_id)
 
         if poster_renamer_payload.unmatched_assets:
-            daps_logger.debug("Setting up unmatched assets callback...")
-            unmatched_future = executor.submit(run_unmatched_assets)
 
-            def unmatched_done_callback(_):
-                try:
-                    sleep(2)
-                    unmatched_future.result()
-                except Exception as e:
-                    daps_logger.error(f"Error in unmatched assets task: {e}")
-                finally:
-                    if not poster_renamer_payload.upload_to_plex:
-                        remove_job()
-                    else:
-                        future.add_done_callback(run_plex_upload_callback)
+            def renamer_done_callback(_):
+                daps_logger.debug(
+                    "Renamer task completed. Starting unmatched assets task..."
+                )
+                run_unmatched_assets()
+                daps_logger.debug("Unmatched assets completed.")
 
-            unmatched_future.add_done_callback(unmatched_done_callback)
+                if not poster_renamer_payload.upload_to_plex:
+                    remove_job()
+                else:
+                    future.add_done_callback(run_plex_upload_callback)
+
+            future.add_done_callback(renamer_done_callback)
         else:
             if poster_renamer_payload.upload_to_plex:
                 daps_logger.debug("Setting up Plex upload callback...")
@@ -238,7 +238,7 @@ def run_border_replacer_task():
         return {"success": False, "message": str(e)}
 
 
-def handle_unmatched_assets_task(radarr, sonarr, plex):
+def handle_unmatched_assets_task(radarr, sonarr, plex) -> tuple[dict, Future] | dict:
     try:
         with app.app_context():
             unmatched_assets_payload = webui_utils.create_unmatched_assets_payload(
@@ -269,11 +269,14 @@ def handle_unmatched_assets_task(radarr, sonarr, plex):
 
             future.add_done_callback(remove_job_cb)
 
-            return {
-                "message": "Unmatched assets task started",
-                "job_id": job_id,
-                "success": True,
-            }
+            return (
+                {
+                    "message": "Unmatched assets task started",
+                    "job_id": job_id,
+                    "success": True,
+                },
+                future,
+            )
 
     except Exception as e:
         daps_logger.error(f"Error in Unmatched Assets Task: {str(e)}")
@@ -344,7 +347,8 @@ def run_unmatched_assets_task():
         sonarr = get_instances(SonarrInstance())
         plex = get_instances(PlexInstance())
 
-        return handle_unmatched_assets_task(radarr, sonarr, plex)
+        status, _ = handle_unmatched_assets_task(radarr, sonarr, plex)
+        return status
     except Exception as e:
         return {"success": False, "message": str(e)}
 
