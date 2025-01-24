@@ -134,6 +134,24 @@ def run_renamer_task(webhook_item: dict | None = None):
                 poster_renamer_payload.unmatched_assets
                 and poster_renamer_payload.only_unmatched
             ):
+                from daps_webui.utils.database import Database
+
+                db_instance = Database(db, daps_logger)
+                first_file_settings = db_instance.get_first_file_settings()
+                border_setting = poster_renamer_payload.border_setting
+                custom_color = poster_renamer_payload.custom_color
+                if first_file_settings:
+                    current_border_setting = first_file_settings.get("border_setting")
+                    current_custom_color = first_file_settings.get("custom_color")
+                    if not (
+                        current_border_setting == border_setting
+                        and current_custom_color == custom_color
+                    ):
+                        status, border_replace_future = run_border_replacer_task()
+                        if status["success"]:
+                            if border_replace_future:
+                                border_replace_future.result()
+
                 daps_logger.debug("Running unmatched assets task first...")
                 status, unmatched_future = handle_unmatched_assets_task(
                     radarr, sonarr, plex
@@ -175,7 +193,7 @@ def run_renamer_task(webhook_item: dict | None = None):
         return {"success": False, "message": str(e)}
 
 
-def run_border_replacer_task():
+def run_border_replacer_task() -> tuple[dict, Future | None]:
     try:
         from daps_webui.utils.database import Database
 
@@ -197,11 +215,14 @@ def run_border_replacer_task():
                 daps_logger.info(
                     "Skipping task: Border and color settings already applied to files."
                 )
-                return {
-                    "message": "Border and color settings already applied. Task skipped.",
-                    "success": True,
-                    "job_id": None,
-                }
+                return (
+                    {
+                        "message": "Border and color settings already applied. Task skipped.",
+                        "success": True,
+                        "job_id": None,
+                    },
+                    None,
+                )
 
         job_id = progress_instance.add_job()
         daps_logger.debug(f"Job Border Replacerr: '{job_id}' added.")
@@ -228,14 +249,17 @@ def run_border_replacer_task():
 
         future.add_done_callback(remove_job_cb)
 
-        return {
-            "message": "Border replacer task started",
-            "job_id": job_id,
-            "success": True,
-        }
+        return (
+            {
+                "message": "Border replacer task started",
+                "job_id": job_id,
+                "success": True,
+            },
+            future,
+        )
     except Exception as e:
         daps_logger.error(f"Error in Border Replacer Task: {str(e)}")
-        return {"success": False, "message": str(e)}
+        return {"success": False, "message": str(e)}, None
 
 
 def handle_unmatched_assets_task(radarr, sonarr, plex) -> tuple[dict, Future] | dict:

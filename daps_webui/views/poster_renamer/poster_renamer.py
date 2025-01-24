@@ -474,9 +474,11 @@ def run_renamer():
 
 @poster_renamer.route("/run-border-replace-job", methods=["POST"])
 def run_border_replacer():
-    result = run_border_replacer_task()
+    result, _ = run_border_replacer_task()
     if result["success"] is False:
         return jsonify(result), 500
+    elif result["job_id"] is None:
+        return jsonify(result), 200
     return jsonify(result), 202
 
 
