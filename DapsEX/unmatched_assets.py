@@ -3,6 +3,7 @@ import logging
 import re
 from collections.abc import Callable
 from pathlib import Path
+from pprint import pformat
 
 from tabulate import tabulate
 
@@ -14,8 +15,6 @@ from DapsEX.settings import Settings
 from DapsEX.utils import remove_chars
 from Payloads.unmatched_assets_payload import Payload
 from progress import ProgressState
-
-# TODO: Unmatched assets showing matched if main poster is missing but season posters aren't
 
 
 class UnmatchedAssets:
@@ -44,6 +43,8 @@ class UnmatchedAssets:
             self.logger.exception("Failed to initialize UnmatchedAssets")
             raise e
 
+    image_exts = {".png", ".jpg", ".jpeg"}
+
     def _log_banner(self):
         self.logger.info("\n" + "#" * 80)
         self.logger.info("### New UnmatchedAssets Run")
@@ -56,37 +57,47 @@ class UnmatchedAssets:
         self,
         asset_type,
         asset_dict,
-        is_season_asset: bool | None = None,
+        is_series_asset: bool | None = None,
         is_collection_asset: bool | None = None,
-    ):
+    ) -> list | list[tuple[str, str]]:
         extracted_assets = []
+        season_pattern = r"Season\d{2}"
         for asset_path, data in asset_dict.items():
             if data.get("media_type") != asset_type:
                 continue
-
             if self.asset_folders:
-                if is_collection_asset:
-                    asset_name = remove_chars(Path(asset_path).parent.name)
-                else:
-                    asset_name = Path(asset_path).parent.name
-
-                if is_season_asset and asset_type == "shows":
-                    season = data.get("file_name")
-                    extracted_assets.append((asset_name.lower(), season.lower()))
-                else:
-                    extracted_assets.append(asset_name.lower())
+                asset_name = (
+                    remove_chars(Path(asset_path).parent.name)
+                    if is_collection_asset
+                    else Path(asset_path).parent.name.lower()
+                )
             else:
-                if is_collection_asset:
-                    asset_name = remove_chars(data.get("file_name").lower())
-                else:
-                    asset_name = data.get("file_name").lower()
-                if is_season_asset and asset_type == "shows" and asset_name:
-                    match = re.match(r"^(.*?)_(.*)$", asset_name)
-                    if match:
-                        name, season = match.groups()
-                        extracted_assets.append((name.lower(), season.lower()))
-                else:
-                    extracted_assets.append(asset_name.lower())
+                asset_name = (
+                    remove_chars(data.get("file_name"))
+                    if is_collection_asset
+                    else data.get("file_name").lower()
+                )
+
+            season_match = re.search(
+                season_pattern, data.get("file_name"), re.IGNORECASE
+            )
+            if is_series_asset and asset_type == "shows":
+                if season_match:
+                    if self.asset_folders:
+                        extracted_assets.append(
+                            (
+                                Path(asset_path).parent.name.lower(),
+                                season_match.group().lower(),
+                            )
+                        )
+                    else:
+                        asset_match = re.match(r"^(.*?)_(.*)$", asset_name)
+                        if asset_match:
+                            name, season = asset_match.groups()
+                            extracted_assets.append((name, season))
+            else:
+                if not season_match:
+                    extracted_assets.append(asset_name)
 
         return extracted_assets
 
@@ -106,8 +117,8 @@ class UnmatchedAssets:
         collection_assets = self.extract_assets(
             "collections", assets, is_collection_asset=True
         )
-        # self.logger.debug(json.dumps(collection_assets, indent=4))
-        season_assets = self.extract_assets("shows", assets, is_season_asset=True)
+        self.logger.debug(pformat(collection_assets))
+        season_assets = self.extract_assets("shows", assets, is_series_asset=True)
 
         for movie in movies_list_dict:
             if movie["title"].lower() not in movie_assets:
@@ -132,6 +143,7 @@ class UnmatchedAssets:
             for collection in value_list:
                 collection_clean = collection.replace("/", "")
                 collection_clean = remove_chars(collection_clean)
+                self.logger.debug(collection_clean)
                 if collection_clean not in collection_assets:
                     unmatched_assets["collections"].append(collection)
                     self.db.add_unmatched_collection(title=collection)
@@ -162,23 +174,67 @@ class UnmatchedAssets:
                 season_number = season["season"]
                 season_asset = (season_name, season_number)
 
-                if season_asset not in season_assets:
-                    if show_all_unmatched or season.get("has_episodes", False):
-                        unmatched_show["seasons"].append(season["season"])
-                        if show_id is None:
-                            show_id = self.db.add_unmatched_show(
-                                title=show_title,
-                                arr_id=item["id"],
-                                main_poster_missing=False,
-                                instance=item["instance"],
+                if self.asset_folders:
+                    if season_asset not in season_assets:
+                        if show_all_unmatched or season.get("has_episodes", False):
+                            unmatched_show["seasons"].append(season["season"])
+                            if show_id is None:
+                                series_parent_path = self.assets_dir / item["title"]
+                                main_series_poster = None
+                                for ext in self.image_exts:
+                                    potential_poster = (
+                                        series_parent_path / f"poster{ext}"
+                                    )
+                                    if potential_poster.exists():
+                                        main_series_poster = potential_poster
+                                        break
+                                if main_series_poster is None:
+                                    show_id = self.db.add_unmatched_show(
+                                        title=show_title,
+                                        arr_id=item["id"],
+                                        main_poster_missing=True,
+                                        instance=item["instance"],
+                                    )
+                                    unmatched_show["main_poster_missing"] = True
+                                else:
+                                    show_id = self.db.add_unmatched_show(
+                                        title=show_title,
+                                        arr_id=item["id"],
+                                        main_poster_missing=False,
+                                        instance=item["instance"],
+                                    )
+                            if show_id is None:
+                                self.logger.error(
+                                    f"Failed to assign a valid show_id for {show_title}"
+                                )
+                                continue
+
+                            self.db.add_unmatched_season(
+                                show_id=show_id, season=season["season"]
                             )
-                        self.db.add_unmatched_season(
-                            show_id=show_id, season=season["season"]
-                        )
-                    else:
-                        self.logger.debug(
-                            f"Skipping {utils.strip_id(item['title'])} - {season['season']} -> No episodes on disk"
-                        )
+                        else:
+                            self.logger.debug(
+                                f"Skipping {utils.strip_id(item['title'])} - {season['season']} -> No episodes on disk"
+                            )
+                else:
+                    if season_asset not in season_assets:
+                        if show_all_unmatched or season.get("has_episodes", False):
+                            unmatched_show["seasons"].append(season["season"])
+                            if show_id is None:
+                                show_id = self.db.add_unmatched_show(
+                                    title=show_title,
+                                    arr_id=item["id"],
+                                    main_poster_missing=False,
+                                    instance=item["instance"],
+                                )
+                            self.db.add_unmatched_season(
+                                show_id=show_id, season=season["season"]
+                            )
+                        else:
+                            self.logger.debug(
+                                f"Skipping {utils.strip_id(item['title'])} - {season['season']} -> No episodes on disk"
+                            )
+
             if unmatched_show["seasons"] or unmatched_show["main_poster_missing"]:
                 unmatched_assets["shows"].append(unmatched_show)
 
@@ -492,4 +548,6 @@ class UnmatchedAssets:
                 cb(job_id, 100, ProgressState.COMPLETED)
         except Exception as e:
             self.logger.exception("Failed to run UnmatchedAssets")
+            if job_id and cb:
+                cb(job_id, 100, ProgressState.COMPLETED)
             raise e
