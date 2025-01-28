@@ -20,7 +20,14 @@ def start_scheduler():
         schedule_jobs(scheduler)
 
     scheduler.add_job(
-        reload_jobs, "interval", seconds=1, kwargs={"scheduler": scheduler, "app": app}
+        reload_jobs,
+        "interval",
+        seconds=5,
+        kwargs={"scheduler": scheduler, "app": app},
+        id="reload_jobs",
+        max_instances=1,
+        misfire_grace_time=10,
+        coalesce=True,
     )
 
     try:
@@ -42,8 +49,10 @@ def schedule_jobs(scheduler):
     from daps_webui.models import Settings
 
     settings = Settings.query.first()
+    jobs_scheduled = False
 
     def add_job_safe(func, job_id, schedule, schedule_name):
+        nonlocal jobs_scheduled
         if not schedule:
             daps_logger.warning(f"No schedule found for {schedule_name}. Skipping..")
             for job in scheduler.get_jobs():
@@ -66,6 +75,7 @@ def schedule_jobs(scheduler):
                     misfire_grace_time=60,
                 )
                 daps_logger.info(f"Scheduled job: '{unique_job_id}' {schedule_time}")
+                jobs_scheduled = True
 
         except ValueError as e:
             daps_logger.error(
@@ -100,8 +110,21 @@ def schedule_jobs(scheduler):
 
     for job_id, job_config in job_configs.items():
         add_job_safe(
-            job_config["function"], job_id, job_config["schedule"], job_config["name"]
+            job_config["function"],
+            job_id,
+            job_config["schedule"],
+            job_config["name"],
         )
+    if not jobs_scheduled:
+        if scheduler.running:
+            daps_logger.info("No valid schedules found. Pausing scheduler...")
+            scheduler.pause()
+        else:
+            daps_logger.info("Scheduler is not running and no schedules were found.")
+    else:
+        if not scheduler.running:
+            daps_logger.info("Schedules found. Resuming scheduler...")
+            scheduler.resume()
 
 
 def run_renamer_scheduled():
