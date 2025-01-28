@@ -22,17 +22,22 @@ chown -R appuser:appgroup /config
 
 if [ "$APP_MODE" = "WEB" ]; then
     if [ "$FLASK_ENV" = "development" ]; then
+        echo "Starting scheduler.py.."
+        gosu appuser python /code/scheduler.py &
         echo "Starting Flask in development mode as $PUID:$PGID"
-        exec gosu appuser poetry run flask --app daps_webui:app run --host 0.0.0.0 --port=5000 --debug
+        exec gosu appuser flask --app daps_webui:app run --host 0.0.0.0 --port=5000 --debug
     else
-        gosu appuser poetry run python /code/migrate_db.py || {
+        gosu appuser python /code/migrate_db.py || {
             echo "Failed to migrate database. Exiting."
             exit 1
         }
+        echo "Starting scheduler.py.."
+        gosu appuser python /code/scheduler.py &
         echo "Starting Gunicorn in production mode as $PUID:$PGID"
-        exec gosu appuser poetry run gunicorn --timeout 120 -w 3 -b 0.0.0.0:8000 daps_webui:app
+        exec gosu appuser gunicorn --timeout 120 -w 3 --preload -b 0.0.0.0:8000 daps_webui:app
+
     fi
 else
     echo "Running main.py as $PUID:$PGID"
-    exec gosu appuser poetry run python main.py
+    exec gosu appuser python main.py
 fi

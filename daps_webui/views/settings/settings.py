@@ -2,6 +2,7 @@ import requests
 from flask import Blueprint, jsonify, render_template, request
 
 from daps_webui import db, models
+from scheduler import schedule_jobs
 
 settings = Blueprint("settings", __name__)
 
@@ -149,6 +150,9 @@ def save_settings():
         add_instance("plexInstances", models.PlexInstance)
 
         db.session.commit()
+
+        with open("/tmp/reload_signal", "w") as f:
+            f.write("reload_jobs")
 
         return jsonify({"success": True, "message": "Settings saved successfully!"})
 
