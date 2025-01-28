@@ -1,16 +1,15 @@
-import logging
+import os
 from concurrent.futures import Future, ThreadPoolExecutor
 from pprint import pformat
 from time import sleep
 
-from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 
 from daps_webui.config.config import Config
 from daps_webui.utils import webui_utils
-from daps_webui.utils.logger_utils import init_logger
+from daps_webui.utils.logger_utils import get_daps_logger
 from daps_webui.utils.webui_utils import get_instances
 from DapsEX.border_replacerr import BorderReplacerr
 from DapsEX.plex_upload import PlexUploaderr
@@ -22,15 +21,10 @@ from progress import ProgressState, progress_instance
 global_config = Config()
 db = SQLAlchemy()
 migrate = Migrate()
-progress_dict = {}
 executor = ThreadPoolExecutor(max_workers=2)
 
 # define all loggers
-daps_logger = logging.getLogger("daps-web")
-log_level_str = getattr(global_config, "MAIN_LOG_LEVEL", "INFO")
-log_level = getattr(logging, log_level_str, logging.INFO)
-init_logger(daps_logger, global_config.logs / "web-ui", "web_ui", log_level)
-daps_logger.info("Logger initialized in main process")
+daps_logger = get_daps_logger()
 
 
 def create_app() -> Flask:
@@ -41,20 +35,16 @@ def create_app() -> Flask:
     # initiate database
     db.init_app(app)
     migrate.init_app(app, db)
-    with app.app_context():
-        with db.engine.connect() as conn:
-            conn.execute(db.text("PRAGMA journal_mode=WAL;"))
-        daps_logger.info("WAL mode enabled for SQLite database")
 
-    with app.app_context():
-        if app.debug:
-            from daps_webui.utils.scheduler import schedule_jobs
-
-            scheduler = BackgroundScheduler()
-            schedule_jobs(scheduler)
-            if not scheduler.running:
-                scheduler.start()
-                daps_logger.info("Scheduler started in development server")
+    if app.debug:
+        with app.app_context():
+            version = os.getenv("VERSION", "0.0.1")
+            daps_logger.info(f"Starting daps-ui v{version}")
+            daps_logger.info("Initializing database schema...")
+            db.create_all()
+            with db.engine.connect() as conn:
+                conn.execute(db.text("PRAGMA journal_mode=WAL;"))
+            daps_logger.info("WAL mode enabled for SQLite database")
 
     # import needed blueprints
     from daps_webui.views.home.home import home

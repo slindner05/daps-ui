@@ -2,6 +2,8 @@ import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
+from daps_webui.config.config import Config
+
 
 def init_logger(
     lgr: logging.Logger, log_dir: Path, file_name: str, log_level: int = 20
@@ -25,8 +27,6 @@ def init_logger(
         )
     except Exception as e:
         print(f"Failed to create directory: {e}", flush=True)
-
-    lgr.handlers.clear()
 
     # set log level
     lgr.setLevel(log_level)
@@ -58,3 +58,13 @@ def init_logger(
     lgr.addHandler(stream_handler)
 
     return lgr
+
+
+def get_daps_logger():
+    global_config = Config()
+    logger = logging.getLogger("daps-web")
+    if not logger.hasHandlers():
+        log_level_str = getattr(global_config, "MAIN_LOG_LEVEL", "INFO")
+        log_level = getattr(logging, log_level_str, logging.INFO)
+        init_logger(logger, global_config.logs / "web-ui", "web_ui", log_level)
+    return logger
