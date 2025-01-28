@@ -117,7 +117,6 @@ class UnmatchedAssets:
         collection_assets = self.extract_assets(
             "collections", assets, is_collection_asset=True
         )
-        self.logger.debug(pformat(collection_assets))
         season_assets = self.extract_assets("shows", assets, is_series_asset=True)
 
         for movie in movies_list_dict:
@@ -143,7 +142,6 @@ class UnmatchedAssets:
             for collection in value_list:
                 collection_clean = collection.replace("/", "")
                 collection_clean = remove_chars(collection_clean)
-                self.logger.debug(collection_clean)
                 if collection_clean not in collection_assets:
                     unmatched_assets["collections"].append(collection)
                     self.db.add_unmatched_collection(title=collection)
