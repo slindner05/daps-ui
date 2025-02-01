@@ -1,8 +1,7 @@
 import requests
 from flask import Blueprint, jsonify, render_template, request
 
-from daps_webui import db, models
-from scheduler import schedule_jobs
+from daps_webui import daps_logger, db, models
 
 settings = Blueprint("settings", __name__)
 
@@ -19,6 +18,8 @@ def get_settings():
         radarr_instances = models.RadarrInstance.query.all()
         sonarr_instances = models.SonarrInstance.query.all()
         plex_instances = models.PlexInstance.query.all()
+        gdrives = models.GDrives.query.all()
+        rclone = models.RCloneConf.query.first()
 
         data = {
             "logLevelUnmatchedAssets": getattr(
@@ -89,6 +90,18 @@ def get_settings():
                 }
                 for instance in plex_instances
             ],
+            "gdrives": [
+                {
+                    "name": drive.drive_name,
+                    "id": drive.drive_id,
+                    "location": drive.drive_location,
+                }
+                for drive in gdrives
+            ],
+            "client_id": getattr(rclone, "client_id", ""),
+            "rclone_token": getattr(rclone, "rclone_token", ""),
+            "rclone_secret": getattr(rclone, "rclone_secret", ""),
+            "sa_location": getattr(rclone, "service_account", ""),
         }
         return jsonify({"success": True, "settings": data})
     except Exception as e:
@@ -132,6 +145,8 @@ def save_settings():
         models.RadarrInstance.query.delete()
         models.SonarrInstance.query.delete()
         models.PlexInstance.query.delete()
+        models.GDrives.query.delete()
+        models.RCloneConf.query.delete()
 
         new_settings = models.Settings(**settings_data)
         db.session.add(new_settings)
@@ -144,6 +159,24 @@ def save_settings():
                     api_key=instance_data.get("apiKey"),
                 )
                 db.session.add(new_instance)
+
+        for gdrive_data in data.get("gdriveData", []):
+            new_drive = models.GDrives(
+                drive_name=gdrive_data.get("name", ""),
+                drive_id=gdrive_data.get("id", ""),
+                drive_location=gdrive_data.get("location", ""),
+            )
+            db.session.add(new_drive)
+
+        if "rcloneData" in data:
+            rclone_data = data["rcloneData"]
+            new_rclone_conf = models.RCloneConf(
+                client_id=rclone_data.get("client_id", ""),
+                rclone_token=rclone_data.get("rclone_token", ""),
+                rclone_secret=rclone_data.get("rclone_secret", ""),
+                service_account=rclone_data.get("sa_location", ""),
+            )
+            db.session.add(new_rclone_conf)
 
         add_instance("radarrInstances", models.RadarrInstance)
         add_instance("sonarrInstances", models.SonarrInstance)

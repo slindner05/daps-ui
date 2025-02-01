@@ -8,6 +8,7 @@ document.addEventListener("DOMContentLoaded", function () {
   attachLogLevel();
   attachUnmatchedAssets();
   attachPlexUploaderr();
+  attachDriveSync();
 
   fetch("/get-settings")
     .then((response) => response.json())
@@ -27,12 +28,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const sourceList = document.getElementById("source_dir_div");
   const settingsContainer = document.getElementById("settings-container");
-  // const addButtons = document.querySelectorAll(".btn-add");
-  // addButtons.forEach((button) => {
-  //   button.addEventListener("click", () => {
-  //     disableSaveButton();
-  //   });
-  // });
   initializeDragAndDrop(sourceList);
   const observer = new MutationObserver((mutationList) => {
     mutationList.forEach((mutation) => {
@@ -251,6 +246,60 @@ function createInputFromSettings(data, settingsVar, htmlVar) {
   });
 }
 
+function createDriveFromSettings(data) {
+  const driveSelectDiv = document.querySelector(".drive-select-div");
+  const driveSelectWrappers = driveSelectDiv.querySelectorAll(
+    ".drive-select-wrapper",
+  );
+
+  data["gdrives"].forEach((gdrive, index) => {
+    let driveSelectWrapper;
+
+    if (index === 0 && driveSelectWrappers.length > 0) {
+      driveSelectWrapper = driveSelectWrappers[0];
+    } else {
+      driveSelectWrapper = createDriveSelect(driveSelectCounter);
+      driveSelectDiv.appendChild(driveSelectWrapper);
+      driveSelectCounter++;
+    }
+
+    const selectElement = driveSelectWrapper.querySelector(
+      "select[name='gdrive-select']",
+    );
+    const locationInput = driveSelectWrapper.querySelector(
+      "input[name='gdrive-location']",
+    );
+    const customInput = driveSelectWrapper.querySelector(
+      "input[name='custom-drive-id']",
+    );
+    if (locationInput) {
+      locationInput.value = gdrive.location || "";
+    }
+    if (selectElement) {
+      const optionExists = Array.from(selectElement.options).some(
+        (option) => option.value === gdrive.id,
+      );
+      if (optionExists) {
+        selectElement.value = gdrive.id;
+      } else {
+        selectElement.value = "custom";
+        customInput.style.display = "block";
+        customInput.value = gdrive.id;
+        selectElement.style.display = "none";
+      }
+    }
+  });
+
+  if (driveSelectCounter >= 1) {
+    driveSelectWrappers.forEach((wrapper) => {
+      const removeButton = wrapper.querySelector(".close");
+      if (removeButton) {
+        removeButton.style.display = "inline";
+      }
+    });
+  }
+}
+
 function preFillForm(data) {
   document.querySelector('input[name="target_path"]').value =
     data.targetPath || "";
@@ -308,6 +357,12 @@ function preFillForm(data) {
   createInstanceFromSettings(data, "radarrInstances", "radarr");
   createInstanceFromSettings(data, "sonarrInstances", "sonarr");
   createInstanceFromSettings(data, "plexInstances", "plex");
+  document.getElementById("rclone-client-id").value = data.client_id || "";
+  document.getElementById("rclone-token").value = data.rclone_token || "";
+  document.getElementById("rclone-secret").value = data.rclone_secret || "";
+  document.getElementById("sa-location").value = data.sa_location || "";
+
+  createDriveFromSettings(data);
 
   if (data.borderSetting) {
     const borderColorSelect = document.querySelector(
@@ -361,6 +416,11 @@ function attachPlexUploaderr() {
   const wrapperDiv = document.getElementById("plex-uploaderr-wrapper");
   const plexUploaderr = createPlexUploaderr();
   wrapperDiv.appendChild(plexUploaderr);
+}
+function attachDriveSync() {
+  const wrapperDiv = document.getElementById("drive-sync-wrapper");
+  const driveSync = createDriveSync();
+  wrapperDiv.appendChild(driveSync);
 }
 
 function createLabel(labelName, inputName) {
@@ -772,6 +832,252 @@ function createPlexUploaderr() {
   return wrapperDiv;
 }
 
+let driveSelectCounter = 0;
+
+let availableDrives = {
+  drazzilb: "1VeeQ_frBFpp6AZLimaJSSr0Qsrl6Tb7z",
+  dsaq: "1wrSru-46iIN1iqCl2Cjhj5ofdazPgbsz",
+  zarox: "1wOhY88zc0wdQU-QQmhm4FzHL9QiCQnpu",
+  solen: "1YEuS1pulJAfhKm4L8U9z5-EMtGl-d2s7",
+  bz: "1Xg9Huh7THDbmjeanW0KyRbEm6mGn_jm8",
+  chrisdc: "1oBzEOXXrTHGq6sUY_4RMtzMTt4VHyeJp",
+  quafley: "1G77TLQvgs_R7HdMWkMcwHL6vd_96cMp7",
+  stupifier: "1bBbK_3JeXCy3ElqTwkFHaNoNxYgqtLug",
+  sahara: "1KnwxzwBUQzQyKF1e24q_wlFqcER9xYHM",
+  lion: "1alseEnUBjH6CjXh77b5L4R-ZDGdtOMFr",
+  majorgiant: "1ZfvUgN0qz4lJYkC_iMRjhH-fZ0rDN_Yu",
+  iamspartacus: "1aRngLdC9yO93gvSrTI2LQ_I9BSoGD-7o",
+  mareau: "1hEY9qEdXVDzIbnQ4z9Vpo0SVXXuZBZR",
+  solen_collection: "1zWY-ORtJkOLcQChV--oHquxW3JCow1zm",
+  majorgiant_collection: "15sNlcFZmeDox2OQJyGjVxRwtigtd82Ru",
+  iamspartacus_collection: "1-WhCVwRLfV6hxyKF7W5IuzIHIYicCdAv",
+};
+
+function createDriveSync() {
+  const wrapperDiv = document.createElement("div");
+
+  const cronScheduleInput = document.createElement("input");
+  cronScheduleInput.id = "drive-sync-schedule";
+  cronScheduleInput.type = "text";
+  cronScheduleInput.classList.add("form-input");
+  cronScheduleInput.placeholder = placeholders["cronSchedule"];
+  const cronScheduleLabel = createLabel("Schedule", `${cronScheduleInput.id}`);
+
+  const driveSelectDiv = document.createElement("div");
+  driveSelectDiv.classList.add("drive-select-div");
+
+  const driveLabel = document.createElement("label");
+  driveLabel.textContent = "G-Drives";
+  driveLabel.classList.add("form-label");
+
+  const firstDriveSelect = createDriveSelect(driveSelectCounter);
+  driveSelectCounter++;
+  driveSelectDiv.appendChild(firstDriveSelect);
+
+  const buttonDiv = document.createElement("div");
+  buttonDiv.classList.add("button-div");
+
+  const configureButton = document.createElement("button");
+  configureButton.id = "configure-drive-sync";
+  configureButton.type = "button";
+  configureButton.classList.add("btn", "btn-primary");
+  configureButton.textContent = "Configure";
+  buttonDiv.appendChild(configureButton);
+
+  const addDriveButton = document.createElement("button");
+  addDriveButton.id = "add-drive-button";
+  addDriveButton.type = "button";
+  addDriveButton.classList.add("btn", "btn-primary");
+  addDriveButton.textContent = "+ Add GDrive";
+  buttonDiv.appendChild(addDriveButton);
+
+  wrapperDiv.appendChild(cronScheduleLabel);
+  wrapperDiv.appendChild(cronScheduleInput);
+  wrapperDiv.appendChild(driveLabel);
+  wrapperDiv.appendChild(driveSelectDiv);
+  wrapperDiv.appendChild(buttonDiv);
+
+  const modal = createModal();
+  wrapperDiv.appendChild(modal);
+
+  configureButton.addEventListener("click", () => {
+    modal.style.display = "block";
+  });
+
+  addDriveButton.addEventListener("click", () => {
+    const dynamicSelect = createDriveSelect(driveSelectCounter);
+    driveSelectDiv.appendChild(dynamicSelect);
+    if (driveSelectCounter >= 1) {
+      const firstDriveSelect = driveSelectDiv.querySelector(
+        ".drive-select-wrapper[data-counter='0']",
+      );
+      if (firstDriveSelect) {
+        const firstRemoveButton = firstDriveSelect.querySelector(".close");
+        firstRemoveButton.style.display = "inline";
+      }
+    }
+    driveSelectCounter++;
+  });
+
+  return wrapperDiv;
+}
+
+function createDriveSelect(counter) {
+  const selectWrapper = document.createElement("div");
+  selectWrapper.classList.add("drive-select-wrapper");
+  selectWrapper.dataset.counter = counter;
+
+  const selectElement = document.createElement("select");
+  selectElement.classList.add("form-select");
+  selectElement.name = "gdrive-select";
+
+  const defaultOption = document.createElement("option");
+  defaultOption.value = "";
+  defaultOption.textContent = "Select a drive...";
+  defaultOption.selected = true;
+  defaultOption.disabled = true;
+  selectElement.appendChild(defaultOption);
+
+  Object.entries(availableDrives).forEach(([name, id]) => {
+    const optionElement = document.createElement("option");
+    optionElement.value = id;
+    optionElement.textContent = name;
+    selectElement.appendChild(optionElement);
+  });
+
+  const customDrive = document.createElement("option");
+  customDrive.value = "custom";
+  customDrive.textContent = "Custom Drive ID...";
+  selectElement.appendChild(customDrive);
+
+  const customDriveInput = document.createElement("input");
+  customDriveInput.classList.add("form-input");
+  customDriveInput.name = "custom-drive-id";
+  customDriveInput.placeholder = "Enter GDrive ID";
+  customDriveInput.style.display = "none";
+
+  const driveLocation = document.createElement("input");
+  driveLocation.classList.add("form-input");
+  driveLocation.name = "gdrive-location";
+  driveLocation.placeholder = "/posters/{folder}";
+  selectWrapper.appendChild(driveLocation);
+
+  const removeDrive = document.createElement("span");
+  removeDrive.classList.add("close");
+  removeDrive.innerHTML = "&times;";
+  removeDrive.addEventListener("click", handleRemoveDrive);
+  if (driveSelectCounter === 0) {
+    removeDrive.style.display = "none";
+  }
+
+  selectWrapper.appendChild(selectElement);
+  selectWrapper.appendChild(customDriveInput);
+  selectWrapper.appendChild(driveLocation);
+  selectWrapper.appendChild(removeDrive);
+
+  selectElement.addEventListener("change", (event) => {
+    if (event.target.value === "custom") {
+      selectElement.style.display = "none";
+      customDriveInput.style.display = "block";
+      customDriveInput.focus();
+    }
+  });
+  customDriveInput.addEventListener("blur", () => {
+    if (customDriveInput.value.trim() === "") {
+      selectElement.style.display = "block";
+      customDriveInput.style.display = "none";
+      selectElement.value = "";
+    }
+  });
+
+  return selectWrapper;
+}
+
+function removeDriveSelect(counter) {
+  const selectWrapper = document.querySelector(
+    `.drive-select-wrapper[data-counter='${counter}']`,
+  );
+  if (selectWrapper) {
+    selectWrapper.remove();
+    const driveSelectDiv = document.querySelector(".drive-select-div");
+    const driveSelectWrappers = driveSelectDiv.querySelectorAll(
+      ".drive-select-wrapper",
+    );
+
+    driveSelectWrappers.forEach((wrapper, index) => {
+      wrapper.dataset.counter = index;
+      const removeDrive = wrapper.querySelector(".close");
+      removeDrive.removeEventListener("click", handleRemoveDrive);
+      removeDrive.addEventListener("click", handleRemoveDrive);
+      if (driveSelectWrappers.length === 1) {
+        removeDrive.style.display = "none";
+      } else {
+        removeDrive.style.display = "inline";
+      }
+    });
+    driveSelectCounter = driveSelectWrappers.length;
+  }
+}
+function handleRemoveDrive(event) {
+  const removeButton = event.target;
+  const selectWrapper = removeButton.closest(".drive-select-wrapper");
+  const counter = selectWrapper.dataset.counter;
+  removeDriveSelect(Number(counter));
+}
+
+function createModal() {
+  const modal = document.createElement("div");
+  modal.id = "drive-sync-modal";
+  modal.classList.add("modal");
+
+  const modalContent = document.createElement("div");
+  modalContent.classList.add("modal-content");
+
+  const closeButton = document.createElement("span");
+  closeButton.classList.add("close");
+  closeButton.innerHTML = "&times;";
+  closeButton.addEventListener("click", () => {
+    modal.style.display = "none";
+  });
+
+  function createInputField(id, labelText, placeholder, isTextArea = false) {
+    const label = document.createElement("label");
+    label.classList.add("form-label");
+    label.textContent = labelText;
+
+    let input;
+    if (isTextArea) {
+      input = document.createElement("textarea");
+      input.rows = 2;
+      input.style.resize = "vertical";
+    } else {
+      input = document.createElement("input");
+      input.type = "text";
+    }
+
+    input.classList.add("form-input");
+    input.id = id;
+    input.placeholder = placeholder;
+
+    modalContent.appendChild(label);
+    modalContent.appendChild(input);
+  }
+  modalContent.appendChild(closeButton);
+  modalContent.appendChild(document.createElement("br"));
+
+  createInputField("rclone-client-id", "Client Id", "rclone client id", true);
+  createInputField("rclone-secret", "Rclone Secret", "rclone secret");
+  createInputField("rclone-token", "Rclone Token", "rclone token", true);
+  createInputField(
+    "sa-location",
+    "Service Account Location",
+    "/config/rclone_sa.json",
+  );
+
+  modal.appendChild(modalContent);
+  return modal;
+}
+
 function updateCounter(name) {
   const wrapperDiv = document.getElementById(`${name}-group-wrapper`);
 
@@ -980,6 +1286,46 @@ document.getElementById("add-plex").addEventListener("click", function () {
   attachNewInstance("plex");
 });
 
+function captureDriveSelections() {
+  const driveDataMap = new Map();
+  const driveSelectWrappers = document.querySelectorAll(
+    ".drive-select-wrapper",
+  );
+  driveSelectWrappers.forEach((wrapper) => {
+    const selectElement = wrapper.querySelector("select[name='gdrive-select']");
+    const customInput = wrapper.querySelector("input[name='custom-drive-id']");
+    const locationInput = wrapper.querySelector(
+      "input[name='gdrive-location']",
+    );
+
+    let driveId = selectElement.value;
+    let driveName =
+      selectElement.options[selectElement.selectedIndex]?.text || "";
+
+    if (driveId === "custom") {
+      driveId = customInput.value.trim();
+      driveName = "Custom";
+    }
+    const driveLocation = locationInput.value.trim();
+    if (driveId) {
+      driveDataMap.set(driveId, {
+        name: driveName,
+        id: driveId,
+        location: driveLocation,
+      });
+    }
+  });
+  return driveDataMap;
+}
+function captureRcloneConf() {
+  return {
+    client_id: document.getElementById("rclone-client-id")?.value.trim() || "",
+    rclone_token: document.getElementById("rclone-token")?.value.trim() || "",
+    rclone_secret: document.getElementById("rclone-secret")?.value.trim() || "",
+    sa_location: document.getElementById("sa-location")?.value.trim() || "",
+  };
+}
+
 // Save settings to db
 function attachSaveSettingsListener(saveButton) {
   saveButton.addEventListener("click", function () {
@@ -998,6 +1344,7 @@ function attachSaveSettingsListener(saveButton) {
       'input[name="plex_url[]"]',
       'input[name="plex_api[]"]',
     ];
+
     const emptyFields = requiredFields.filter((selector) => {
       const inputs = document.querySelectorAll(selector);
       return Array.from(inputs).some((input) => !input.value.trim());
@@ -1109,6 +1456,10 @@ function attachSaveSettingsListener(saveButton) {
       apiKey: plexApiKeys[index],
     }));
 
+    const gdriveData = Array.from(captureDriveSelections().values());
+    const rcloneData = captureRcloneConf();
+    console.log(rcloneData);
+
     fetch("/save-settings", {
       method: "POST",
       headers: {
@@ -1142,6 +1493,8 @@ function attachSaveSettingsListener(saveButton) {
         plexInstances: plexInstances,
         borderSetting: borderSetting,
         customColor: customColor,
+        gdriveData: gdriveData,
+        rcloneData: rcloneData,
       }),
     })
       .then((response) => response.json())

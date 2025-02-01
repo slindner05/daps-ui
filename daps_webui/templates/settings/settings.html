@@ -18,7 +18,7 @@
 {% block layout_content_div %}
     <div id="settings-container" class="settings-container">
         <div class="row">
-            <div class="content-box">
+            <div id="all-instances" class="content-box">
                 <h2 class="content-heading">Instances</h2>
                 <hr class="separator">
                 <form id="instances-form">
@@ -70,10 +70,15 @@
                     <div id="plex-uploaderr-wrapper"></div>
                 </div>
                 <div class="content-box">
-                    <h2 class="content-heading">Log Levels</h2>
+                    <h2 class="content-heading">Drive Sync</h2>
                     <hr class="separator">
-                    <div id="log-level-wrapper"></div>
+                    <div id="drive-sync-wrapper"></div>
                 </div>
+            </div>
+            <div class="content-box">
+                <h2 class="content-heading">Log Levels</h2>
+                <hr class="separator">
+                <div id="log-level-wrapper"></div>
             </div>
         </div>
     </div>
