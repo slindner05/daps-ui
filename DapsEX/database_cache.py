@@ -106,7 +106,7 @@ class Database:
                         item_type TEXT NOT NULL,
                         item_name TEXT NOT NULL,
                         timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        UNIQUE (item_type, item_name)
+                        CONSTRAINT unique_item_type_name UNIQUE (item_type, item_name)
                     )
                     """
                 )
