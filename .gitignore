@@ -4,6 +4,8 @@ cache.json
 config/config.yaml
 config/db
 config/logs
+config/rclone
+config/rclone_sa.json
 lazygit*
 node_modules/
 package.json
