@@ -1,7 +1,7 @@
 import requests
 from flask import Blueprint, jsonify, render_template, request
 
-from daps_webui import daps_logger, db, models
+from daps_webui import db, models
 
 settings = Blueprint("settings", __name__)
 
@@ -30,11 +30,13 @@ def get_settings():
             "logLevelBorderReplacerr": getattr(
                 settings, "log_level_border_replacerr", ""
             ),
+            "logLevelDriveSync": getattr(settings, "log_level_drive_sync", ""),
             "posterRenamerSchedule": getattr(settings, "poster_renamer_schedule", ""),
             "unmatchedAssetsSchedule": getattr(
                 settings, "unmatched_assets_schedule", ""
             ),
             "plexUploaderrSchedule": getattr(settings, "plex_uploaderr_schedule", ""),
+            "driveSyncSchedule": getattr(settings, "drive_sync_schedule", ""),
             "targetPath": getattr(settings, "target_path", ""),
             "sourceDirs": (
                 getattr(settings, "source_dirs", "").split(",")
@@ -117,9 +119,11 @@ def save_settings():
             "log_level_poster_renamer": data.get("logLevelPosterRenamer", ""),
             "log_level_plex_uploaderr": data.get("logLevelPlexUploaderr", ""),
             "log_level_border_replacerr": data.get("logLevelBorderReplacerr", ""),
+            "log_level_drive_sync": data.get("logLevelDriveSync", ""),
             "poster_renamer_schedule": data.get("posterRenamerSchedule", ""),
             "unmatched_assets_schedule": data.get("unmatchedAssetsSchedule", ""),
             "plex_uploaderr_schedule": data.get("plexUploaderrSchedule", ""),
+            "drive_sync_schedule": data.get("driveSyncSchedule", ""),
             "target_path": data.get("targetPath", ""),
             "source_dirs": ",".join(data.get("sourceDirs", [])),
             "library_names": ",".join(data.get("libraryNames", [])),

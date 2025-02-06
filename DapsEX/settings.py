@@ -9,5 +9,6 @@ class Settings(Enum):
     UNMATCHED_ASSETS = "unmatched_assets"
     PLEX_UPLOADERR = "plex_uploaderr"
     BORDER_REPLACERR = "border_replacerr"
+    DRIVE_SYNC = "drive_sync"
     MAIN = "main"
     DB_PATH = "/config/db/database.db"

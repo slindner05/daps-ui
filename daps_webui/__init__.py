@@ -12,6 +12,7 @@ from daps_webui.utils import webui_utils
 from daps_webui.utils.logger_utils import get_daps_logger
 from daps_webui.utils.webui_utils import get_instances
 from DapsEX.border_replacerr import BorderReplacerr
+from DapsEX.drive_sync import DriveSync
 from DapsEX.plex_upload import PlexUploaderr
 from DapsEX.poster_renamerr import PosterRenamerr
 from DapsEX.unmatched_assets import UnmatchedAssets
@@ -378,6 +379,35 @@ def run_plex_uploaderr_task():
         return handle_plex_uploaderr_task(plex, radarr, sonarr)
     except Exception as e:
         return {"success": False, "message": str(e)}
+
+
+def run_drive_sync_task():
+    payload = webui_utils.create_drive_sync_payload()
+    daps_logger.debug("Drive Sync Payload:")
+    daps_logger.debug(pformat(payload))
+
+    job_id = progress_instance.add_job()
+    daps_logger.info(f"Job Drive Sync: '{job_id}' added.")
+
+    drive_sync = DriveSync(payload)
+    future = executor.submit(drive_sync.sync_all_drives)
+
+    def remove_job_cb(fut):
+        try:
+            fut.result()
+            sleep(2)
+            progress_instance.remove_job(job_id)
+            daps_logger.info(f"Drive Sync: {job_id} has been removed")
+        except Exception as e:
+            daps_logger.debug(f"Error removing job {job_id}: {e}")
+
+    future.add_done_callback(remove_job_cb)
+
+    return {
+        "message": "Drive Sync task started",
+        "job_id": job_id,
+        "success": True,
+    }
 
 
 app = create_app()

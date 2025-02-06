@@ -3,7 +3,6 @@ import logging
 import re
 from collections.abc import Callable
 from pathlib import Path
-from pprint import pformat
 
 from tabulate import tabulate
 

@@ -1,6 +1,7 @@
 import logging
 
 from Payloads.border_replacerr_payload import Payload as BorderReplacerPayload
+from Payloads.drive_sync_payload import Payload as DriveSyncPayload
 from Payloads.plex_uploader_payload import Payload as PlexUploaderPayload
 from Payloads.poster_renamerr_payload import Payload as PosterRenamerPayload
 from Payloads.unmatched_assets_payload import Payload as UnmatchedAssetsPayload
@@ -121,4 +122,33 @@ def create_border_replacer_payload() -> BorderReplacerPayload:
         target_path=settings.target_path if settings else "",
         border_setting=border_setting,
         custom_color=custom_color,
+    )
+
+
+def create_drive_sync_payload() -> DriveSyncPayload:
+    from daps_webui.models.gdrives import GDrives
+    from daps_webui.models.rclone import RCloneConf
+    from daps_webui.models.settings import Settings
+
+    settings = Settings.query.first()
+    rclone_conf = RCloneConf.query.first()
+    gdrives = GDrives.query.all()
+    log_level_str = getattr(settings, "log_level_drive_sync", "").upper()
+    log_level = LOG_LEVELS.get(log_level_str, logging.INFO)
+    gdrives_list = [
+        {
+            "drive_name": g.drive_name,
+            "drive_id": g.drive_id,
+            "drive_location": g.drive_location,
+        }
+        for g in gdrives
+    ]
+
+    return DriveSyncPayload(
+        log_level=log_level,
+        client_id=getattr(rclone_conf, "client_id", ""),
+        rclone_token=getattr(rclone_conf, "rclone_token", ""),
+        rclone_secret=getattr(rclone_conf, "rclone_secret", ""),
+        service_account=getattr(rclone_conf, "service_account", ""),
+        gdrives=gdrives_list,
     )

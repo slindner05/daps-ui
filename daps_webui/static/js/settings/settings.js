@@ -15,7 +15,7 @@ document.addEventListener("DOMContentLoaded", function () {
     .then((data) => {
       if (data.success) {
         preFillForm(data.settings);
-        console.log(data.settings);
+        // console.log(data.settings);
         captureInitialState();
         attachInputListeners();
       } else {
@@ -73,7 +73,7 @@ function captureInitialState() {
     }
     return input.value;
   });
-  console.log("Initial state captured:", initialState);
+  // console.log("Initial state captured:", initialState);
 }
 
 function checkChanges() {
@@ -142,7 +142,7 @@ function createNavExtension() {
 function toggleCustomColorInput() {
   const borderColorSelect = document.getElementById("border_select");
   const customColorInput = document.getElementById("custom_color");
-  const customColorLabel = document.querySelector('label[for="hex_code"]');
+  const customColorLabel = document.getElementById("custom-color-label");
 
   if (borderColorSelect.value === "custom") {
     customColorLabel.style.display = "inline-block";
@@ -309,10 +309,13 @@ function preFillForm(data) {
     data.unmatchedAssetsSchedule || "";
   document.querySelector('input[name="plex_uploaderr_schedule"]').value =
     data.plexUploaderrSchedule || "";
+  document.querySelector('input[name="drive_sync_schedule"]').value =
+    data.driveSyncSchedule || "";
   document.getElementById("poster-renamer_info").checked = true;
   document.getElementById("unmatched-assets_info").checked = true;
   document.getElementById("plex-uploaderr_info").checked = true;
   document.getElementById("border-replacerr_info").checked = true;
+  document.getElementById("drive-sync_info").checked = true;
 
   if (data.logLevelPosterRenamer === "debug") {
     document.getElementById("poster-renamer_info").checked = false;
@@ -329,6 +332,10 @@ function preFillForm(data) {
   if (data.logLevelBorderReplacerr === "debug") {
     document.getElementById("border-replacerr_info").checked = false;
     document.getElementById("border-replacerr_debug").checked = true;
+  }
+  if (data.logLevelDriveSync === "debug") {
+    document.getElementById("drive-sync_info").checked = false;
+    document.getElementById("drive-sync_debug").checked = true;
   }
 
   createInputFromSettings(data, "sourceDirs", "source_dir");
@@ -401,11 +408,13 @@ function attachLogLevel() {
     "Border Replacerr",
     "border-replacerr",
   );
+  const driveSyncLogLevel = createLogLevelGroup("Drive Sync", "drive-sync");
 
   wrapperDiv.appendChild(posterRenamerLogLevel);
   wrapperDiv.appendChild(unmatchedAssetsLogLevel);
   wrapperDiv.appendChild(plexUploaderrLogLevel);
   wrapperDiv.appendChild(borderReplacerrLogLevel);
+  wrapperDiv.appendChild(driveSyncLogLevel);
 }
 function attachUnmatchedAssets() {
   const wrapperDiv = document.getElementById("unmatched-assets-wrapper");
@@ -423,12 +432,11 @@ function attachDriveSync() {
   wrapperDiv.appendChild(driveSync);
 }
 
-function createLabel(labelName, inputName) {
-  const label = document.createElement("label");
-  label.classList.add("form-label");
-  label.setAttribute("for", `${inputName}`);
-  label.textContent = `${labelName}`;
-  return label;
+function createTitle(titleText) {
+  const title = document.createElement("span");
+  title.classList.add("form-label");
+  title.textContent = `${titleText}`;
+  return title;
 }
 
 function createInput(inputType, placeholder) {
@@ -609,10 +617,7 @@ function createPosterRenamer() {
   cronScheduleInput.type = "text";
   cronScheduleInput.classList.add("form-input");
   cronScheduleInput.placeholder = placeholders["cronSchedule"];
-  const cronScheduleLabel = createLabel(
-    "Schedule",
-    `${cronScheduleInput.name}`,
-  );
+  const cronScheduleLabel = createTitle("Schedule");
   cronScheduleLabel.appendChild(cronScheduleInput);
 
   const targetPathInput = document.createElement("input");
@@ -620,14 +625,11 @@ function createPosterRenamer() {
   targetPathInput.type = "text";
   targetPathInput.classList.add("form-input");
   targetPathInput.placeholder = placeholders["targetPath"];
-  const targetPathLabel = createLabel("Target Path", `${targetPathInput.name}`);
+  const targetPathLabel = createTitle("Target Path");
   targetPathLabel.appendChild(targetPathInput);
 
   const sourceDirInput = createInput("source_dir", placeholders["sourceDir"]);
-  const sourceDirLabel = createLabel(
-    "Source Directories",
-    `${sourceDirInput.name}`,
-  );
+  const sourceDirLabel = createTitle("Source Directories");
   const sourceDirInputDiv = createInputDiv("source_dir", sourceDirInput);
   sourceDirInputDiv.classList.add("source-item");
   sourceDirInputDiv.setAttribute("draggable", "true");
@@ -642,10 +644,7 @@ function createPosterRenamer() {
     "library_name",
     placeholders["libraryName"],
   );
-  const libraryNamesLabel = createLabel(
-    "Library Names",
-    `${libraryNameInput.name}`,
-  );
+  const libraryNamesLabel = createTitle("Library Names");
   const libraryNameInputDiv = createInputDiv("library_name", libraryNameInput);
   const libraryNameRemoveButton =
     libraryNameInputDiv.querySelector(".btn-remove");
@@ -656,7 +655,7 @@ function createPosterRenamer() {
   );
 
   const instanceInput = createInput("instance", placeholders["instance"]);
-  const instanceLabel = createLabel("Instances", `${instanceInput.name}`);
+  const instanceLabel = createTitle("Instances");
   const instanceInputDiv = createInputDiv("instance", instanceInput);
   const instanceRemoveButton = instanceInputDiv.querySelector(".btn-remove");
   attachRemoveButtonListener(instancesDiv, "instance", instanceRemoveButton);
@@ -682,10 +681,11 @@ function createPosterRenamer() {
   customColorInput.placeholder = "#FFFFFF";
   customColorInput.style.display = "none";
   customColorInput.maxLength = 7;
-  const customColorLabel = createLabel("Hex Code", `${customColorInput.name}`);
+  const customColorLabel = createTitle("Hex Code");
   customColorLabel.style.display = "none";
+  customColorLabel.id = "custom-color-label";
 
-  const borderColorLabel = createLabel("Border Color", "border_setting");
+  const borderColorLabel = createTitle("Border Color");
 
   const assetFoldersCheckbox = createCheckboxInput(
     "Asset Folders",
@@ -783,10 +783,7 @@ function createUnmatchedAssets() {
   cronScheduleInput.type = "text";
   cronScheduleInput.classList.add("form-input");
   cronScheduleInput.placeholder = placeholders["cronSchedule"];
-  const cronScheduleLabel = createLabel(
-    "Schedule",
-    `${cronScheduleInput.name}`,
-  );
+  const cronScheduleLabel = createTitle("Schedule");
   cronScheduleLabel.appendChild(cronScheduleInput);
 
   const showAllCheckbox = createCheckboxInput(
@@ -815,10 +812,7 @@ function createPlexUploaderr() {
   cronScheduleInput.type = "text";
   cronScheduleInput.classList.add("form-input");
   cronScheduleInput.placeholder = placeholders["cronSchedule"];
-  const cronScheduleLabel = createLabel(
-    "Schedule",
-    `${cronScheduleInput.name}`,
-  );
+  const cronScheduleLabel = createTitle("Schedule");
   cronScheduleLabel.appendChild(cronScheduleInput);
 
   const reapplyPosters = createCheckboxInput(
@@ -836,37 +830,46 @@ let driveSelectCounter = 0;
 
 let availableDrives = {
   drazzilb: "1VeeQ_frBFpp6AZLimaJSSr0Qsrl6Tb7z",
-  dsaq: "1wrSru-46iIN1iqCl2Cjhj5ofdazPgbsz",
   zarox: "1wOhY88zc0wdQU-QQmhm4FzHL9QiCQnpu",
   solen: "1YEuS1pulJAfhKm4L8U9z5-EMtGl-d2s7",
   bz: "1Xg9Huh7THDbmjeanW0KyRbEm6mGn_jm8",
-  chrisdc: "1oBzEOXXrTHGq6sUY_4RMtzMTt4VHyeJp",
-  quafley: "1G77TLQvgs_R7HdMWkMcwHL6vd_96cMp7",
-  stupifier: "1bBbK_3JeXCy3ElqTwkFHaNoNxYgqtLug",
-  sahara: "1KnwxzwBUQzQyKF1e24q_wlFqcER9xYHM",
-  lion: "1alseEnUBjH6CjXh77b5L4R-ZDGdtOMFr",
-  majorgiant: "1ZfvUgN0qz4lJYkC_iMRjhH-fZ0rDN_Yu",
   iamspartacus: "1aRngLdC9yO93gvSrTI2LQ_I9BSoGD-7o",
+  lioncitygaming: "1alseEnUBjH6CjXh77b5L4R-ZDGdtOMFr",
+  majorgiant: "1ZfvUgN0qz4lJYkC_iMRjhH-fZ0rDN_Yu",
+  sahara: "1KnwxzwBUQzQyKF1e24q_wlFqcER9xYHM",
+  stupifier: "1bBbK_3JeXCy3ElqTwkFHaNoNxYgqtLug",
+  quafley: "1G77TLQvgs_R7HdMWkMcwHL6vd_96cMp7",
+  dsaq: "1wrSru-46iIN1iqCl2Cjhj5ofdazPgbsz",
+  overbook874: "1LIVG1RbTEd7tTJMbzZr7Zak05XznLFia",
   mareau: "1hEY9qEdXVDzIbnQ4z9Vpo0SVXXuZBZR",
-  solen_collection: "1zWY-ORtJkOLcQChV--oHquxW3JCow1zm",
-  majorgiant_collection: "15sNlcFZmeDox2OQJyGjVxRwtigtd82Ru",
-  iamspartacus_collection: "1-WhCVwRLfV6hxyKF7W5IuzIHIYicCdAv",
+  tokenminal: "1KJlsnMz-z2RAfNxKZp7sYP_U0SD1V6lS",
+  kalyanrajnish: "1Kb1kFZzzKKlq5N_ob8AFxJvStvm9PdiL",
+  minimyself: "1ZhcV8Ybja4sJRrVze-twOmb8fEZfZ2Ci",
+  theotherguy_1: "1TYVIGKpSwhipLyVQQn_OJHTobM6KaokB",
+  theotherguy_2: "15faKB1cDQAhjTQCvj8MvGUQb0nBORWGC",
+  reitenth: "1cqDinU27cnHf5sL5rSlfO7o_T6LSxG77",
+  wenisinmood: "1Wz0S18sKOeyBURkJ1uT3RtkEmSsK1-PG",
+  jpalenz77: "1qBC7p9K4zur5dOCf3F6VTyUROVvHQoSb",
+  chrisdc: "1oBzEOXXrTHGq6sUY_4RMtzMTt4VHyeJp",
+  majorgiant_2: "15sNlcFZmeDox2OQJyGjVxRwtigtd82Ru",
+  iamspartacus_2: "1-WhCVwRLfV6hxyKF7W5IuzIHIYicCdAv",
+  solen_2: "1zWY-ORtJkOLcQChV--oHquxW3JCow1zm",
 };
 
 function createDriveSync() {
   const wrapperDiv = document.createElement("div");
 
   const cronScheduleInput = document.createElement("input");
-  cronScheduleInput.id = "drive-sync-schedule";
+  cronScheduleInput.name = "drive_sync_schedule";
   cronScheduleInput.type = "text";
   cronScheduleInput.classList.add("form-input");
   cronScheduleInput.placeholder = placeholders["cronSchedule"];
-  const cronScheduleLabel = createLabel("Schedule", `${cronScheduleInput.id}`);
+  const cronScheduleLabel = createTitle("Schedule");
 
   const driveSelectDiv = document.createElement("div");
   driveSelectDiv.classList.add("drive-select-div");
 
-  const driveLabel = document.createElement("label");
+  const driveLabel = document.createElement("span");
   driveLabel.textContent = "G-Drives";
   driveLabel.classList.add("form-label");
 
@@ -1041,7 +1044,7 @@ function createModal() {
   });
 
   function createInputField(id, labelText, placeholder, isTextArea = false) {
-    const label = document.createElement("label");
+    const label = document.createElement("span");
     label.classList.add("form-label");
     label.textContent = labelText;
 
@@ -1135,15 +1138,15 @@ function createInstance(name, counter) {
   separator.classList.add("separator");
 
   const instanceInput = createInput(`${name}_instance`, `${name}_${counter}`);
-  const instanceLabel = createLabel("Instance", instanceInput.name);
+  const instanceLabel = createTitle("Instance");
   instanceLabel.appendChild(instanceInput);
 
   const urlInput = createInput(`${name}_url`, dynamicUrlPlaceholder);
-  const urlLabel = createLabel("URL", urlInput.name);
+  const urlLabel = createTitle("URL");
   urlLabel.appendChild(urlInput);
 
   const apiInput = createInput(`${name}_api`, dynamicApiPlaceholder);
-  const apiLabel = createLabel("API", apiInput.name);
+  const apiLabel = createTitle("API");
   apiLabel.appendChild(apiInput);
 
   const instanceSpan = createInstanceSpan(instanceLabel, name);
@@ -1212,7 +1215,7 @@ function createLogLevelGroup(name, inputId) {
   const wrapperDiv = document.createElement("div");
   wrapperDiv.classList.add("log-level-group");
 
-  const scriptName = document.createElement("label");
+  const scriptName = document.createElement("span");
   scriptName.classList.add("form-name");
   scriptName.textContent = `${name}`;
   const separator = document.createElement("hr");
@@ -1365,6 +1368,9 @@ function attachSaveSettingsListener(saveButton) {
     const logLevelBorderReplacerr = document.querySelector(
       'input[name="border-replacerr_log_level"]:checked',
     )?.value;
+    const logLevelDriveSync = document.querySelector(
+      'input[name="drive-sync_log_level"]:checked',
+    )?.value;
     const targetPath = document.querySelector(
       'input[name="target_path"]',
     ).value;
@@ -1376,6 +1382,9 @@ function attachSaveSettingsListener(saveButton) {
     ).value;
     const plexUploaderrSchedule = document.querySelector(
       'input[name="plex_uploaderr_schedule"]',
+    ).value;
+    const driveSyncSchedule = document.querySelector(
+      'input[name="drive_sync_schedule"]',
     ).value;
     const borderSetting = document.querySelector(
       'select[name="border_setting"]',
@@ -1458,7 +1467,7 @@ function attachSaveSettingsListener(saveButton) {
 
     const gdriveData = Array.from(captureDriveSelections().values());
     const rcloneData = captureRcloneConf();
-    console.log(rcloneData);
+    // console.log(rcloneData);
 
     fetch("/save-settings", {
       method: "POST",
@@ -1470,9 +1479,11 @@ function attachSaveSettingsListener(saveButton) {
         logLevelPosterRenamer: logLevelPosterRenamer,
         logLevelPlexUploaderr: logLevelPlexUploaderr,
         logLevelBorderReplacerr: logLevelBorderReplacerr,
+        logLevelDriveSync: logLevelDriveSync,
         posterRenamerSchedule: posterRenamerSchedule,
         unmatchedAssetsSchedule: unmatchedAssetsSchedule,
         plexUploaderrSchedule: plexUploaderrSchedule,
+        driveSyncSchedule: driveSyncSchedule,
         targetPath: targetPath,
         sourceDirs: sourceDirs,
         libraryNames: libraryNames,
