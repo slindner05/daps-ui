@@ -4,6 +4,7 @@ from apscheduler.schedulers.background import BlockingScheduler
 
 from daps_webui import (
     daps_logger,
+    run_drive_sync_task,
     run_plex_uploaderr_task,
     run_renamer_task,
     run_unmatched_assets_task,
@@ -49,10 +50,8 @@ def schedule_jobs(scheduler):
     from daps_webui.models import Settings
 
     settings = Settings.query.first()
-    jobs_scheduled = False
 
     def add_job_safe(func, job_id, schedule, schedule_name):
-        nonlocal jobs_scheduled
         if not schedule:
             daps_logger.warning(f"No schedule found for {schedule_name}. Skipping..")
             for job in scheduler.get_jobs():
@@ -75,7 +74,6 @@ def schedule_jobs(scheduler):
                     misfire_grace_time=60,
                 )
                 daps_logger.info(f"Scheduled job: '{unique_job_id}' {schedule_time}")
-                jobs_scheduled = True
 
         except ValueError as e:
             daps_logger.error(
@@ -106,6 +104,13 @@ def schedule_jobs(scheduler):
             "function": run_plex_upload_scheduled,
             "name": "plex_uploaderr",
         },
+        "run_drive_sync": {
+            "schedule": (
+                getattr(settings, "drive_sync_schedule", None) if settings else None
+            ),
+            "function": run_drive_sync_scheduled,
+            "name": "drive_sync",
+        },
     }
 
     for job_id, job_config in job_configs.items():
@@ -115,16 +120,6 @@ def schedule_jobs(scheduler):
             job_config["schedule"],
             job_config["name"],
         )
-    if not jobs_scheduled:
-        if scheduler.running:
-            daps_logger.info("No valid schedules found. Pausing scheduler...")
-            scheduler.pause()
-        else:
-            daps_logger.info("Scheduler is not running and no schedules were found.")
-    else:
-        if not scheduler.running:
-            daps_logger.info("Schedules found. Resuming scheduler...")
-            scheduler.resume()
 
 
 def run_renamer_scheduled():
@@ -182,6 +177,25 @@ def run_plex_upload_scheduled():
                 )
     except Exception as e:
         daps_logger.debug(f"Failed to run scheduled plex uploaderr job: {e}")
+
+
+def run_drive_sync_scheduled():
+    from daps_webui import app
+
+    try:
+        with app.app_context():
+            daps_logger.debug("Starting scheduled drive sync job")
+            result = run_drive_sync_task()
+            if result["success"] is False:
+                daps_logger.error(
+                    f"Error running scheduled drive sync job: {result['message']}"
+                )
+            else:
+                daps_logger.info(
+                    f"Scheduled drive sync job started successfully with job_id: {result['job_id']}"
+                )
+    except Exception as e:
+        daps_logger.debug(f"Failed to run scheduled drive sync job: {e}")
 
 
 if __name__ == "__main__":
