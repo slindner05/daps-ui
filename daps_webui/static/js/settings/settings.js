@@ -59,12 +59,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const sourceList = document.getElementById('source_dir_container');
   const settingsContainer = document.getElementById('settings-container');
-  // const addButtons = document.querySelectorAll('.btn-add');
-  // addButtons.forEach((button) => {
-  //   button.addEventListener('click', () => {
-  //     disableSaveButton();
-  //   });
-  // });
 
   // Mark all of the required fields with an asterisk
   markRequiredFields();
