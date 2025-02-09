@@ -1,89 +1,473 @@
-{% extends "layout.html" %}
-{% block head %}
-    <head>
-        <title>Settings</title>
-        <meta charset='utf-8'>
-        <meta http-equiv='X-UA-Compatible' content='IE=edge'>
-        <meta name='viewport' content='width=device-width, initial-scale=1'>
-        <meta charset="UTF-8">
-        <meta name="description" content="">
-        <meta name="keywords" content=", ">
-        <meta name="author" content="">
-        <link rel='stylesheet'
-              type='text/css'
-              href="{{ url_for('static', filename='css/settings/settings.css') }}">
-        {{ super() }}
-    </head>
-{% endblock head %}
-{% block layout_content_div %}
-    <div id="settings-container" class="settings-container">
-        <div class="row">
-            <div id="all-instances" class="content-box">
-                <h2 class="content-heading">Instances</h2>
-                <hr class="separator">
-                <form id="instances-form">
-                    <!-- RADARR Instance -->
-                    <div class="instance-wrapper">
-                        <span class="form-name">RADARR</span>
-                        <div id="radarr-group-wrapper"></div>
-                        <button class="btn btn-primary btn-add" type="button" id="add-radarr">
-                            <i class="fa fa-plus" aria-hidden="true"></i> Add Radarr
-                        </button>
-                    </div>
-                    <!-- SONARR Instance -->
-                    <div class="instance-wrapper">
-                        <span class="form-name">SONARR</span>
-                        <div id="sonarr-group-wrapper"></div>
-                        <button class="btn btn-primary btn-add" type="button" id="add-sonarr">
-                            <i class="fa fa-plus" aria-hidden="true"></i> Add Sonarr
-                        </button>
-                    </div>
-                    <!-- PLEX Instance -->
-                    <div class="instance-wrapper">
-                        <span class="form-name">PLEX</span>
-                        <div id="plex-group-wrapper"></div>
-                        <button class="btn btn-primary btn-add" type="button" id="add-plex">
-                            <i class="fa fa-plus" aria-hidden="true"></i> Add Plex
-                        </button>
-                    </div>
-                </form>
-            </div>
+{% extends "layout.html" %} {% block head %}
+<head>
+  <title>Settings</title>
+  <link
+    rel="stylesheet"
+    type="text/css"
+    href="{{ url_for('static', filename='css/settings/settings.css') }}" />
+  {{ super() }}
+</head>
+{% endblock head %} {% block layout_content_div %}
+<div
+  id="settings-container"
+  class="settings-container">
+  <!-- Nav extension aka, save button -->
+  <div class="nav-extension">
+    <button
+      id="save-settings"
+      class="save-button">
+      <i class="fa fa-save"></i>
+      <span class="save-text">No Changes</span>
+    </button>
+  </div>
+  <div class="page-content">
+    <div class="instances content-box">
+      <h2 class="content-heading">Instances</h2>
+      <form id="instances-form">
+        <!-- RADARR Instance -->
+        <div class="instance-wrapper">
+          <label class="form-name">RADARR</label>
+          <div
+            id="radarr-group-wrapper"
+            class="instance-form"></div>
+          <button
+            class="btn btn-primary btn-add"
+            type="button"
+            id="add-radarr">
+            <i
+              class="fa fa-plus"
+              aria-hidden="true"></i>
+            Add Radarr
+          </button>
         </div>
-        <div class="row">
-            <div class="column">
-                <div class="content-box">
-                    <h2 class="content-heading">Poster Renamerr</h2>
-                    <hr class="separator">
-                    <form id="poster-renamer-form">
-                    </form>
-                </div>
-            </div>
-            <div class="column">
-                <div class="content-box">
-                    <h2 class="content-heading">Unmatched Assets</h2>
-                    <hr class="separator">
-                    <div id="unmatched-assets-wrapper"></div>
-                </div>
-                <div class="content-box">
-                    <h2 class="content-heading">Plex Uploaderr</h2>
-                    <hr class="separator">
-                    <div id="plex-uploaderr-wrapper"></div>
-                </div>
-                <div class="content-box">
-                    <h2 class="content-heading">Drive Sync</h2>
-                    <hr class="separator">
-                    <div id="drive-sync-wrapper"></div>
-                </div>
-            </div>
-            <div class="content-box">
-                <h2 class="content-heading">Log Levels</h2>
-                <hr class="separator">
-                <div id="log-level-wrapper"></div>
-            </div>
+        <!-- SONARR Instance -->
+        <div class="instance-wrapper">
+          <label class="form-name">SONARR</label>
+          <div
+            id="sonarr-group-wrapper"
+            class="instance-form"></div>
+          <button
+            class="btn btn-primary btn-add"
+            type="button"
+            id="add-sonarr">
+            <i
+              class="fa fa-plus"
+              aria-hidden="true"></i>
+            Add Sonarr
+          </button>
         </div>
+        <!-- PLEX Instance -->
+        <div class="instance-wrapper">
+          <label class="form-name">PLEX</label>
+          <div
+            id="plex-group-wrapper"
+            class="instance-form"></div>
+          <button
+            class="btn btn-primary btn-add"
+            type="button"
+            id="add-plex">
+            <i
+              class="fa fa-plus"
+              aria-hidden="true"></i>
+            Add Plex
+          </button>
+        </div>
+      </form>
     </div>
-{% endblock layout_content_div %}
-{% block script_content %}
-    <script type="text/javascript"
-            src="{{ url_for('static', filename='js/settings/settings.js') }}"></script>
+    <div class="renamerr content-box">
+      <h2 class="content-heading">Poster Renamerr</h2>
+      <form id="poster-renamer-form">
+        <label
+          class="form-label"
+          for="poster_renamer_schedule">
+          Schedule
+        </label>
+        <input
+          name="poster_renamer_schedule"
+          type="text"
+          class="form-input form-input--comfy"
+          placeholder="chron(0 */3 * * *)" />
+        <label
+          class="form-label"
+          for="target_path">
+          Target Path
+        </label>
+        <input
+          name="target_path"
+          type="text"
+          class="form-input form-input--comfy"
+          placeholder="/kometa/assets" />
+        <!-- Source Directories -->
+        <div
+          id="source_dir_container"
+          class="path-inputs">
+          <label
+            class="form-label"
+            for="source_dir[]">
+            Source Directories
+          </label>
+          <!-- id="source_dir_1" -->
+          <div
+            class="source-dir__group form-group--removeable source-item"
+            draggable="true">
+            <span class="drag-handle">☰</span>
+            <input
+              name="source_dir[]"
+              type="text"
+              class="form-input"
+              placeholder="/posters/Drazzilb08" />
+            <button
+              class="btn btn-primary btn-remove mt-1.5 hidden"
+              type="button">
+              <i class="fas fa-trash-alt"></i>
+            </button>
+            <button
+              class="btn btn-test btn-add mt-1.5"
+              type="button">
+              <i class="fas fa-plus"></i>
+              <span class="sr-only">Add source directory</span>
+            </button>
+          </div>
+        </div>
+        <!-- Libraries -->
+        <div
+          id="library_name_container"
+          class="path-inputs">
+          <label
+            class="form-label"
+            for="library_name[]">
+            Library Names
+          </label>
+          <div
+            id="library_name_1"
+            class="library-name__group form-group--removeable">
+            <input
+              name="library_name[]"
+              type="text"
+              class="form-input"
+              placeholder="Movies (HD)" />
+            <button
+              class="btn btn-primary btn-remove mt-1.5 hidden"
+              type="button">
+              <i class="fas fa-trash-alt"></i>
+            </button>
+            <button
+              class="btn btn-test btn-add mt-1.5"
+              type="button">
+              <i class="fas fa-plus"></i>
+              <span class="sr-only">Add library</span>
+            </button>
+          </div>
+        </div>
+        <!-- Instances -->
+        <div
+          id="instance_container"
+          class="path-inputs">
+          <label
+            class="form-label"
+            for="instance[]">
+            Instances
+          </label>
+          <div
+            id="instance_1"
+            class="instance__group form-group--removeable">
+            <input
+              name="instance[]"
+              type="text"
+              class="form-input"
+              placeholder="radarr_1" />
+            <button
+              class="btn btn-primary btn-remove mt-1.5 hidden"
+              type="button">
+              <i class="fas fa-trash-alt"></i>
+            </button>
+            <button
+              class="btn btn-test btn-add mt-1.5"
+              type="button">
+              <i class="fas fa-plus"></i>
+              <span class="sr-only">Add instance</span>
+            </button>
+          </div>
+        </div>
+        <!-- Border color -->
+        <div
+          id="border-setting"
+          class="border-setting hidden">
+          <label
+            class="form-label"
+            for="border_setting">
+            Border Color
+          </label>
+          <select
+            id="border_select"
+            class="form-select"
+            name="border_setting">
+            <option value="remove">Remove</option>
+            <option value="black">Black</option>
+            <option value="custom">Custom</option>
+          </select>
+          <label
+            class="form-label hidden"
+            for="hex_code">
+            Hex Code
+          </label>
+          <input
+            id="custom_color"
+            name="hex_code"
+            type="text"
+            class="form-input hidden"
+            placeholder="#FFFFFF"
+            maxlength="7" />
+        </div>
+        <div class="form-group poster-toggles">
+          <label class="custom-checkbox__label">
+            <span class="custom-checkbox-label__text">Asset Folders</span>
+            <div class="custom-checkbox__input">
+              <input
+                id="asset_folders"
+                class="custom-checkbox"
+                type="checkbox"
+                name="null"
+                value="" />
+              <span class="slider"> </span>
+            </div>
+          </label>
+          <label class="custom-checkbox__label">
+            <span class="custom-checkbox-label__text">Clean Assets</span>
+            <div class="custom-checkbox__input">
+              <input
+                id="clean_assets"
+                class="custom-checkbox"
+                type="checkbox"
+                name="null"
+                value="" />
+              <span class="slider"> </span>
+            </div>
+          </label>
+          <label class="custom-checkbox__label">
+            <span class="custom-checkbox-label__text">Replace Border</span>
+            <div class="custom-checkbox__input">
+              <input
+                id="replace_border"
+                class="custom-checkbox"
+                type="checkbox"
+                name="null"
+                value="" />
+              <span class="slider"> </span>
+            </div>
+          </label>
+          <label class="custom-checkbox__label">
+            <span class="custom-checkbox-label__text">Unmatched Assets</span>
+            <div class="custom-checkbox__input">
+              <input
+                id="unmatched_assets"
+                class="custom-checkbox"
+                type="checkbox"
+                name="null"
+                value="" />
+              <span class="slider"> </span>
+            </div>
+          </label>
+          <label class="custom-checkbox__label">
+            <span class="custom-checkbox-label__text">Webhook Run</span>
+            <div class="custom-checkbox__input">
+              <input
+                id="run_single_item"
+                class="custom-checkbox"
+                type="checkbox"
+                name="null"
+                value="" />
+              <span class="slider"> </span>
+            </div>
+          </label>
+          <label class="custom-checkbox__label">
+            <span class="custom-checkbox-label__text">Only Unmatched</span>
+            <div class="custom-checkbox__input">
+              <input
+                id="only_unmatched"
+                class="custom-checkbox"
+                type="checkbox"
+                name="null"
+                value="" />
+              <span class="slider"> </span>
+            </div>
+          </label>
+          <label class="custom-checkbox__label">
+            <span class="custom-checkbox-label__text">Plex Upload</span>
+            <div class="custom-checkbox__input">
+              <input
+                id="upload_to_plex"
+                class="custom-checkbox"
+                type="checkbox"
+                name="null"
+                value="" />
+              <span class="slider"> </span>
+            </div>
+          </label>
+          <label class="custom-checkbox__label">
+            <span class="custom-checkbox-label__text">Match Alt Titles</span>
+            <div class="custom-checkbox__input">
+              <input
+                id="match_alt_titles"
+                class="custom-checkbox"
+                type="checkbox"
+                name="null"
+                value="" />
+              <span class="slider"> </span>
+            </div>
+          </label>
+        </div>
+      </form>
+    </div>
+    <div class="misc-settings">
+      <div class="unmatched-assets content-box">
+        <h2 class="content-heading">Unmatched Assets</h2>
+        <div
+          id="unmatched-assets-wrapper"
+          class="unmatched-assets__inputs">
+          <div class="form-group">
+            <label
+              class="form-label"
+              for="unmatched_assets_schedule">
+              Schedule
+              <input
+                name="unmatched_assets_schedule"
+                type="text"
+                class="form-input"
+                placeholder="cron(0 */3 * * *)" />
+            </label>
+          </div>
+          <div class="unmatched-assets__toggles">
+            <label class="custom-checkbox__label">
+              <span class="custom-checkbox-label__text">
+                Show all unmatched
+              </span>
+              <div class="custom-checkbox__input">
+                <input
+                  id="show_all_unmatched"
+                  class="custom-checkbox"
+                  type="checkbox"
+                  name="null"
+                  value="" />
+                <span class="slider"> </span>
+              </div>
+            </label>
+            <label class="custom-checkbox__label">
+              <span class="custom-checkbox-label__text">Hide Collections</span>
+              <div class="custom-checkbox__input">
+                <input
+                  id="disable_unmatched_collections"
+                  class="custom-checkbox"
+                  type="checkbox"
+                  name="null"
+                  value="" />
+                <span class="slider"> </span>
+              </div>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="content-box plex-uploader">
+        <h2 class="content-heading">Plex Uploaderr</h2>
+        <div id="plex-uploaderr-wrapper"></div>
+        <div class="form-group">
+          <label
+            class="form-label"
+            for="plex_uploaderr_schedule">
+            Schedule
+            <input
+              name="plex_uploaderr_schedule"
+              type="text"
+              class="form-input"
+              placeholder="hourly(30)" />
+          </label>
+        </div>
+        <label class="custom-checkbox__label">
+          <span class="custom-checkbox-label__text">Reapply Posters</span>
+          <div class="custom-checkbox__input">
+            <input
+              id="reapply_posters"
+              class="custom-checkbox"
+              type="checkbox"
+              name="null"
+              value="" />
+            <span class="slider"> </span>
+          </div>
+        </label>
+      </div>
+      <div class="content-box log-level">
+        <h2 class="content-heading">Log Levels</h2>
+        <div class="log-level__inputs">
+          <label
+            class="custom-checkbox__label custom-checkbox__label--multiple-choice">
+            <span class="custom-checkbox-label__text">Poster Renamerr</span>
+            <span class="custom-checkbox-label__off">Info</span>
+            <div class="custom-checkbox__input">
+              <input
+                id="poster-renamerr-log-level"
+                class="custom-checkbox"
+                type="checkbox"
+                name="poster-renamerr_log_level"
+                value="debug" />
+              <span class="slider"> </span>
+            </div>
+            <span class="custom-checkbox-label__on">Debug</span>
+          </label>
+          <label
+            class="custom-checkbox__label custom-checkbox__label--multiple-choice">
+            <span class="custom-checkbox-label__text">Unmatched Assets</span>
+            <span class="custom-checkbox-label__off">Info</span>
+            <div class="custom-checkbox__input">
+              <input
+                id="unmatched-assets-log-level"
+                class="custom-checkbox"
+                type="checkbox"
+                name="unmatched-assets_log_level"
+                value="debug" />
+              <span class="slider"> </span>
+            </div>
+            <span class="custom-checkbox-label__on">Debug</span>
+          </label>
+          <label
+            class="custom-checkbox__label custom-checkbox__label--multiple-choice">
+            <span class="custom-checkbox-label__text">Plex Uploaderr</span>
+            <span class="custom-checkbox-label__off">Info</span>
+            <div class="custom-checkbox__input">
+              <input
+                id="plex-uploaderr-log-level"
+                class="custom-checkbox"
+                type="checkbox"
+                name="plex-uploaderr_log_level"
+                value="debug" />
+              <span class="slider"> </span>
+            </div>
+            <span class="custom-checkbox-label__on">Debug</span>
+          </label>
+          <label
+            class="custom-checkbox__label custom-checkbox__label--multiple-choice">
+            <span class="custom-checkbox-label__text">Border Replacerr</span>
+            <span class="custom-checkbox-label__off">Info</span>
+            <div class="custom-checkbox__input">
+              <input
+                id="border-replacerr-log-level"
+                class="custom-checkbox"
+                type="checkbox"
+                name="border-replacerr_log_level"
+                value="debug" />
+              <span class="slider"> </span>
+            </div>
+            <span class="custom-checkbox-label__on">Debug</span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock layout_content_div %} {% block script_content %}
+<script
+  type="text/javascript"
+  src="{{ url_for('static', filename='js/settings/settings.js') }}"></script>
+<script
+  type="text/javascript"
+  src="{{ url_for('static', filename='js/api/settings.js') }}"></script>
 {% endblock script_content %}

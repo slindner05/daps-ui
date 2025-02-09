@@ -8,14 +8,19 @@
 }
 
 :root {
-  --primary: #eb1616;
-  --secondary: #191c24;
-  --light: #6c7293;
-  --dark: #000000;
+  --primary: oklch(0.637 0.237 25.331);
+  --primary-light: oklch(70.4% 0.191 22.216);
+  --primary-dark: oklch(0.505 0.213 27.518);
+  --secondary: oklch(0.274 0.006 286.033);
+  --lightest: oklch(100% 0 102.07);
+  --light: oklch(0.705 0.015 286.067);
+  --dark: oklch(0.141 0.005 285.823);
+  --success: oklch(70.7% 0.237 149.33);
+  --success-dark: oklch(51.5% 0.213 145.52);
 }
 
 body {
-  background-color: #000000;
+  background-color: var(--dark);
   height: 100vh;
   display: flex;
   flex-direction: column;
@@ -23,6 +28,7 @@ body {
 }
 
 /* Navbar at the top */
+/* Actually this is the header */
 .navbar {
   position: fixed;
   top: 0;
@@ -34,7 +40,16 @@ body {
   display: flex;
   align-items: center;
   padding: 0 20px;
-  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+
+  & a {
+    text-decoration: none;
+    color: var(--primary);
+    padding: 10px;
+  }
+  .nav-items {
+    display: flex;
+    flex-direction: row;
+  }
 }
 
 .layout-wrapper {
@@ -42,15 +57,6 @@ body {
   flex-direction: row;
 }
 
-.navbar a {
-  text-decoration: none;
-  color: var(--primary);
-  padding: 10px;
-}
-.nav-items {
-  display: flex;
-  flex-direction: row;
-}
 
 .layout {
   display: flex;
@@ -61,47 +67,73 @@ body {
 }
 
 /* Sidebar on the left */
+/* This should be the nav element */
 .sidebar {
   position: fixed;
   top: 60px;
   left: 0;
+  padding-top: 20px;
   height: calc(100vh - 60px);
   overflow-y: auto;
   width: 250px;
   background-color: var(--secondary);
-  padding: 20px;
+  /* padding: 20px; */
   display: flex;
   flex-direction: column;
-}
 
-.sidebar-item {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 20px;
-  text-decoration: none;
-  color: var(--primary);
-  width: 200px;
-  padding: 10px;
-  border-radius: 4px;
-  transition: background-color 0.3s;
-  font-size: 17px;
-  font-weight: 600;
-}
+  & .sidebar-item {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    text-decoration: none;
+    color: var(--lightest);
+    width: calc(100% - 16px);
+    margin: 0 8px 12px;
+    padding: 10px 20px;
+    border-radius: 4px;
+    transition: background-color 0.3s;
+    font-size: 17px;
+    font-weight: 600;
+  }
 
-.sidebar a:hover {
-  background-color: var(--dark);
-  font-weight: 500;
+  .sidebar-item:hover {
+    background-color: var(--primary);
+    color: var(--lightest);
+  }
 }
 
 /* Sidebar and content layout using Flexbox */
 #layout-content-div {
   flex-grow: 1;
+  display: flex;
   margin-left: 250px;
-  padding: 20px;
-  overflow-y: auto;
   width: 100%;
   height: 100%;
+}
+
+/* Utility classes */
+.text-primary {
+  color: var(--primary);
+}
+
+.mt-1\.5 {
+  margin-top: 6px;
+}
+
+.hidden {
+  display: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }
 
 /* Responsive adjustments for mobile and tablets */
