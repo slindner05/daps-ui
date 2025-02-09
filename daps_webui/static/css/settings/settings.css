@@ -406,7 +406,7 @@
     }
   }
 
-  &.btn-test {
+  &.btn-secondary {
     background-color: var(--light);
     /* border: 1px solid var(--light); */
     color: var(--secondary);
@@ -466,10 +466,9 @@
   flex-grow: 1;
 }
 
-.button-div {
+.button-group {
   display: flex;
   align-items: center;
-  margin-top: 20px;
   gap: 5px;
 }
 
@@ -488,44 +487,62 @@
 
 /* Modal styles */
 .modal {
-  display: none;
   position: fixed;
-  z-index: 1;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
+  z-index: 1001;
+  inset: 0;
   overflow: auto;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.65);
 }
 
 .modal-content {
-  background-color: var(--secondary);
+  position: relative;
+  background-color: var(--dark);
   margin: 15% auto;
   padding: 20px;
-  /* border: 1px solid #888; */
+  display: flex;
+  flex-direction: column;
   border-radius: 4px;
+  border: 2px solid var(--light);
   width: 80%;
   max-width: 500px;
+
+  .btn {
+    margin-top: 16px;
+  }
 }
 
 .drive-select-wrapper {
   display: flex;
-  flex-direction: row;
   gap: 5px;
   align-items: center;
+  margin-bottom: 16px;
+
+  .form-select,
+  .form-input,
+  .close {
+    margin: -10px 0 0;
+  }
+
+  .drive-sync__remove-button {
+    margin-top: -11px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+  }
 }
 
 .close {
+  position: absolute;
+  top: 10px;
+  right: 20px;
   color: var(--light);
-  float: right;
   font-size: 28px;
   font-weight: bold;
   cursor: pointer;
-}
 
-.close:hover {
-  color: #000;
+  &:hover,
+  &:focus {
+    color: var(--lightest);
+  }
 }
 
 .path-inputs {

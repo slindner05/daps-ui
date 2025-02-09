@@ -1,0 +1,20 @@
+services:
+  web_dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: daps_web_dev
+    environment:
+      - APP_MODE=WEB
+      # - FLASK_ENV=development
+      - TZ=America/Vancouver
+      - PUID=501
+      - PGID=20
+      - MAIN_LOG_LEVEL=DEBUG
+    ports:
+      - "8888:8000"
+    volumes:
+      - .:/code
+      - ./config:/config
+      - /Users/stickel/Documents/\[11\]\ Daps\ UI/plex-posters:/posters
+      - /Users/stickel/Documents/\[11\]\ Daps\ UI/assets:/assets

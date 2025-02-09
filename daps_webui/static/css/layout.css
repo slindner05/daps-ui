@@ -124,6 +124,10 @@ body {
   display: none;
 }
 
+.blur {
+  filter: blur(5px);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

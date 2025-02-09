@@ -19,6 +19,12 @@ let placeholders = {
   cronSchedule: 'cron(0 */3 * * *)',
 };
 
+const placeholderMap = {
+  sourceDirs: 'sourceDir',
+  libraryNames: 'libraryName',
+  instances: 'instance',
+};
+
 const requiredFields = [
   'input[name="target_path"]',
   'input[name="source_dir[]"]',
@@ -39,6 +45,7 @@ document.addEventListener('DOMContentLoaded', function () {
   attachNewInstance('radarr');
   attachNewInstance('sonarr');
   attachNewInstance('plex');
+  createDriveSyncModal();
   attachDriveSync();
   attachSaveSettingsListener(document.querySelector('#save-settings'));
 
@@ -303,64 +310,59 @@ function createInputFromSettings(data, settingsVar, htmlVar) {
     cloneInput(htmlVar, {
       parentNode: `${htmlVar}_container`,
       cloneSourceList: `${htmlVar.replace('_', '-')}__group`,
-      placeholder: placeholders[htmlVar],
+      placeholder: placeholders[placeholderMap[settingsVar]],
       value: data[settingsVar][i],
     });
   }
 }
 
 function createDriveFromSettings(data) {
-  const driveSelectDiv = document.querySelector('.drive-select-div');
-  const driveSelectWrappers = driveSelectDiv.querySelectorAll(
-    '.drive-select-wrapper'
-  );
-
   data['gdrives'].forEach((gdrive, index) => {
-    let driveSelectWrapper;
+    // Set the value of the element already in the DOM,
+    // then loop throuh any more values that have been loaded from settings
+    const driveSelect = document.querySelectorAll('.drive-select-wrapper');
+    if (index === 0 && driveSelect.length > 0) {
+      const driveSelectWrapper = document.querySelector(
+        '.drive-select-wrapper'
+      );
 
-    if (index === 0 && driveSelectWrappers.length > 0) {
-      driveSelectWrapper = driveSelectWrappers[0];
+      const selectElement = driveSelectWrapper.querySelector(
+        "select[name='gdrive-select']"
+      );
+      const locationInput = driveSelectWrapper.querySelector(
+        "input[name='gdrive-location']"
+      );
+      const customInput = driveSelectWrapper.querySelector(
+        "input[name='custom-drive-id']"
+      );
+      if (locationInput) {
+        locationInput.value = gdrive.location || '';
+      }
+      if (selectElement) {
+        const optionExists = Array.from(selectElement.options).some(
+          (option) => option.value === gdrive.id
+        );
+        if (optionExists) {
+          selectElement.value = gdrive.id;
+        } else {
+          selectElement.value = 'custom';
+          selectElement.classList.add('hidden');
+          customInput.value = gdrive.id;
+          customInput.classList.remove('hidden');
+        }
+      }
     } else {
-      driveSelectWrapper = createDriveSelect(driveSelectCounter);
-      driveSelectDiv.appendChild(driveSelectWrapper);
+      cloneDriveSyncSelect({
+        values: {
+          driveId: gdrive.id || '',
+          location: gdrive.location || '',
+          customDriveId: gdrive.customDriveId || '',
+          counter: driveSelectCounter,
+        },
+      });
       driveSelectCounter++;
     }
-
-    const selectElement = driveSelectWrapper.querySelector(
-      "select[name='gdrive-select']"
-    );
-    const locationInput = driveSelectWrapper.querySelector(
-      "input[name='gdrive-location']"
-    );
-    const customInput = driveSelectWrapper.querySelector(
-      "input[name='custom-drive-id']"
-    );
-    if (locationInput) {
-      locationInput.value = gdrive.location || '';
-    }
-    if (selectElement) {
-      const optionExists = Array.from(selectElement.options).some(
-        (option) => option.value === gdrive.id
-      );
-      if (optionExists) {
-        selectElement.value = gdrive.id;
-      } else {
-        selectElement.value = 'custom';
-        customInput.style.display = 'block';
-        customInput.value = gdrive.id;
-        selectElement.style.display = 'none';
-      }
-    }
   });
-
-  if (driveSelectCounter >= 1) {
-    driveSelectWrappers.forEach((wrapper) => {
-      const removeButton = wrapper.querySelector('.close');
-      if (removeButton) {
-        removeButton.style.display = 'inline';
-      }
-    });
-  }
 }
 
 function preFillForm(data) {
@@ -386,7 +388,23 @@ function preFillForm(data) {
   // Drive sync
   document.querySelector('input[name="drive_sync_schedule"]').value =
     data.driveSyncSchedule || '';
-  // document.getElementById("drive-sync_info").checked = true;
+
+  // Update the input values for the first instances of sourceDirs, libraryNames, and instances
+  const firstSourceDir = document.querySelector('input[name="source_dir[]"]');
+  const firstLibraryName = document.querySelector(
+    'input[name="library_name[]"]'
+  );
+  const firstInstance = document.querySelector('input[name="instance[]"]');
+
+  if (firstSourceDir && data.sourceDirs?.[0]) {
+    firstSourceDir.value = data.sourceDirs[0];
+  }
+  if (firstLibraryName && data.libraryNames?.[0]) {
+    firstLibraryName.value = data.libraryNames[0];
+  }
+  if (firstInstance && data.instances?.[0]) {
+    firstInstance.value = data.instances[0];
+  }
 
   // Create additional inputs for source dirs, library names, and instances
   createInputFromSettings(data, 'sourceDirs', 'source_dir');
@@ -417,7 +435,7 @@ function preFillForm(data) {
   attachReplaceBorderToggle();
   toggleCustomColorInput();
   document.querySelector('input[name="hex_code"]').value =
-    data.customColor || '';
+    data.customColor ?? '';
 
   // Set unmatched assets inputs
   document.querySelector('input[name="unmatched_assets_schedule"]').value =
@@ -455,11 +473,6 @@ function preFillForm(data) {
   if (data.logLevelDriveSync === 'debug') {
     document.getElementById('drive-sync-log-level').checked = true;
   }
-}
-function attachDriveSync() {
-  const wrapperDiv = document.getElementById('drive-sync-wrapper');
-  const driveSync = createDriveSync();
-  wrapperDiv.appendChild(driveSync);
 }
 
 function createLabel(labelName, inputName) {
@@ -505,7 +518,9 @@ function attachReplaceBorderToggle() {
  * @param placeholder
  */
 function attachAddButtonListener(button, inputType, placeholder) {
-  button.addEventListener('click', function () {
+  button.addEventListener('click', function (event) {
+    event.preventDefault();
+    event.stopPropagation();
     cloneInput(inputType, {
       parentNode: `${inputType}_container`,
       cloneSourceList: `${inputType.replace('_', '-')}__group`,
@@ -574,182 +589,205 @@ let availableDrives = {
   solen_2: '1zWY-ORtJkOLcQChV--oHquxW3JCow1zm',
 };
 
-function createDriveSync() {
-  const wrapperDiv = document.createElement('div');
+function attachDriveSync() {
+  // Populate the drive sync select options
+  const driveSelects = document.querySelectorAll('.drive-select-wrapper');
+  driveSelects.forEach((selectWrapper) => {
+    const selectElement = selectWrapper.querySelector('select');
+    // Add the available drives to the select element
+    Object.entries(availableDrives).forEach(([name, id]) => {
+      const optionElement = document.createElement('option');
+      optionElement.value = id;
+      optionElement.textContent = name;
+      selectElement.appendChild(optionElement);
+    });
 
-  const cronScheduleInput = document.createElement('input');
-  cronScheduleInput.name = 'drive_sync_schedule';
-  cronScheduleInput.type = 'text';
-  cronScheduleInput.classList.add('form-input');
-  cronScheduleInput.placeholder = placeholders['cronSchedule'];
-  const cronScheduleLabel = createTitle('Schedule');
+    // Add the custom option at the end
+    const customDrive = document.createElement('option');
+    customDrive.value = 'custom';
+    customDrive.textContent = 'Custom Drive ID';
+    selectElement.appendChild(customDrive);
 
-  const driveSelectDiv = document.createElement('div');
-  driveSelectDiv.classList.add('drive-select-div');
-
-  const driveLabel = document.createElement('span');
-  driveLabel.textContent = 'G-Drives';
-  driveLabel.classList.add('form-label');
-
-  const firstDriveSelect = createDriveSelect(driveSelectCounter);
-  driveSelectCounter++;
-  driveSelectDiv.appendChild(firstDriveSelect);
-
-  const buttonDiv = document.createElement('div');
-  buttonDiv.classList.add('button-div');
-
-  const configureButton = document.createElement('button');
-  configureButton.id = 'configure-drive-sync';
-  configureButton.type = 'button';
-  configureButton.classList.add('btn', 'btn-primary');
-  configureButton.textContent = 'Configure';
-  buttonDiv.appendChild(configureButton);
-
-  const addDriveButton = document.createElement('button');
-  addDriveButton.id = 'add-drive-button';
-  addDriveButton.type = 'button';
-  addDriveButton.classList.add('btn', 'btn-primary');
-  addDriveButton.textContent = '+ Add GDrive';
-  buttonDiv.appendChild(addDriveButton);
-
-  wrapperDiv.appendChild(cronScheduleLabel);
-  wrapperDiv.appendChild(cronScheduleInput);
-  wrapperDiv.appendChild(driveLabel);
-  wrapperDiv.appendChild(driveSelectDiv);
-  wrapperDiv.appendChild(buttonDiv);
-
-  const modal = createModal();
-  wrapperDiv.appendChild(modal);
-
-  configureButton.addEventListener('click', () => {
-    modal.style.display = 'block';
-  });
-
-  addDriveButton.addEventListener('click', () => {
-    const dynamicSelect = createDriveSelect(driveSelectCounter);
-    driveSelectDiv.appendChild(dynamicSelect);
-    if (driveSelectCounter >= 1) {
-      const firstDriveSelect = driveSelectDiv.querySelector(
-        ".drive-select-wrapper[data-counter='0']"
-      );
-      if (firstDriveSelect) {
-        const firstRemoveButton = firstDriveSelect.querySelector('.close');
-        firstRemoveButton.style.display = 'inline';
+    // Attach the event listener to the select element
+    // This checks if the value is 'custom' and shows the custom drive input
+    // while hiding the select element
+    const customDriveInput = selectWrapper.querySelector(
+      '[name="custom-drive-id"]'
+    );
+    selectElement.addEventListener('change', (event) => {
+      if (event.target.value === 'custom') {
+        selectElement.classList.add('hidden');
+        customDriveInput.classList.remove('hidden');
+        customDriveInput.focus();
       }
-    }
-    driveSelectCounter++;
+    });
+
+    customDriveInput.addEventListener('blur', (event) => {
+      if (event.target.value.trim() === '') {
+        customDriveInput.classList.add('hidden');
+        selectElement.classList.remove('hidden');
+        selectElement.value = '';
+      }
+    });
   });
 
-  return wrapperDiv;
+  attachDriveSyncListeners();
 }
 
-function createDriveSelect(counter) {
-  const selectWrapper = document.createElement('div');
-  selectWrapper.classList.add('drive-select-wrapper');
-  selectWrapper.dataset.counter = counter;
-
-  const selectElement = document.createElement('select');
-  selectElement.classList.add('form-select');
-  selectElement.name = 'gdrive-select';
-
-  const defaultOption = document.createElement('option');
-  defaultOption.value = '';
-  defaultOption.textContent = 'Select a drive...';
-  defaultOption.selected = true;
-  defaultOption.disabled = true;
-  selectElement.appendChild(defaultOption);
-
-  Object.entries(availableDrives).forEach(([name, id]) => {
-    const optionElement = document.createElement('option');
-    optionElement.value = id;
-    optionElement.textContent = name;
-    selectElement.appendChild(optionElement);
+// Attach all event listeners to the drive sync elements,
+// the drive sync config modal, and the "add drive" button
+function attachDriveSyncListeners() {
+  // Listeners for the select elements
+  const driveSelects = document.querySelectorAll('.drive-select-wrapper');
+  driveSelects.forEach((selectWrapper) => {
+    attachDriveSyncListener(selectWrapper);
   });
 
-  const customDrive = document.createElement('option');
-  customDrive.value = 'custom';
-  customDrive.textContent = 'Custom Drive ID...';
-  selectElement.appendChild(customDrive);
+  // Listeners for the "configure" button
+  const configureSyncButton = document.querySelector('#configure-drive-sync');
+  configureSyncButton.addEventListener('click', handleOpenModal);
 
-  const customDriveInput = document.createElement('input');
-  customDriveInput.classList.add('form-input');
-  customDriveInput.name = 'custom-drive-id';
-  customDriveInput.placeholder = 'Enter GDrive ID';
-  customDriveInput.style.display = 'none';
+  // Listener for the "add drive" button
+  const addDriveButton = document.querySelector('#add-drive-button');
+  addDriveButton.addEventListener('click', cloneDriveSyncSelect);
+}
 
-  const driveLocation = document.createElement('input');
-  driveLocation.classList.add('form-input');
-  driveLocation.name = 'gdrive-location';
-  driveLocation.placeholder = '/posters/{folder}';
-  selectWrapper.appendChild(driveLocation);
-
-  const removeDrive = document.createElement('span');
-  removeDrive.classList.add('close');
-  removeDrive.innerHTML = '&times;';
+// Attach listeners to a drive select element
+function attachDriveSyncListener(driveSelect) {
+  // Listeners for the select elements
+  const selectElement = driveSelect.querySelector('select');
+  const selectValue = selectElement.value;
+  const customDriveInput = driveSelect.querySelector(
+    '[name="custom-drive-id"]'
+  );
+  const removeDrive = driveSelect.querySelector('.drive-sync__remove-button');
   removeDrive.addEventListener('click', handleRemoveDrive);
-  if (driveSelectCounter === 0) {
-    removeDrive.style.display = 'none';
-  }
-
-  selectWrapper.appendChild(selectElement);
-  selectWrapper.appendChild(customDriveInput);
-  selectWrapper.appendChild(driveLocation);
-  selectWrapper.appendChild(removeDrive);
-
-  selectElement.addEventListener('change', (event) => {
-    if (event.target.value === 'custom') {
-      selectElement.style.display = 'none';
-      customDriveInput.style.display = 'block';
-      customDriveInput.focus();
+  selectElement.addEventListener('change', handleDriveSelectChange);
+  customDriveInput.addEventListener('blur', (event) => {
+    if (event.target.value.trim() === '') {
+      customDriveInput.classList.add('hidden');
+      selectElement.classList.remove('hidden');
+      selectElement.value = selectValue ?? '';
     }
   });
-  customDriveInput.addEventListener('blur', () => {
-    if (customDriveInput.value.trim() === '') {
-      selectElement.style.display = 'block';
-      customDriveInput.style.display = 'none';
-      selectElement.value = '';
-    }
-  });
-
-  return selectWrapper;
 }
 
+function handleDriveSelectChange(event) {
+  const selectElement = event.target;
+  const selectWrapper = selectElement.closest('.drive-select-wrapper');
+  const driveId = selectElement.value;
+  const customDriveInput = selectWrapper.querySelector(
+    '[name="custom-drive-id"]'
+  );
+  if (driveId === 'custom') {
+    selectElement.classList.add('hidden');
+    customDriveInput.classList.remove('hidden');
+    customDriveInput.focus();
+  } else {
+    selectElement.classList.remove('hidden');
+    customDriveInput.classList.add('hidden');
+    customDriveInput.value = '';
+  }
+}
+
+// Handle the remove drive event
+function handleRemoveDrive(event) {
+  const removeButton = event.target;
+  const selectWrapper = removeButton.closest('.drive-select-wrapper');
+  const counter = selectWrapper.dataset.counter;
+  removeDriveSelect(Number(counter));
+  // Trigger change event after removal
+  checkChanges();
+}
+
+// Remove the drive select element from the DOM and update the counter
 function removeDriveSelect(counter) {
   const selectWrapper = document.querySelector(
     `.drive-select-wrapper[data-counter='${counter}']`
   );
   if (selectWrapper) {
     selectWrapper.remove();
-    const driveSelectDiv = document.querySelector('.drive-select-div');
-    const driveSelectWrappers = driveSelectDiv.querySelectorAll(
+    // Loop through and update the counters
+    const driveSelectWrappers = document.querySelectorAll(
       '.drive-select-wrapper'
     );
 
     driveSelectWrappers.forEach((wrapper, index) => {
       wrapper.dataset.counter = index;
-      const removeDrive = wrapper.querySelector('.close');
-      removeDrive.removeEventListener('click', handleRemoveDrive);
-      removeDrive.addEventListener('click', handleRemoveDrive);
-      if (driveSelectWrappers.length === 1) {
-        removeDrive.style.display = 'none';
-      } else {
-        removeDrive.style.display = 'inline';
-      }
     });
     driveSelectCounter = driveSelectWrappers.length;
   }
 }
-function handleRemoveDrive(event) {
-  const removeButton = event.target;
-  const selectWrapper = removeButton.closest('.drive-select-wrapper');
-  const counter = selectWrapper.dataset.counter;
-  removeDriveSelect(Number(counter));
+
+// Handle adding a new G Drive input group
+function cloneDriveSyncSelect({ values }) {
+  const driveSelectWrappers = document.querySelectorAll(
+    '.drive-select-wrapper'
+  );
+  const lastDrive = driveSelectWrappers[driveSelectWrappers.length - 1];
+  const newCounter = parseInt(lastDrive.dataset.counter) + 1;
+  const clone = driveSelectWrappers[0].cloneNode(true);
+  clone.dataset.counter = newCounter;
+  // set the value of the clone if the `values` object is passed in
+  // otherwise set the values to empty strings
+
+  const cloneSelect = clone.querySelector('select');
+  const cloneCustomInput = clone.querySelector('[name="custom-drive-id"]');
+  cloneCustomInput.value = '';
+  if (cloneSelect && values) {
+    const optionExists = Array.from(cloneSelect.options).some(
+      (option) => option.value === values.driveId
+    );
+    if (optionExists) {
+      cloneSelect.value = values.driveId;
+    } else {
+      cloneSelect.value = 'custom';
+      cloneSelect.classList.add('hidden');
+      cloneCustomInput.classList.remove('hidden');
+      cloneCustomInput.value = driveId;
+    }
+  }
+  clone.querySelector('[name="gdrive-location"]').value =
+    values?.location || '';
+
+  // Add the clone to the DOM
+  lastDrive.insertAdjacentElement('afterend', clone);
+
+  // Add the event listeners to the new clone
+  attachInputListener(clone.querySelector('select'));
+  attachInputListener(clone.querySelector('[name="custom-drive-id"]'));
+  attachInputListener(clone.querySelector('[name="gdrive-location"]'));
+  attachDriveSyncListeners();
+
+  // cycle through all drive selects and enable the remove button
+  // on all but the last one, unless the last one has a value
+  const driveSelects = document.querySelectorAll('.drive-select-wrapper');
+  driveSelects.forEach((selectWrapper, index) => {
+    const selectHasValue =
+      selectWrapper.querySelector('[name="gdrive-location"]').value !== '';
+    const removeDrive = selectWrapper.querySelector(
+      '.drive-sync__remove-button'
+    );
+    if (index !== driveSelects.length - 1 || selectHasValue) {
+      removeDrive.classList.remove('hidden');
+      removeDrive.addEventListener('click', handleRemoveDrive);
+    } else {
+      removeDrive.classList.add('hidden');
+      removeDrive.removeEventListener('click', handleRemoveDrive);
+    }
+  });
 }
 
-function createModal() {
+/**
+ * ------------------------------------------------
+ * Drive Sync Modal
+ * ------------------------------------------------
+ */
+function createDriveSyncModal() {
   const modal = document.createElement('div');
   modal.id = 'drive-sync-modal';
-  modal.classList.add('modal');
+  modal.role = 'dialog';
+  modal.classList.add('modal', 'hidden');
 
   const modalContent = document.createElement('div');
   modalContent.classList.add('modal-content');
@@ -757,12 +795,12 @@ function createModal() {
   const closeButton = document.createElement('span');
   closeButton.classList.add('close');
   closeButton.innerHTML = '&times;';
-  closeButton.addEventListener('click', () => {
-    modal.style.display = 'none';
-  });
+  closeButton.addEventListener('click', handleCloseModal);
 
   function createInputField(id, labelText, placeholder, isTextArea = false) {
-    const label = document.createElement('span');
+    const group = document.createElement('div');
+    group.classList.add('form-group');
+    const label = document.createElement('label');
     label.classList.add('form-label');
     label.textContent = labelText;
 
@@ -780,11 +818,13 @@ function createModal() {
     input.id = id;
     input.placeholder = placeholder;
 
-    modalContent.appendChild(label);
-    modalContent.appendChild(input);
+    label.appendChild(input);
+    group.appendChild(label);
+
+    modalContent.appendChild(group);
   }
+
   modalContent.appendChild(closeButton);
-  modalContent.appendChild(document.createElement('br'));
 
   createInputField('rclone-client-id', 'Client Id', 'rclone client id', true);
   createInputField('rclone-secret', 'Rclone Secret', 'rclone secret');
@@ -795,13 +835,47 @@ function createModal() {
     '/config/rclone_sa.json'
   );
 
+  // Create a "save" button for usability
+  const saveButton = document.createElement('button');
+  saveButton.classList.add('btn', 'btn-primary');
+  saveButton.textContent = 'Save Config';
+  saveButton.addEventListener('click', handleCloseModal);
+
+  modalContent.appendChild(saveButton);
+
   modal.appendChild(modalContent);
-  return modal;
+  document.body.appendChild(modal);
+}
+
+// Opens the modal, sets the classes (modal, navbar, layout)
+// and focuses the first input/textarea field
+function handleOpenModal() {
+  const modal = document.querySelector('#drive-sync-modal');
+  modal.classList.remove('hidden');
+  // blur the navbar and layout elements
+  document.querySelector('.navbar').classList.add('blur');
+  document.querySelector('.layout').classList.add('blur');
+
+  // Focus the input/textarea field
+  const inputs = modal.querySelectorAll('input, select, textarea');
+  inputs[0].focus();
+}
+
+// Closes the modal, removes the classes (modal, navbar, layout)
+function handleCloseModal() {
+  document.querySelector('#drive-sync-modal').classList.add('hidden');
+  // remove blur from navbar and layout elements
+  document.querySelector('.navbar').classList.remove('blur');
+  document.querySelector('.layout').classList.remove('blur');
 }
 
 /**
- * Update the counter for each instance group (radarr, sonarr, plex)
+ * ---------------------------------
+ * Build, instantiate, and set up
+ * event listeners for instances
+ * ---------------------------------
  */
+// Update the counter for each instance group (radarr, sonarr, plex)
 function updateCounter(name) {
   const wrapperDiv = document.getElementById(`${name}-group-wrapper`);
 
@@ -818,12 +892,7 @@ function updateCounter(name) {
   });
 }
 
-/**
- * ---------------------------------
- * Build, instantiate, and set up
- * event listeners for instances
- * ---------------------------------
- */
+// Create the instance label for each instance group (radarr, sonarr, plex)
 function createInstanceSpan(instanceLabel, name) {
   const instanceSpan = document.createElement('span');
   instanceSpan.classList.add('span-group');
@@ -832,7 +901,7 @@ function createInstanceSpan(instanceLabel, name) {
   const testBtn = document.createElement('button');
   testBtn.id = `test-${name}`;
   testBtn.type = 'button';
-  testBtn.classList.add('btn', 'btn-test', 'mt-1.5');
+  testBtn.classList.add('btn', 'btn-secondary', 'mt-1.5');
   testBtn.textContent = 'Test';
   instanceSpan.appendChild(instanceInput);
   instanceSpan.appendChild(testBtn);
@@ -893,11 +962,21 @@ function attachNewInstance(name) {
   counters[name]++;
   const wrapperDiv = document.getElementById(`${name}-group-wrapper`);
   const newInstance = createInstance(name, counters[name]);
-  const testButton = newInstance.querySelector('.btn-test');
+  const testButton = newInstance.querySelector('.btn-secondary');
+  // Attach the "test" button listener
   attachTestButtonListener(testButton, name);
-
+  // Add it to the DOM
   wrapperDiv.appendChild(newInstance);
+
+  // Attach the input listeners for the input fields
+  const inputFields = newInstance.querySelectorAll('input');
+  inputFields.forEach((input) => {
+    attachInputListener(input);
+  });
+
+  // Attach the "remove" button listener
   attachRemoveButton(wrapperDiv, name, newInstance);
+
   if (counters[name] === 1) {
     hideAllRemoveButtons(name);
   } else {
@@ -917,7 +996,9 @@ function attachRemoveButton(wrapperDiv, name, formGroup) {
       removeButton.classList.add('btn', 'btn-primary', 'btn-remove', 'mt-1.5');
       removeButton.innerHTML = '<i class="fas fa-trash-alt"></i>';
       group.appendChild(removeButton);
-      removeButton.addEventListener('click', function () {
+      removeButton.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
         const isFirstInstance = formGroup === wrapperDiv.firstElementChild;
         const nextSibling = formGroup.nextElementSibling;
         if (isFirstInstance && nextSibling) {
@@ -932,6 +1013,8 @@ function attachRemoveButton(wrapperDiv, name, formGroup) {
         if (counters[name] === 1) {
           hideAllRemoveButtons(name);
         }
+        // Trigger change event after removal
+        checkChanges();
       });
     }
   });
@@ -1301,7 +1384,7 @@ function handleCloning(input, props) {
   const cloneSource = cloneSourceList[cloneSourceList.length - 1];
 
   const clone = cloneSource.cloneNode(true);
-  clone.querySelector('.form-input').value = props.value || '';
+  clone.querySelector('.form-input').value = props.value ?? '';
   clone.querySelector('.form-input').placeholder = props.placeholder;
   attachInputListener(clone.querySelector('.form-input'));
 
@@ -1326,12 +1409,18 @@ function handleCloning(input, props) {
  * @param props Object The properties of the input
  */
 function attachRemoveButtonListener(element, parentNode, sourceList) {
-  element.querySelector('.btn-remove').addEventListener('click', function () {
-    element.remove();
-    const remainingInputs = parentNode.querySelectorAll(`.${sourceList}`);
-    if (remainingInputs.length === 1) {
-      remainingInputs[0].querySelector('.btn-remove').classList.add('hidden');
-      remainingInputs[0].querySelector('.btn-add').classList.remove('hidden');
-    }
-  });
+  element
+    .querySelector('.btn-remove')
+    .addEventListener('click', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      element.remove();
+      const remainingInputs = parentNode.querySelectorAll(`.${sourceList}`);
+      if (remainingInputs.length === 1) {
+        remainingInputs[0].querySelector('.btn-remove').classList.add('hidden');
+        remainingInputs[0].querySelector('.btn-add').classList.remove('hidden');
+      }
+      // Trigger change event after removal
+      checkChanges();
+    });
 }

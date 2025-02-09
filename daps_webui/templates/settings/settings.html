@@ -122,7 +122,7 @@
               <i class="fas fa-trash-alt"></i>
             </button>
             <button
-              class="btn btn-test btn-add mt-1.5"
+              class="btn btn-secondary btn-add mt-1.5"
               type="button">
               <i class="fas fa-plus"></i>
               <span class="sr-only">Add source directory</span>
@@ -152,7 +152,7 @@
               <i class="fas fa-trash-alt"></i>
             </button>
             <button
-              class="btn btn-test btn-add mt-1.5"
+              class="btn btn-secondary btn-add mt-1.5"
               type="button">
               <i class="fas fa-plus"></i>
               <span class="sr-only">Add library</span>
@@ -182,7 +182,7 @@
               <i class="fas fa-trash-alt"></i>
             </button>
             <button
-              class="btn btn-test btn-add mt-1.5"
+              class="btn btn-secondary btn-add mt-1.5"
               type="button">
               <i class="fas fa-plus"></i>
               <span class="sr-only">Add instance</span>
@@ -379,7 +379,7 @@
               name="plex_uploaderr_schedule"
               type="text"
               class="form-input"
-              placeholder="hourly(30)" />
+              placeholder="cron(0 */3 * * *)" />
           </label>
         </div>
         <label class="custom-checkbox__label">
@@ -394,6 +394,67 @@
             <span class="slider"> </span>
           </div>
         </label>
+      </div>
+      <div class="content-box drive-sync">
+        <h2 class="content-heading">Drive Sync</h2>
+        <div id="drive-sync-wrapper"></div>
+        <div class="form-group">
+          <label
+            class="form-label"
+            for="drive-sync_schedule">
+            Schedule
+            <input
+              name="drive_sync_schedule"
+              type="text"
+              class="form-input"
+              placeholder="cron(0 */3 * * *)" />
+          </label>
+          <label
+            class="form-label"
+            for="gdrive-select">
+            G Drives
+          </label>
+          <div
+            class="drive-select-wrapper"
+            data-counter="0">
+            <select
+              class="form-select"
+              name="gdrive-select">
+              <option
+                value=""
+                selected>
+                Select a drive...
+              </option>
+            </select>
+            <input
+              class="form-input hidden"
+              name="custom-drive-id"
+              placeholder="Enter GDrive ID" />
+            <input
+              class="form-input"
+              name="gdrive-location"
+              placeholder="/posters/{folder}" />
+            <button
+              class="drive-sync__remove-button btn btn-primary btn-remove hidden"
+              type="button">
+              <i class="fas fa-trash-alt"></i>
+            </button>
+          </div>
+          <div class="button-group">
+            <button
+              id="configure-drive-sync"
+              type="button"
+              class="btn btn-secondary">
+              Configure
+            </button>
+            <button
+              id="add-drive-button"
+              type="button"
+              class="btn btn-secondary">
+              + Add GDrive
+            </button>
+          </div>
+        </div>
       </div>
       <div class="content-box log-level">
         <h2 class="content-heading">Log Levels</h2>
