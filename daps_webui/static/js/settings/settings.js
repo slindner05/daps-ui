@@ -11,7 +11,7 @@ let counters = {
   plex: 0,
 };
 
-let placeholders = {
+const placeholders = {
   targetPath: '/kometa/assets',
   sourceDir: '/posters/Drazzilb08',
   libraryName: 'Movies (HD)',
@@ -410,6 +410,28 @@ function preFillForm(data) {
   createInputFromSettings(data, 'sourceDirs', 'source_dir');
   createInputFromSettings(data, 'libraryNames', 'library_name');
   createInputFromSettings(data, 'instances', 'instance');
+
+  // FIXME: This currently breaks because of the required fields const.
+  // Now create a blank input for source dirs, library names, and instances
+  // with the "add" button for people to add more if they want
+  // cloneInput('source_dir', {
+  //   parentNode: `source_dir_container`,
+  //   cloneSourceList: `source-dir__group`,
+  //   placeholder: placeholders['sourceDir'],
+  //   value: '',
+  // });
+  // cloneInput('library_name', {
+  //   parentNode: `library_name_container`,
+  //   cloneSourceList: `library-name__group`,
+  //   placeholder: placeholders['libraryName'],
+  //   value: '',
+  // });
+  // cloneInput('instance', {
+  //   parentNode: `instance_container`,
+  //   cloneSourceList: `instance__group`,
+  //   placeholder: placeholders['instance'],
+  //   value: '',
+  // });
 
   // Build the saved instances (radarr, sonarr, plex)
   createInstanceFromSettings(data, 'radarrInstances', 'radarr');
