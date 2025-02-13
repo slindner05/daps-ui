@@ -766,7 +766,7 @@ function cloneDriveSyncSelect({ values }) {
       cloneSelect.value = 'custom';
       cloneSelect.classList.add('hidden');
       cloneCustomInput.classList.remove('hidden');
-      cloneCustomInput.value = driveId;
+      cloneCustomInput.value = values.driveId;
     }
   }
   clone.querySelector('[name="gdrive-location"]').value =
@@ -1390,7 +1390,9 @@ function cloneInput(input, props) {
  */
 function validateProps(props) {
   const required = ['parentNode', 'cloneSourceList', 'placeholder'];
-  return required.every((prop) => props.hasOwnProperty(prop));
+  return required.every((prop) =>
+    Object.prototype.hasOwnProperty.call(props, prop)
+  );
 }
 
 /**
