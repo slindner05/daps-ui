@@ -120,6 +120,10 @@ body {
   margin-top: 6px;
 }
 
+.mb-5 {
+  margin-bottom: 1.25rem;
+}
+
 .hidden {
   display: none;
 }

@@ -251,6 +251,11 @@
     font-size: 14px;
     padding-left: 6px;
   }
+
+  &.form-label--with-button {
+    display: flex;
+    align-items: center;
+  }
 }
 
 .form-group-checkbox {
@@ -333,7 +338,7 @@
     border-color 0.15s ease-in-out,
     box-shadow 0.15s ease-in-out;
   outline: 0;
-  color: var(--light);
+  color: var(--lightest);
   min-height: 30px;
   max-height: 150px;
   overflow-y: auto;
@@ -402,9 +407,6 @@
     &:focus {
       outline: 1px solid var(--dark);
       box-shadow: 0 0 0 4px oklch(0.637 0.237 25.331 / 0.5);
-      /* transform: translateY(-2px); */
-      /* var(--primary) with opacity */
-      /* box-shadow: 0 0.5rem 0.5rem -0.4rem oklch(0.637 0.237 25.331 / 0.7); */
     }
   }
 
@@ -419,16 +421,28 @@
       box-shadow: 0 0 0 4px oklch(0.705 0.015 286.067 / 0.3);
       outline: 1px solid var(--dark);
     }
+  }
 
-    /* &:hover,
+  &.btn-remove--alt {
+    background-color: transparent;
+    color: var(--light);
+    font-size: 1rem;
+
+    &:hover,
     &:focus {
-      transform: translateY(-2px);
-      box-shadow: 0 0.5rem 0.5rem -0.4rem oklch(0.705 0.015 286.067 / 0.7);
-    } */
+      color: var(--lightest);
+      background-color: var(--secondary);
+      box-shadow: none;
+    }
   }
 
   &.btn-add {
     white-space: nowrap;
+  }
+
+  &.btn-add--directory {
+    width: auto;
+    align-self: end;
   }
 }
 
@@ -471,6 +485,7 @@
 .button-group {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 5px;
 }
 
@@ -548,7 +563,7 @@
 }
 
 .path-inputs {
-  margin: 8px 0 16px;
+  margin: 8px 0 8px;
 }
 
 /* Source directories */

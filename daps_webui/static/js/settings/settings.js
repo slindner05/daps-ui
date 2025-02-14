@@ -231,13 +231,8 @@ function handleDragEnd(e) {
   const sourceList = document.getElementById('source_dir_container');
   const sourceItems = sourceList.querySelectorAll('.source-item');
   sourceItems.forEach((item) => {
-    item.querySelector('.btn-add').classList.add('hidden');
-    item.querySelector('.btn-remove').classList.remove('hidden');
     attachRemoveButtonListener(item, sourceList, 'source-dir__group');
   });
-  const lastItem = sourceItems[sourceItems.length - 1];
-  lastItem.querySelector('.btn-add').classList.remove('hidden');
-  lastItem.querySelector('.btn-remove').classList.add('hidden');
   renameItemIds();
 }
 
@@ -307,7 +302,7 @@ function createInstanceFromSettings(data, settingsVar, htmlVar) {
 
 function createInputFromSettings(data, settingsVar, htmlVar) {
   for (let i = 1; i < data[settingsVar].length; i++) {
-    cloneInput(htmlVar, {
+    cloneInput({
       parentNode: `${htmlVar}_container`,
       cloneSourceList: `${htmlVar.replace('_', '-')}__group`,
       placeholder: placeholders[placeholderMap[settingsVar]],
@@ -410,28 +405,6 @@ function preFillForm(data) {
   createInputFromSettings(data, 'sourceDirs', 'source_dir');
   createInputFromSettings(data, 'libraryNames', 'library_name');
   createInputFromSettings(data, 'instances', 'instance');
-
-  // FIXME: This currently breaks because of the required fields const.
-  // Now create a blank input for source dirs, library names, and instances
-  // with the "add" button for people to add more if they want
-  // cloneInput('source_dir', {
-  //   parentNode: `source_dir_container`,
-  //   cloneSourceList: `source-dir__group`,
-  //   placeholder: placeholders['sourceDir'],
-  //   value: '',
-  // });
-  // cloneInput('library_name', {
-  //   parentNode: `library_name_container`,
-  //   cloneSourceList: `library-name__group`,
-  //   placeholder: placeholders['libraryName'],
-  //   value: '',
-  // });
-  // cloneInput('instance', {
-  //   parentNode: `instance_container`,
-  //   cloneSourceList: `instance__group`,
-  //   placeholder: placeholders['instance'],
-  //   value: '',
-  // });
 
   // Build the saved instances (radarr, sonarr, plex)
   createInstanceFromSettings(data, 'radarrInstances', 'radarr');
@@ -543,7 +516,7 @@ function attachAddButtonListener(button, inputType, placeholder) {
   button.addEventListener('click', function (event) {
     event.preventDefault();
     event.stopPropagation();
-    cloneInput(inputType, {
+    cloneInput({
       parentNode: `${inputType}_container`,
       cloneSourceList: `${inputType.replace('_', '-')}__group`,
       placeholder,
@@ -560,17 +533,23 @@ function attachAddButtonListener(button, inputType, placeholder) {
  */
 function setupRenamerrAddButtons() {
   attachAddButtonListener(
-    document.querySelector('#source_dir_container .btn-add'),
+    document
+      .querySelector('#source_dir_container')
+      .parentNode.querySelector('.btn-add'),
     'source_dir',
     placeholders['sourceDir']
   );
   attachAddButtonListener(
-    document.querySelector('#library_name_container .btn-add'),
+    document
+      .querySelector('#library_name_container')
+      .parentNode.querySelector('.btn-add'),
     'library_name',
     placeholders['libraryName']
   );
   attachAddButtonListener(
-    document.querySelector('#instance_container .btn-add'),
+    document
+      .querySelector('#instance_container')
+      .parentNode.querySelector('.btn-add'),
     'instance',
     placeholders['instance']
   );
@@ -784,19 +763,11 @@ function cloneDriveSyncSelect({ values }) {
   // cycle through all drive selects and enable the remove button
   // on all but the last one, unless the last one has a value
   const driveSelects = document.querySelectorAll('.drive-select-wrapper');
-  driveSelects.forEach((selectWrapper, index) => {
-    const selectHasValue =
-      selectWrapper.querySelector('[name="gdrive-location"]').value !== '';
+  driveSelects.forEach((selectWrapper) => {
     const removeDrive = selectWrapper.querySelector(
       '.drive-sync__remove-button'
     );
-    if (index !== driveSelects.length - 1 || selectHasValue) {
-      removeDrive.classList.remove('hidden');
-      removeDrive.addEventListener('click', handleRemoveDrive);
-    } else {
-      removeDrive.classList.add('hidden');
-      removeDrive.removeEventListener('click', handleRemoveDrive);
-    }
+    removeDrive.addEventListener('click', handleRemoveDrive);
   });
 }
 
@@ -1183,7 +1154,13 @@ function attachSaveSettingsListener(saveButton) {
   saveButton.addEventListener('click', function () {
     const emptyFields = requiredFields.filter((selector) => {
       const inputs = document.querySelectorAll(selector);
-      return Array.from(inputs).some((input) => !input.value.trim());
+      // if there's only one input, check its value
+      // and empty value should add to the emptyFields
+      if (inputs.length === 1) {
+        return !inputs[0].value.trim();
+      }
+      // if there are multiple inputs, check if all of them are empty
+      return Array.from(inputs).every((input) => !input.value.trim());
     });
     if (emptyFields.length > 0) {
       alert('Please fill in all required empty fields before saving.');
@@ -1225,13 +1202,19 @@ function attachSaveSettingsListener(saveButton) {
     const customColor = document.querySelector('input[name="hex_code"]').value;
     const sourceDirs = Array.from(
       document.querySelectorAll('input[name="source_dir[]"]')
-    ).map((input) => input.value);
+    )
+      .map((input) => input.value.trim())
+      .filter(Boolean);
     const libraryNames = Array.from(
       document.querySelectorAll('input[name="library_name[]"]')
-    ).map((input) => input.value);
+    )
+      .map((input) => input.value.trim())
+      .filter(Boolean);
     const instances = Array.from(
       document.querySelectorAll('input[name="instance[]"]')
-    ).map((input) => input.value);
+    )
+      .map((input) => input.value.trim())
+      .filter(Boolean);
     const assetFolders = document.getElementById('asset_folders').checked;
     const replaceBorder = document.getElementById('replace_border').checked;
     const unmatchedAssets = document.getElementById('unmatched_assets').checked;
@@ -1377,11 +1360,11 @@ function attachSaveSettingsListener(saveButton) {
  *   value?: string;
  * }
  */
-function cloneInput(input, props) {
+function cloneInput(props) {
   if (!validateProps(props)) {
     throw new Error('Missing required props');
   }
-  handleCloning(input, props);
+  handleCloning(props);
 }
 
 /**
@@ -1400,7 +1383,7 @@ function validateProps(props) {
  * @param input String The Input type
  * @param props Object The properties of the input
  */
-function handleCloning(input, props) {
+function handleCloning(props) {
   const parentNode = document.querySelector(`#${props.parentNode}`);
   const cloneSourceList = document.querySelectorAll(
     `.${props.cloneSourceList}`
@@ -1412,18 +1395,8 @@ function handleCloning(input, props) {
   clone.querySelector('.form-input').placeholder = props.placeholder;
   attachInputListener(clone.querySelector('.form-input'));
 
-  const addButton = cloneSource.querySelector('.btn-add');
-  clone.querySelector('.btn-add').classList.remove('hidden');
-  addButton.classList.add('hidden');
-
-  cloneSource.querySelector('.btn-remove').classList.remove('hidden');
-  attachRemoveButtonListener(cloneSource, parentNode, props.cloneSourceList);
+  attachRemoveButtonListener(clone);
   parentNode.appendChild(clone);
-  attachAddButtonListener(
-    clone.querySelector('.btn-add'),
-    input,
-    props.placeholder
-  );
 }
 
 /**
@@ -1432,18 +1405,13 @@ function handleCloning(input, props) {
  * @param parentNode Node The parent node of the element
  * @param props Object The properties of the input
  */
-function attachRemoveButtonListener(element, parentNode, sourceList) {
+function attachRemoveButtonListener(element) {
   element
     .querySelector('.btn-remove')
     .addEventListener('click', function (event) {
       event.preventDefault();
       event.stopPropagation();
       element.remove();
-      const remainingInputs = parentNode.querySelectorAll(`.${sourceList}`);
-      if (remainingInputs.length === 1) {
-        remainingInputs[0].querySelector('.btn-remove').classList.add('hidden');
-        remainingInputs[0].querySelector('.btn-add').classList.remove('hidden');
-      }
       // Trigger change event after removal
       checkChanges();
     });

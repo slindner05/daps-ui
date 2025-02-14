@@ -98,96 +98,111 @@
           class="form-input form-input--comfy"
           placeholder="/kometa/assets" />
         <!-- Source Directories -->
-        <div
-          id="source_dir_container"
-          class="path-inputs">
-          <label
-            class="form-label"
-            for="source_dir[]">
-            Source Directories
-          </label>
-          <!-- id="source_dir_1" -->
+        <div class="form-group mb-5">
           <div
-            class="source-dir__group form-group--removeable source-item"
-            draggable="true">
-            <span class="drag-handle">☰</span>
-            <input
-              name="source_dir[]"
-              type="text"
-              class="form-input"
-              placeholder="/posters/Drazzilb08" />
-            <button
-              class="btn btn-primary btn-remove mt-1.5 hidden"
-              type="button">
-              <i class="fas fa-trash-alt"></i>
-            </button>
-            <button
-              class="btn btn-secondary btn-add mt-1.5"
-              type="button">
-              <i class="fas fa-plus"></i>
-              <span class="sr-only">Add source directory</span>
-            </button>
+            id="source_dir_container"
+            class="path-inputs">
+            <label
+              class="form-label"
+              for="source_dir[]">
+              Source Directories
+            </label>
+            <!-- id="source_dir_1" -->
+            <div
+              class="source-dir__group form-group--removeable source-item"
+              draggable="true">
+              <span class="drag-handle">☰</span>
+              <input
+                name="source_dir[]"
+                type="text"
+                class="form-input"
+                placeholder="/posters/Drazzilb08" />
+              <button
+                class="btn btn-primary btn-remove btn-remove--alt mt-1.5"
+                type="button">
+                <i class="fas fa-xmark"></i>
+              </button>
+            </div>
           </div>
+          <button
+            class="btn btn-secondary btn-add btn-add--directory"
+            type="button">
+            <i
+              class="fas fa-plus"
+              role="presentation"
+              aria-hidden="true"></i>
+            Add Directory
+          </button>
         </div>
         <!-- Libraries -->
-        <div
-          id="library_name_container"
-          class="path-inputs">
-          <label
-            class="form-label"
-            for="library_name[]">
-            Library Names
-          </label>
+        <div class="form-group mb-5">
           <div
-            id="library_name_1"
-            class="library-name__group form-group--removeable">
-            <input
-              name="library_name[]"
-              type="text"
-              class="form-input"
-              placeholder="Movies (HD)" />
-            <button
-              class="btn btn-primary btn-remove mt-1.5 hidden"
-              type="button">
-              <i class="fas fa-trash-alt"></i>
-            </button>
-            <button
-              class="btn btn-secondary btn-add mt-1.5"
-              type="button">
-              <i class="fas fa-plus"></i>
-              <span class="sr-only">Add library</span>
-            </button>
+            id="library_name_container"
+            class="path-inputs">
+            <label
+              class="form-label"
+              for="library_name[]">
+              Library Names
+            </label>
+            <div
+              id="library_name_1"
+              class="library-name__group form-group--removeable">
+              <input
+                name="library_name[]"
+                type="text"
+                class="form-input"
+                placeholder="Movies (HD)" />
+              <button
+                class="btn btn-primary btn-remove btn-remove--alt mt-1.5"
+                type="button">
+                <i class="fas fa-xmark"></i>
+              </button>
+            </div>
           </div>
+          <button
+            class="btn btn-secondary btn-add btn-add--directory"
+            type="button">
+            <i
+              class="fas fa-plus"
+              role="presentation"
+              aria-hidden="true"></i>
+            Add Library
+          </button>
         </div>
         <!-- Instances -->
-        <div
-          id="instance_container"
-          class="path-inputs">
-          <label
-            class="form-label"
-            for="instance[]">
-            Instances
-          </label>
+        <div class="form-group mb-5">
           <div
-            id="instance_1"
-            class="instance__group form-group--removeable">
-            <input
-              name="instance[]"
-              type="text"
-              class="form-input"
-              placeholder="radarr_1" />
-            <button
-              class="btn btn-primary btn-remove mt-1.5 hidden"
-              type="button">
-              <i class="fas fa-trash-alt"></i>
-            </button>
-            <button
-              class="btn btn-secondary btn-add mt-1.5"
-              type="button">
-              <i class="fas fa-plus"></i>
-              <span class="sr-only">Add instance</span>
-            </button>
+            id="instance_container"
+            class="path-inputs">
+            <label
+              class="form-label"
+              for="instance[]">
+              Instances
+            </label>
+            <div
+              id="instance_1"
+              class="instance__group form-group--removeable">
+              <input
+                name="instance[]"
+                type="text"
+                class="form-input"
+                placeholder="radarr_1" />
+              <button
+                class="btn btn-primary btn-remove btn-remove--alt mt-1.5"
+                type="button">
+                <i class="fas fa-xmark"></i>
+              </button>
+            </div>
           </div>
+          <button
+            class="btn btn-secondary btn-add btn-add--directory"
+            type="button">
+            <i
+              class="fas fa-plus"
+              role="presentation"
+              aria-hidden="true"></i>
+            Add Instance
+          </button>
         </div>
         <!-- Border color -->
         <div
@@ -434,9 +449,9 @@
               name="gdrive-location"
               placeholder="/posters/{folder}" />
             <button
-              class="drive-sync__remove-button btn btn-primary btn-remove hidden"
+              class="drive-sync__remove-button btn btn-primary btn-remove btn-remove--alt"
               type="button">
-              <i class="fas fa-trash-alt"></i>
+              <i class="fas fa-xmark"></i>
             </button>
           </div>
           <div class="button-group">
@@ -450,7 +465,11 @@
               id="add-drive-button"
               type="button"
               class="btn btn-secondary">
-              + Add GDrive
+              <i
+                class="fas fa-plus"
+                role="presentation"
+                aria-hidden="true"></i>
+              Add GDrive
             </button>
           </div>
         </div>
