@@ -41,7 +41,7 @@ const requiredFields = [
   'input[name="plex_api[]"]',
 ];
 
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', async function () {
   attachNewInstance('radarr');
   attachNewInstance('sonarr');
   attachNewInstance('plex');
@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', function () {
   attachDriveSync();
   attachSaveSettingsListener(document.querySelector('#save-settings'));
 
-  fetch('/get-settings')
+  await fetch('/get-settings')
     .then((response) => response.json())
     .then((data) => {
       if (data.success) {
@@ -75,6 +75,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Add listeners to the add buttons in Poster Renamerr section
   setupRenamerrAddButtons();
+
+  // Add listeners to the remove buttons in Poster Renamerr section
+  setupRenamerrRemoveButtons();
 
   // debounced observer callbacks for input changes
   const observer = new MutationObserver((mutationList) => {
@@ -556,6 +559,35 @@ function setupRenamerrAddButtons() {
 }
 
 /**
+ * Add listeners to the remove buttons in Poster Renamerr section
+ */
+function setupRenamerrRemoveButtons() {
+  const sourceDir = document.querySelector('#source_dir_container').parentNode;
+  const libraryName = document.querySelector(
+    '#library_name_container'
+  ).parentNode;
+  const instance = document.querySelector('#instance_container').parentNode;
+
+  // if there is only one input group, don't show the remove button
+  // otherwise, add the event listener to the remove button
+  if (sourceDir.querySelectorAll('.source-item').length === 1) {
+    sourceDir.querySelector('.btn-remove').classList.add('hidden');
+  } else {
+    attachRemoveButtonListener(sourceDir);
+  }
+  if (libraryName.querySelectorAll('.library-name__group').length === 1) {
+    libraryName.querySelector('.btn-remove').classList.add('hidden');
+  } else {
+    attachRemoveButtonListener(libraryName);
+  }
+  if (instance.querySelectorAll('.instance__group').length === 1) {
+    instance.querySelector('.btn-remove').classList.add('hidden');
+  } else {
+    attachRemoveButtonListener(instance);
+  }
+}
+
+/**
  * --------------------------------
  * Drive Sync
  * --------------------------------
@@ -641,6 +673,19 @@ function attachDriveSyncListeners() {
   // Listeners for the select elements
   const driveSelects = document.querySelectorAll('.drive-select-wrapper');
   driveSelects.forEach((selectWrapper) => {
+    const removeButton = selectWrapper.querySelector('.btn-remove');
+
+    // show/hide remove button based on number of drives
+    if (driveSelects.length === 1) {
+      removeButton.classList.add('hidden');
+    } else {
+      removeButton.classList.remove('hidden');
+    }
+
+    if (!removeButton.dataset.hasListener) {
+      removeButton.addEventListener('click', handleRemoveDrive);
+      removeButton.dataset.hasListener = true;
+    }
     attachDriveSyncListener(selectWrapper);
   });
 
@@ -696,9 +741,27 @@ function handleRemoveDrive(event) {
   const removeButton = event.target;
   const selectWrapper = removeButton.closest('.drive-select-wrapper');
   const counter = selectWrapper.dataset.counter;
+  // If this is removing the last drive, clone it and null out the values
+  // to leave an empty field if one should be added later.
+  const allDrives = document.querySelectorAll('.drive-select-wrapper');
+  if (allDrives.length === 1) {
+    cloneDriveSyncSelect({});
+  }
   removeDriveSelect(Number(counter));
   // Trigger change event after removal
-  checkChanges();
+  // but only if the removed drive has a value
+  if (
+    selectWrapper.querySelector('select').value ||
+    selectWrapper.querySelector('[name="custom-drive-id"]').value.trim() !== ''
+  ) {
+    checkChanges();
+  }
+
+  // If there is only one drive left, hide the remove button
+  const remainingDrives = document.querySelectorAll('.drive-select-wrapper');
+  if (remainingDrives.length === 1) {
+    remainingDrives[0].querySelector('.btn-remove').classList.add('hidden');
+  }
 }
 
 // Remove the drive select element from the DOM and update the counter
@@ -750,6 +813,9 @@ function cloneDriveSyncSelect({ values }) {
   }
   clone.querySelector('[name="gdrive-location"]').value =
     values?.location || '';
+
+  // Remove data-has-listener from the cloned element
+  clone.querySelector('.btn-remove').removeAttribute('data-has-listener');
 
   // Add the clone to the DOM
   lastDrive.insertAdjacentElement('afterend', clone);
@@ -1040,7 +1106,7 @@ document.getElementById('add-plex').addEventListener('click', function () {
  * Attach event listener to the "test" button for each instance
  */
 function attachTestButtonListener(testButton, instanceType) {
-  testButton.addEventListener('click', function (event) {
+  testButton.addEventListener('click', async function (event) {
     const parentGroup = event.target.closest('.form-group');
     const url = parentGroup.querySelector(
       `input[name="${instanceType}_url[]"]`
@@ -1049,7 +1115,7 @@ function attachTestButtonListener(testButton, instanceType) {
       `input[name="${instanceType}_api[]"]`
     ).value;
 
-    fetch(`/test-connection`, {
+    await fetch(`/test-connection`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1151,7 +1217,7 @@ function captureRcloneConf() {
 }
 
 function attachSaveSettingsListener(saveButton) {
-  saveButton.addEventListener('click', function () {
+  saveButton.addEventListener('click', async function () {
     const emptyFields = requiredFields.filter((selector) => {
       const inputs = document.querySelectorAll(selector);
       // if there's only one input, check its value
@@ -1286,7 +1352,7 @@ function attachSaveSettingsListener(saveButton) {
     const rcloneData = captureRcloneConf();
     // console.log(rcloneData);
 
-    fetch('/save-settings', {
+    await fetch('/save-settings', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1393,9 +1459,18 @@ function handleCloning(props) {
   const clone = cloneSource.cloneNode(true);
   clone.querySelector('.form-input').value = props.value ?? '';
   clone.querySelector('.form-input').placeholder = props.placeholder;
+  clone.querySelector('.btn-remove').removeAttribute('data-has-listener');
+  clone.querySelector('.btn-remove').classList.remove('hidden');
   attachInputListener(clone.querySelector('.form-input'));
 
-  attachRemoveButtonListener(clone);
+  // Show the remove button on the previous input
+  cloneSource.querySelector('.btn-remove').classList.remove('hidden');
+
+  // Attach the remove button listener to both elements when there's more than one
+  if (cloneSourceList.length >= 1) {
+    attachRemoveButtonListener(cloneSource);
+    attachRemoveButtonListener(clone);
+  }
   parentNode.appendChild(clone);
 }
 
@@ -1406,13 +1481,55 @@ function handleCloning(props) {
  * @param props Object The properties of the input
  */
 function attachRemoveButtonListener(element) {
-  element
-    .querySelector('.btn-remove')
-    .addEventListener('click', function (event) {
+  const removeButton = element.querySelector('.btn-remove');
+  if (removeButton && !removeButton.dataset.hasListener) {
+    removeButton.addEventListener('click', function (event) {
       event.preventDefault();
       event.stopPropagation();
-      element.remove();
+      handleRemove(element);
       // Trigger change event after removal
       checkChanges();
     });
+    removeButton.dataset.hasListener = true;
+  }
+}
+
+/**
+ * Remove the element from the DOM, then loop through the remaining elements
+ * and hide or show the remove buttons based on the number of elements left
+ * for that form group.
+ */
+function handleRemove(element) {
+  const parentNode = element.parentNode;
+  // Get all inputs in this group
+  const allInputs = parentNode.querySelectorAll(`.${element.classList[0]}`);
+  const nonEmptyInputs = Array.from(allInputs).filter(
+    (input) => input.querySelector('input').value.trim() !== ''
+  );
+  const currentInput = element.querySelector('.form-input');
+
+  // Check if it is a required field
+  const isRequired = requiredFields.some((selector) =>
+    currentInput.matches(selector)
+  );
+
+  // Only remove the element if it is not the only one with a value
+  if (
+    nonEmptyInputs.length === 1 &&
+    nonEmptyInputs[0] === element &&
+    isRequired
+  ) {
+    alert('At least one value is required for this field.');
+    return;
+  } else {
+    element.remove();
+  }
+
+  const remainingInputs = parentNode.querySelectorAll(
+    `.${element.classList[0]}`
+  );
+  if (remainingInputs.length === 1) {
+    const firstInput = remainingInputs[0].querySelector('.btn-remove');
+    firstInput.classList.add('hidden');
+  }
 }

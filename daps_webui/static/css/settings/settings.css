@@ -582,3 +582,79 @@
   gap: 16px;
   margin: 16px 0 24px;
 }
+
+/* Media queries copied from Tailwind breakpoints */
+@media (width <= 80rem) {
+  /* xl, 1280px */
+  .page-content {
+    grid-template-areas:
+    'instances instances'
+    'renamerr misc'
+    'renamerr log';
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+}
+
+@media (width <= 64rem) {
+  /* lg, 1024px */
+  .page-content {
+    grid-template-areas:
+    'instances instances'
+    'renamerr misc'
+    'renamerr log';
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .misc-settings {
+    grid-template-areas: 
+    'gdrives'
+    'unmatched'
+    'plex';
+  }
+
+  #instances-form {
+    grid-template-areas:
+      'radarr'
+      'sonarr'
+      'plex';
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}
+
+@media (width <= 48rem) {
+  /* md, 768px */
+  .page-content {
+    grid-template-areas:
+    'instances'
+    'renamerr'
+    'misc'
+    'log';
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}
+
+@media (width <= 40rem) {
+  /* sm, 640px */
+  .drive-sync .drive-select-wrapper {
+    flex-direction: column;
+    gap: 16px;
+    width: 90%;
+    position: relative;
+
+    & .drive-sync__remove-button {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      right: -40px;
+    }
+  }
+
+  .modal-content {
+    width: 90%;
+    min-width: 320px;
+  }
+}
