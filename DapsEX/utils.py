@@ -188,13 +188,13 @@ def strip_year(name: str) -> str:
 
 def convert_day_of_week(day: str) -> str:
     day_map = {
-        "0": "sunday",
-        "1": "monday",
-        "2": "tuesday",
-        "3": "wednesday",
-        "4": "thursday",
-        "5": "friday",
-        "6": "saturday",
+        "0": "monday",
+        "1": "tuesday",
+        "2": "wednesday",
+        "3": "thursday",
+        "4": "friday",
+        "5": "saturday",
+        "6": "sunday",
     }
     reverse_map = {v: k for k, v in day_map.items()}
 

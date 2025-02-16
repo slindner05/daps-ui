@@ -19,4 +19,4 @@ class Config:
     # version
     VERSION = os.environ.get("VERSION")
 
-    SQLALCHEMY_DATABASE_URI = f'sqlite:///{Path(database / "database.db")}'
+    SQLALCHEMY_DATABASE_URI = f"sqlite:///{Path(database / 'database.db')}"

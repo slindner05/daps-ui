@@ -4,6 +4,7 @@ from pathlib import Path
 
 from flask import Blueprint, jsonify, render_template, request, send_from_directory
 
+import DapsEX.settings
 from daps_webui import (
     daps_logger,
     db,
@@ -373,12 +374,16 @@ def recieve_webhook():
     from daps_webui import db
     from daps_webui.models import Settings
 
+    job_name = DapsEX.Settings.POSTER_RENAMERR.value
+
     run_single_item = Settings.query.with_entities(Settings.run_single_item).scalar()
     if run_single_item is None:
         daps_logger.error("No settings found or run_single_item is not configured.")
+        database.add_job_to_history(job_name, "failed", "webhook")
         return "Settings not configured", 500
     if not run_single_item:
         daps_logger.debug("Single item processing is disabled in settings.")
+        database.add_job_to_history(job_name, "skipped (disabled)", "webhook")
         return "Single item processing disabled", 403
 
     webhook_manager = WebhookManager(db.session, daps_logger)
@@ -387,6 +392,7 @@ def recieve_webhook():
         data = request.json
         if not data:
             daps_logger.error("No data received in the webhook")
+            database.add_job_to_history(job_name, "failed", "webhook")
             return "No data received", 400
         daps_logger.debug(f"===== Webhook data =====\n{data}")
 
@@ -399,6 +405,7 @@ def recieve_webhook():
 
         if webhook_event_type not in valid_event_types:
             daps_logger.debug(f"'{webhook_event_type}' is not a valid event type")
+            database.add_job_to_history(job_name, "failed", "webhook")
             return "Invalid event type", 400
 
         daps_logger.info(f"Processing event type: {webhook_event_type}")
@@ -407,12 +414,14 @@ def recieve_webhook():
         )
         if not item_type:
             daps_logger.error("Item type 'movie' or 'series' not found in webhook data")
+            database.add_job_to_history(job_name, "failed", "webhook")
             return "Invalid webhook data", 400
 
         id = data.get(item_type, {}).get("id", None)
         id = int(id)
         if not id:
             daps_logger.error(f"Item ID not found for {item_type} in webhook data")
+            database.add_job_to_history(job_name, "failed", "webhook")
             return "Invalid webhook data", 400
 
         instance = data.get("instanceName", "")
@@ -420,6 +429,7 @@ def recieve_webhook():
             daps_logger.error(
                 "Instance name missing from webhook data, please configure in arr settings."
             )
+            database.add_job_to_history(job_name, "failed", "webhook")
             return "Invalid webhook data", 400
 
         item_path = None
@@ -431,6 +441,7 @@ def recieve_webhook():
 
         if not item_path:
             daps_logger.error("Item path missing from webhook data")
+            database.add_job_to_history(job_name, "failed", "webhook")
             return "Invalid webhook data", 400
 
         new_item = {
@@ -443,51 +454,82 @@ def recieve_webhook():
         is_duplicate = webhook_manager.is_duplicate_webhook(new_item)
         if is_duplicate:
             daps_logger.debug(f"Duplicate webhook detected: {new_item}")
+            database.add_job_to_history(job_name, "skipped (dupe)", "webhook")
         else:
             daps_logger.debug(f"Extracted item: {new_item}")
             run_renamer_task(webhook_item=new_item)
+            database.add_job_to_history(job_name, "success", "webhook")
 
     except Exception as e:
         daps_logger.error(
             f"Error retrieving single item from webhook: {e}", exc_info=True
         )
+        database.add_job_to_history(job_name, "failed", "webhook")
         return "Internal server error", 500
 
+    database.update_scheduled_job(job_name, None)
     return "OK", 200
 
 
 @poster_renamer.route("/run-unmatched-job", methods=["POST"])
 def run_unmatched():
     result = run_unmatched_assets_task()
+    job_name = DapsEX.Settings.UNMATCHED_ASSETS.value
+
     if result["success"] is False:
-        return jsonify(result), 500
-    return jsonify(result), 202
+        database.add_job_to_history(job_name, "failed", "manual")
+    else:
+        database.add_job_to_history(job_name, "success", "manual")
+
+    database.update_scheduled_job(job_name, None)
+    return jsonify(result), 500 if result["success"] is False else 202
 
 
 @poster_renamer.route("/run-renamer-job", methods=["POST"])
 def run_renamer():
     result = run_renamer_task()
+    job_name = DapsEX.Settings.POSTER_RENAMERR.value
+
     if result["success"] is False:
-        return jsonify(result), 500
-    return jsonify(result), 202
+        database.add_job_to_history(job_name, "failed", "manual")
+    else:
+        database.add_job_to_history(job_name, "success", "manual")
+
+    database.update_scheduled_job(job_name, None)
+    return jsonify(result), 500 if result["success"] is False else 202
 
 
 @poster_renamer.route("/run-border-replace-job", methods=["POST"])
 def run_border_replacer():
     result, _ = run_border_replacer_task()
+    job_name = DapsEX.Settings.BORDER_REPLACERR.value
+
     if result["success"] is False:
+        database.add_job_to_history(job_name, "failed", "manual")
+        database.update_scheduled_job(job_name, None)
         return jsonify(result), 500
     elif result["job_id"] is None:
+        database.add_job_to_history(job_name, "success", "manual")
+        database.update_scheduled_job(job_name, None)
         return jsonify(result), 200
+
+    database.add_job_to_history(job_name, "success", "manual")
+    database.update_scheduled_job(job_name, None)
+
     return jsonify(result), 202
 
 
 @poster_renamer.route("/run-plex-upload-job", methods=["POST"])
 def run_plex_upload():
     result = run_plex_uploaderr_task()
+    job_name = DapsEX.Settings.PLEX_UPLOADERR.value
     if result["success"] is False:
-        return jsonify(result), 500
-    return jsonify(result), 202
+        database.add_job_to_history(job_name, "failed", "manual")
+    else:
+        database.add_job_to_history(job_name, "success", "manual")
+
+    database.update_scheduled_job(job_name, None)
+    return jsonify(result), 500 if result["success"] is False else 202
 
 
 @poster_renamer.route("/progress/<job_id>", methods=["GET"])

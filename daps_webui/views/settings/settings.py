@@ -1,7 +1,10 @@
+import socket
+
 import requests
 from flask import Blueprint, jsonify, render_template, request
 
 from daps_webui import db, models
+from DapsEX.settings import Settings
 
 settings = Blueprint("settings", __name__)
 
@@ -188,14 +191,27 @@ def save_settings():
 
         db.session.commit()
 
-        with open("/tmp/reload_signal", "w") as f:
-            f.write("reload_jobs")
+        trigger_reload_signal()
 
         return jsonify({"success": True, "message": "Settings saved successfully!"})
 
     except Exception as e:
         db.session.rollback()
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+def trigger_reload_signal():
+    from daps_webui import daps_logger
+
+    socket_path = Settings.SOCKET_PATH.value
+    try:
+        client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        client.connect(socket_path)
+        client.sendall(b"reload")
+        client.close()
+        daps_logger.info("Sent reload signal to scheduler.")
+    except Exception as e:
+        daps_logger.error(f"Failed to send reload signal: {e}")
 
 
 @settings.route("/test-connection", methods=["POST"])

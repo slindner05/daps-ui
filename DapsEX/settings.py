@@ -12,3 +12,4 @@ class Settings(Enum):
     DRIVE_SYNC = "drive_sync"
     MAIN = "main"
     DB_PATH = "/config/db/database.db"
+    SOCKET_PATH = "/tmp/reload_scheduler.sock"
