@@ -673,6 +673,19 @@ function attachDriveSyncListeners() {
   // Listeners for the select elements
   const driveSelects = document.querySelectorAll('.drive-select-wrapper');
   driveSelects.forEach((selectWrapper) => {
+    const removeButton = selectWrapper.querySelector('.btn-remove');
+
+    // show/hide remove button based on number of drives
+    if (driveSelects.length === 1) {
+      removeButton.classList.add('hidden');
+    } else {
+      removeButton.classList.remove('hidden');
+    }
+
+    if (!removeButton.dataset.hasListener) {
+      removeButton.addEventListener('click', handleRemoveDrive);
+      removeButton.dataset.hasListener = true;
+    }
     attachDriveSyncListener(selectWrapper);
   });
 
@@ -728,9 +741,27 @@ function handleRemoveDrive(event) {
   const removeButton = event.target;
   const selectWrapper = removeButton.closest('.drive-select-wrapper');
   const counter = selectWrapper.dataset.counter;
+  // If this is removing the last drive, clone it and null out the values
+  // to leave an empty field if one should be added later.
+  const allDrives = document.querySelectorAll('.drive-select-wrapper');
+  if (allDrives.length === 1) {
+    cloneDriveSyncSelect({});
+  }
   removeDriveSelect(Number(counter));
   // Trigger change event after removal
-  checkChanges();
+  // but only if the removed drive has a value
+  if (
+    selectWrapper.querySelector('select').value ||
+    selectWrapper.querySelector('[name="custom-drive-id"]').value.trim() !== ''
+  ) {
+    checkChanges();
+  }
+
+  // If there is only one drive left, hide the remove button
+  const remainingDrives = document.querySelectorAll('.drive-select-wrapper');
+  if (remainingDrives.length === 1) {
+    remainingDrives[0].querySelector('.btn-remove').classList.add('hidden');
+  }
 }
 
 // Remove the drive select element from the DOM and update the counter
@@ -782,6 +813,9 @@ function cloneDriveSyncSelect({ values }) {
   }
   clone.querySelector('[name="gdrive-location"]').value =
     values?.location || '';
+
+  // Remove data-has-listener from the cloned element
+  clone.querySelector('.btn-remove').removeAttribute('data-has-listener');
 
   // Add the clone to the DOM
   lastDrive.insertAdjacentElement('afterend', clone);
