@@ -390,7 +390,7 @@ def run_drive_sync_task():
     daps_logger.info(f"Job Drive Sync: '{job_id}' added.")
 
     drive_sync = DriveSync(payload)
-    future = executor.submit(drive_sync.sync_all_drives)
+    future = executor.submit(drive_sync.sync_all_drives, progress_instance, job_id)
 
     def remove_job_cb(fut):
         try:

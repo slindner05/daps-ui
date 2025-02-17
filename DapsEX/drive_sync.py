@@ -1,10 +1,12 @@
 import json
 import logging
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 from DapsEX import Settings
 from DapsEX.logger import init_logger
+from progress import ProgressState
 
 
 class DriveSync:
@@ -63,8 +65,23 @@ class DriveSync:
         except subprocess.CalledProcessError as e:
             self.logger.error(f"Failed to create remote '{remote_name}': {e.stderr}")
 
-    def sync_all_drives(self):
+    def sync_all_drives(
+        self,
+        cb: Callable[[str, int, ProgressState], None] | None = None,
+        job_id: str | None = None,
+    ):
         self.create_remote()
+        total_drives = len(self.gdrives)
+
+        if total_drives == 0:
+            self.logger.warning("No drives found for syncing.")
+            if cb and job_id:
+                cb(job_id, 100, ProgressState.COMPLETED)
+            return
+
+        progress_step = 100 // total_drives
+        current_progress = 0
+
         for drive in self.gdrives:
             drive_name = drive["drive_name"]
             drive_location = drive["drive_location"]
@@ -82,6 +99,13 @@ class DriveSync:
                 self.logger.warning(
                     f"No authentication provided for '{drive_name}'. Skipping"
                 )
+                current_progress += progress_step
+                if cb and job_id:
+                    cb(
+                        job_id,
+                        min(current_progress, 100),
+                        ProgressState.IN_PROGRESS,
+                    )
                 continue
 
             self.logger.info(f"Starting sync for: '{drive_name}' -> '{drive_location}'")
@@ -142,10 +166,33 @@ class DriveSync:
 
                 if process.returncode == 0:
                     self.logger.info(f"Sync completed for drive: {drive_name}")
+                    current_progress += progress_step
+                    if cb and job_id:
+                        cb(
+                            job_id,
+                            min(current_progress, 100),
+                            ProgressState.IN_PROGRESS,
+                        )
                 else:
                     self.logger.error(
                         f"Sync failed for Drive ID: '{drive_id}' with errors"
                     )
+                    current_progress += progress_step
+                    if cb and job_id:
+                        cb(
+                            job_id,
+                            min(current_progress, 100),
+                            ProgressState.IN_PROGRESS,
+                        )
 
             except subprocess.CalledProcessError as e:
                 self.logger.error(f"Sync failed for Drive ID '{drive_id}': {e.stderr}")
+                current_progress += progress_step
+                if cb and job_id:
+                    cb(
+                        job_id,
+                        min(current_progress, 100),
+                        ProgressState.IN_PROGRESS,
+                    )
+        if cb and job_id:
+            cb(job_id, 100, ProgressState.COMPLETED)

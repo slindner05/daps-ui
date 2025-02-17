@@ -10,6 +10,7 @@ from daps_webui import (
     db,
     models,
     run_border_replacer_task,
+    run_drive_sync_task,
     run_plex_uploaderr_task,
     run_renamer_task,
     run_unmatched_assets_task,
@@ -523,6 +524,19 @@ def run_border_replacer():
 def run_plex_upload():
     result = run_plex_uploaderr_task()
     job_name = DapsEX.Settings.PLEX_UPLOADERR.value
+    if result["success"] is False:
+        database.add_job_to_history(job_name, "failed", "manual")
+    else:
+        database.add_job_to_history(job_name, "success", "manual")
+
+    database.update_scheduled_job(job_name, None)
+    return jsonify(result), 500 if result["success"] is False else 202
+
+
+@poster_renamer.route("/run-drive-sync-job", methods=["POST"])
+def run_drive_sync():
+    result = run_drive_sync_task()
+    job_name = DapsEX.Settings.DRIVE_SYNC.value
     if result["success"] is False:
         database.add_job_to_history(job_name, "failed", "manual")
     else:

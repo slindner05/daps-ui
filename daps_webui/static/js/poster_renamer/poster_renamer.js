@@ -878,6 +878,21 @@ function createPosterRenamerBox() {
     "unmatched-progress",
   );
 
+  const driveSyncRunProgress = createRunProgress(
+    "run-drive-sync",
+    "drive-sync-progress",
+    "RUN DRIVE SYNC",
+  );
+  driveSyncRunProgress.id = "driveSyncProgressDiv";
+  driveSyncRunProgress.classList.add("drive-sync-progress");
+  const driveSyncRunButton = driveSyncRunProgress.querySelector("button");
+  attachRunListener(
+    driveSyncRunButton,
+    "/run-drive-sync-job",
+    "DRIVE SYNC",
+    "drive-sync-progress",
+  );
+
   fileBrowserDiv.appendChild(tabGroup);
   tabContents.forEach((div) => {
     fileBrowserDiv.appendChild(div);
@@ -885,6 +900,7 @@ function createPosterRenamerBox() {
 
   fileBrowserDiv.appendChild(posterRenamerRunProgress);
   unmatchedContainer.appendChild(unmatchedRunProgress);
+  unmatchedContainer.appendChild(driveSyncRunProgress);
 }
 
 function createRunProgress(buttonId, progressId, buttonText) {
