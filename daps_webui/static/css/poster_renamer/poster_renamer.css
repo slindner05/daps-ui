@@ -45,7 +45,7 @@
   height: 100%;
   height: auto;
   padding: 20px;
-  max-width: 455px;
+  max-width: 450px;
 }
 
 .image-metadata {
@@ -103,6 +103,9 @@
   color: var(--light);
   cursor: pointer;
   transition: background-color 0.2s ease;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
 }
 
 .tab-content {
@@ -202,7 +205,7 @@
   .unmatched-table th,
   .unmatched-table td {
     font-size: 11px; /* Adjust text size to fit */
-    padding: 10px;
+    padding: 5px;
   }
   .unmatched-inner {
     max-height: 400px; /* Reduce height if needed */
@@ -222,12 +225,15 @@
   }
   .file-link {
     font-size: 14px;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: normal;
   }
   .image-metadata {
     font-size: 14px;
   }
   .tab-links {
-    padding: 10px, 13px;
+    padding: 10px 13px;
     font-size: 14px;
   }
 }
