@@ -91,7 +91,7 @@
 
 .file-browser {
   width: auto;
-  max-width: 550px;
+  max-width: 500px;
   transition: opacity 1s ease-in-out;
   opacity: 0;
 }
