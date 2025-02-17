@@ -26,6 +26,7 @@
 .unmatched-inner {
   overflow-y: auto;
   max-height: 700px;
+  width: auto;
 }
 
 .btn {
@@ -47,6 +48,14 @@
   max-width: 455px;
 }
 
+.image-metadata {
+  word-break: break-word; /* Ensures text wraps properly */
+  overflow-wrap: anywhere; /* Ensures even long text breaks correctly */
+  max-width: 100%; /* Ensures it doesn't exceed the parent container */
+  white-space: normal; /* Allows natural wrapping */
+  color: var(--light);
+}
+
 .unmatched-table th {
   background-color: var(--secondary);
   text-transform: uppercase;
@@ -66,11 +75,83 @@
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
+.tab-links {
+  flex: 1;
+  padding: 12px 15px;
+  cursor: pointer;
+  background-color: var(--secondary);
+  color: var(--light);
+  border: none;
+  outline: none;
+  text-align: center;
+  font-size: 16px;
+  transition: background-color 0.3s ease;
+  border-bottom: 2px solid transparent;
+}
+
 .file-browser {
   width: auto;
   max-width: 550px;
   transition: opacity 1s ease-in-out;
   opacity: 0;
+}
+
+.file-link {
+  display: block;
+  padding: 10px;
+  background-color: var(--dark);
+  color: var(--light);
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.tab-content {
+  display: none;
+  padding: 20px;
+  background-color: var(--secondary);
+  box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
+  max-height: 65vh;
+}
+
+.tab-container {
+  display: flex;
+  flex-direction: column;
+  border-radius: 4px 4px 0 0;
+  background-color: var(--secondary);
+  padding-top: 20px;
+  padding-bottom: 0px;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+.progress {
+  width: 100%;
+  height: 30px;
+  border-radius: 4px;
+  background-color: #333;
+}
+
+.progress-bar {
+  width: 0%;
+  height: 30px;
+  border-radius: 4px;
+  background-color: transparent;
+  text-align: center;
+  line-height: 30px;
+  color: black;
+  font-weight: bold;
+  transition: width 0.5s ease-in-out;
+  padding-left: 10px;
+  box-sizing: border-box;
+}
+
+.progress-run-div {
+  padding-bottom: 20px;
+  padding-top: 0px;
+  padding-right: 20px;
+  padding-left: 20px;
+  background-color: var(--secondary);
+  border-radius: 0 0 4px 4px;
 }
 
 @media (max-width: 768px) {
@@ -80,10 +161,6 @@
   }
   .preview-div img {
     padding: 15px;
-  }
-
-  .unmatched-inner {
-    max-height: 600px; /* Reduce height if needed */
   }
   .btn {
     font-size: 12px;
@@ -99,16 +176,20 @@
   }
   .unmatched-inner {
     max-height: 500px; /* Reduce height if needed */
+    width: 100%;
+  }
+  .progress-run-div {
+    padding: 10px;
   }
 }
 
 @media (max-width: 480px) {
   .poster-renamer-container {
-    padding: 5px;
+    padding: 0px;
   }
   .content-box {
     max-width: 420px;
-    padding: 5px;
+    padding: 10px;
   }
   .preview-div img {
     padding: 10px;
@@ -120,14 +201,34 @@
 
   .unmatched-table th,
   .unmatched-table td {
-    font-size: 10px; /* Adjust text size to fit */
+    font-size: 11px; /* Adjust text size to fit */
     padding: 10px;
   }
   .unmatched-inner {
-    max-height: 300px; /* Reduce height if needed */
+    max-height: 400px; /* Reduce height if needed */
+    width: 100%;
   }
   .btn {
     font-size: 8px;
+  }
+  .progress-run-div {
+    padding: 10px;
+  }
+  .tab-content {
+    padding: 10px;
+  }
+  .tab-container {
+    padding: 10px;
+  }
+  .file-link {
+    font-size: 14px;
+  }
+  .image-metadata {
+    font-size: 14px;
+  }
+  .tab-links {
+    padding: 10px, 13px;
+    font-size: 14px;
   }
 }
 
@@ -139,15 +240,6 @@
   width: 100%;
   border-radius: 4px 4px 0 0;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
-.progress-run-div {
-  padding-bottom: 20px;
-  padding-top: 0px;
-  padding-right: 20px;
-  padding-left: 20px;
-  background-color: var(--secondary);
-  border-radius: 0 0 4px 4px;
 }
 
 .unmatched-progress {
@@ -219,27 +311,6 @@
   transform: none;
 }
 
-.progress {
-  width: 100%;
-  height: 30px;
-  border-radius: 4px;
-  background-color: #333;
-}
-
-.progress-bar {
-  width: 0%;
-  height: 30px;
-  border-radius: 4px;
-  background-color: transparent;
-  text-align: center;
-  line-height: 30px;
-  color: black;
-  font-weight: bold;
-  transition: width 0.5s ease-in-out;
-  padding-left: 10px;
-  box-sizing: border-box;
-}
-
 .season-list {
   display: none;
 }
@@ -260,17 +331,6 @@
 
 .season-list li:hover {
   background-color: var(--light);
-}
-
-.tab-container {
-  display: flex;
-  flex-direction: column;
-  border-radius: 4px 4px 0 0;
-  background-color: var(--secondary);
-  padding-top: 20px;
-  padding-bottom: 0px;
-  padding-left: 20px;
-  padding-right: 20px;
 }
 
 .tab-buttons-container {
@@ -305,20 +365,6 @@
   box-shadow: 0 0 0 0.25rem rgba(235, 22, 22, 0.25);
 }
 
-.tab-links {
-  flex: 1;
-  padding: 12px 15px;
-  cursor: pointer;
-  background-color: var(--secondary);
-  color: var(--light);
-  border: none;
-  outline: none;
-  text-align: center;
-  font-size: 16px;
-  transition: background-color 0.3s ease;
-  border-bottom: 2px solid transparent;
-}
-
 .tab-links:hover {
   background-color: var(--light);
   color: #f9f9f9;
@@ -329,14 +375,6 @@
   border-bottom: 2px solid var(--primary);
   font-weight: bold;
   color: #f9f9f9;
-}
-
-.tab-content {
-  display: none;
-  padding: 20px;
-  background-color: var(--secondary);
-  box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
-  max-height: 65vh;
 }
 
 .tab-inner {
@@ -351,18 +389,6 @@
 .file-browser.loaded {
   opacity: 1;
   transform: translateY(0);
-}
-
-.file-link {
-  display: block;
-  padding: 10px;
-  /* margin: 2px 0; */
-  background-color: var(--dark);
-  color: var(--light);
-  /* border: 1px solid var(--light); */
-  /* border-radius: 4px; */
-  cursor: pointer;
-  transition: background-color 0.2s ease;
 }
 
 .file-link:hover {
@@ -443,13 +469,6 @@
   padding-left: 20px;
   padding-right: 20px;
   padding-bottom: 20px;
-}
-.image-metadata {
-  word-break: break-word; /* Ensures text wraps properly */
-  overflow-wrap: anywhere; /* Ensures even long text breaks correctly */
-  max-width: 100%; /* Ensures it doesn't exceed the parent container */
-  white-space: normal; /* Allows natural wrapping */
-  color: var(--light);
 }
 
 .bold-text {
