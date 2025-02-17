@@ -79,8 +79,11 @@ class DriveSync:
                 cb(job_id, 100, ProgressState.COMPLETED)
             return
 
-        progress_step = 100 // total_drives
-        current_progress = 0
+        current_progress = 10
+        if cb and job_id:
+            cb(job_id, current_progress, ProgressState.IN_PROGRESS)
+
+        progress_step = 90 // total_drives if total_drives > 0 else 90
 
         for drive in self.gdrives:
             drive_name = drive["drive_name"]
@@ -194,4 +197,4 @@ class DriveSync:
                         ProgressState.IN_PROGRESS,
                     )
         if cb and job_id:
-            cb(job_id, 100, ProgressState.COMPLETED)
+            cb(job_id, 100, ProgressState.IN_PROGRESS)

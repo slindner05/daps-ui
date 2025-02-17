@@ -66,6 +66,7 @@ def get_settings():
             "onlyUnmatched": getattr(settings, "only_unmatched", False),
             "uploadToPlex": getattr(settings, "upload_to_plex", False),
             "matchAlt": getattr(settings, "match_alt", False),
+            "driveSync": getattr(settings, "drive_sync", False),
             "reapplyPosters": getattr(settings, "reapply_posters", False),
             "showAllUnmatched": getattr(settings, "show_all_unmatched", False),
             "disableUnmatchedCollections": getattr(
@@ -141,6 +142,7 @@ def save_settings():
             "only_unmatched": data.get("onlyUnmatched", False),
             "upload_to_plex": data.get("uploadToPlex", False),
             "match_alt": data.get("matchAlt", False),
+            "drive_sync": data.get("driveSync", False),
             "reapply_posters": data.get("reapplyPosters", False),
             "show_all_unmatched": data.get("showAllUnmatched", False),
             "disable_unmatched_collections": data.get(

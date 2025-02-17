@@ -22,7 +22,7 @@ from progress import ProgressState, progress_instance
 global_config = Config()
 db = SQLAlchemy()
 migrate = Migrate()
-executor = ThreadPoolExecutor(max_workers=2)
+executor = ThreadPoolExecutor(max_workers=3)
 
 # define all loggers
 daps_logger = get_daps_logger()
@@ -121,6 +121,15 @@ def run_renamer_task(webhook_item: dict | None = None):
                 webhook_item,
             )
         else:
+            if poster_renamer_payload.drive_sync:
+                daps_logger.info("Starting drive sync task before renamer...")
+                status, drive_sync_future = run_drive_sync_task()
+                if status["success"]:
+                    drive_sync_future.result()
+                    daps_logger.info("Drive sync completed.")
+                else:
+                    daps_logger.warning("Drive sync failed.")
+
             if (
                 poster_renamer_payload.unmatched_assets
                 and poster_renamer_payload.only_unmatched
@@ -142,14 +151,18 @@ def run_renamer_task(webhook_item: dict | None = None):
                         if status["success"]:
                             if border_replace_future:
                                 border_replace_future.result()
+                        else:
+                            daps_logger.warning("Border replacerr failed.")
 
-                daps_logger.debug("Running unmatched assets task first...")
+                daps_logger.info("Running unmatched assets task first...")
                 status, unmatched_future = handle_unmatched_assets_task(
                     radarr, sonarr, plex
                 )
                 if status["success"]:
                     unmatched_future.result()
-                    daps_logger.debug("Unmatched assets completed.")
+                    daps_logger.info("Unmatched assets completed.")
+                else:
+                    daps_logger.warning("Unmatched assets failed.")
 
             daps_logger.debug("Submitting renamer task to thread pool")
             future = executor.submit(renamer.run, progress_instance, job_id)
@@ -157,11 +170,11 @@ def run_renamer_task(webhook_item: dict | None = None):
         if poster_renamer_payload.unmatched_assets:
 
             def renamer_done_callback(_):
-                daps_logger.debug(
+                daps_logger.info(
                     "Renamer task completed. Starting unmatched assets task..."
                 )
                 run_unmatched_assets()
-                daps_logger.debug("Unmatched assets completed.")
+                daps_logger.info("Unmatched assets completed.")
 
                 if not poster_renamer_payload.upload_to_plex:
                     remove_job()
@@ -174,6 +187,7 @@ def run_renamer_task(webhook_item: dict | None = None):
                 daps_logger.debug("Setting up Plex upload callback...")
                 future.add_done_callback(run_plex_upload_callback)
 
+        daps_logger.debug("Returning response: Poster renamer task started")
         return {
             "message": "Poster renamer task started",
             "job_id": job_id,
@@ -403,11 +417,14 @@ def run_drive_sync_task():
 
     future.add_done_callback(remove_job_cb)
 
-    return {
-        "message": "Drive Sync task started",
-        "job_id": job_id,
-        "success": True,
-    }
+    return (
+        {
+            "message": "Drive Sync task started",
+            "job_id": job_id,
+            "success": True,
+        },
+        future,
+    )
 
 
 app = create_app()

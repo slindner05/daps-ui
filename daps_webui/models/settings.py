@@ -27,6 +27,7 @@ class Settings(db.Model):
     only_unmatched = db.Column(db.Integer, default=0, nullable=False)
     upload_to_plex = db.Column(db.Integer, default=0, nullable=False)
     match_alt = db.Column(db.Integer, default=0, nullable=False)
+    drive_sync = db.Column(db.Integer, default=0, nullable=False)
     reapply_posters = db.Column(db.Integer, default=0, nullable=False)
     show_all_unmatched = db.Column(db.Integer, default=0, nullable=False)
     disable_unmatched_collections = db.Column(db.Integer, default=0, nullable=False)

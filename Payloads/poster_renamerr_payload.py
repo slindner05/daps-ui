@@ -14,6 +14,7 @@ class Payload:
     custom_color: str
     upload_to_plex: bool
     match_alt: bool
+    drive_sync: bool
     only_unmatched: bool
     reapply_posters: bool
     library_names: list[str]

@@ -381,11 +381,13 @@ def recieve_webhook():
     if run_single_item is None:
         daps_logger.error("No settings found or run_single_item is not configured.")
         database.add_job_to_history(job_name, "failed", "webhook")
-        return "Settings not configured", 500
+        database.update_scheduled_job(job_name, None)
+        return jsonify({"message": "Settings not configured"}), 500
     if not run_single_item:
         daps_logger.debug("Single item processing is disabled in settings.")
         database.add_job_to_history(job_name, "skipped (disabled)", "webhook")
-        return "Single item processing disabled", 403
+        database.update_scheduled_job(job_name, None)
+        return jsonify({"message": "Single item processing disabled"}), 403
 
     webhook_manager = WebhookManager(db.session, daps_logger)
 
@@ -394,7 +396,8 @@ def recieve_webhook():
         if not data:
             daps_logger.error("No data received in the webhook")
             database.add_job_to_history(job_name, "failed", "webhook")
-            return "No data received", 400
+            database.update_scheduled_job(job_name, None)
+            return jsonify({"message": "No data received"}), 400
         daps_logger.debug(f"===== Webhook data =====\n{data}")
 
         valid_event_types = ["Download", "Grab", "MovieAdded", "SeriesAdd"]
@@ -402,12 +405,13 @@ def recieve_webhook():
 
         if webhook_event_type == "Test":
             daps_logger.info("Test event received successfully")
-            return "OK", 200
+            return jsonify({"message": "OK"}), 200
 
         if webhook_event_type not in valid_event_types:
             daps_logger.debug(f"'{webhook_event_type}' is not a valid event type")
             database.add_job_to_history(job_name, "failed", "webhook")
-            return "Invalid event type", 400
+            database.update_scheduled_job(job_name, None)
+            return jsonify({"message": "Invalid event type"}), 400
 
         daps_logger.info(f"Processing event type: {webhook_event_type}")
         item_type = (
@@ -416,14 +420,16 @@ def recieve_webhook():
         if not item_type:
             daps_logger.error("Item type 'movie' or 'series' not found in webhook data")
             database.add_job_to_history(job_name, "failed", "webhook")
-            return "Invalid webhook data", 400
+            database.update_scheduled_job(job_name, None)
+            return jsonify({"message": "Invalid webhook data"}), 400
 
         id = data.get(item_type, {}).get("id", None)
         id = int(id)
         if not id:
             daps_logger.error(f"Item ID not found for {item_type} in webhook data")
             database.add_job_to_history(job_name, "failed", "webhook")
-            return "Invalid webhook data", 400
+            database.update_scheduled_job(job_name, None)
+            return jsonify({"message": "Invalid webhook data"}), 400
 
         instance = data.get("instanceName", "")
         if not instance:
@@ -431,7 +437,8 @@ def recieve_webhook():
                 "Instance name missing from webhook data, please configure in arr settings."
             )
             database.add_job_to_history(job_name, "failed", "webhook")
-            return "Invalid webhook data", 400
+            database.update_scheduled_job(job_name, None)
+            return jsonify({"message": "Invalid webhook data"}), 400
 
         item_path = None
 
@@ -443,7 +450,8 @@ def recieve_webhook():
         if not item_path:
             daps_logger.error("Item path missing from webhook data")
             database.add_job_to_history(job_name, "failed", "webhook")
-            return "Invalid webhook data", 400
+            database.update_scheduled_job(job_name, None)
+            return jsonify({"message": "Invalid webhook data"}), 400
 
         new_item = {
             "type": item_type,
@@ -456,20 +464,23 @@ def recieve_webhook():
         if is_duplicate:
             daps_logger.debug(f"Duplicate webhook detected: {new_item}")
             database.add_job_to_history(job_name, "skipped (dupe)", "webhook")
+            database.update_scheduled_job(job_name, None)
+            return jsonify({"message": "Skipped task (duplicate)"}), 200
         else:
             daps_logger.debug(f"Extracted item: {new_item}")
-            run_renamer_task(webhook_item=new_item)
-            database.add_job_to_history(job_name, "success", "webhook")
+            result = run_renamer_task(webhook_item=new_item)
 
     except Exception as e:
         daps_logger.error(
             f"Error retrieving single item from webhook: {e}", exc_info=True
         )
         database.add_job_to_history(job_name, "failed", "webhook")
-        return "Internal server error", 500
+        return jsonify({"message": "Internal server error"}), 500
 
+    database.add_job_to_history(job_name, "success", "webhook")
     database.update_scheduled_job(job_name, None)
-    return "OK", 200
+    daps_logger.debug(f"Returning response: {result}")
+    return jsonify(result), 500 if result["success"] is False else 202
 
 
 @poster_renamer.route("/run-unmatched-job", methods=["POST"])
@@ -535,7 +546,7 @@ def run_plex_upload():
 
 @poster_renamer.route("/run-drive-sync-job", methods=["POST"])
 def run_drive_sync():
-    result = run_drive_sync_task()
+    result, _ = run_drive_sync_task()
     job_name = DapsEX.Settings.DRIVE_SYNC.value
     if result["success"] is False:
         database.add_job_to_history(job_name, "failed", "manual")
