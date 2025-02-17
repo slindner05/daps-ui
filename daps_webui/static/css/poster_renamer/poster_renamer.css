@@ -25,7 +25,7 @@
 }
 .unmatched-inner {
   overflow-y: auto;
-  max-height: 700px;
+  max-height: 650px;
   width: auto;
 }
 
@@ -247,6 +247,14 @@
 }
 
 .unmatched-progress.active {
+  display: block;
+}
+
+.drive-sync-progress {
+  display: none;
+}
+
+.drive-sync-progress.active {
   display: block;
 }
 

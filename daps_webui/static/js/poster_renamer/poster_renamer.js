@@ -826,6 +826,8 @@ function openTab(evt, tabName) {
   );
   const unmatchedProgressDiv = document.getElementById("unmatchedProgressDiv");
   unmatchedProgressDiv.classList.remove("active");
+  const driveSyncProgressDiv = document.getElementById("driveSyncProgressDiv");
+  driveSyncProgressDiv.classList.remove("active");
 
   if (
     currentUnmatchedContent &&
@@ -833,6 +835,7 @@ function openTab(evt, tabName) {
   ) {
     currentUnmatchedContent.classList.add("active");
     unmatchedProgressDiv.classList.add("active");
+    driveSyncProgressDiv.classList.add("active");
   }
 
   evt.currentTarget.classList.add("active");
