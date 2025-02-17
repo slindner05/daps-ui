@@ -127,8 +127,7 @@ class DriveSync:
                 "--bwlimit=80M",
                 "--size-only",
                 "--delete-after",
-                "-vv",
-                "--log-file=/config/rclone.log",
+                "-v",
             ]
 
             # Initialize using OAuth
