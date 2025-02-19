@@ -513,7 +513,7 @@ def run_renamer():
 
 @poster_renamer.route("/run-border-replace-job", methods=["POST"])
 def run_border_replacer():
-    result, _ = run_border_replacer_task()
+    result = run_border_replacer_task()
     job_name = DapsEX.Settings.BORDER_REPLACERR.value
 
     if result["success"] is False:
@@ -546,7 +546,7 @@ def run_plex_upload():
 
 @poster_renamer.route("/run-drive-sync-job", methods=["POST"])
 def run_drive_sync():
-    result, _ = run_drive_sync_task()
+    result = run_drive_sync_task()
     job_name = DapsEX.Settings.DRIVE_SYNC.value
     if result["success"] is False:
         database.add_job_to_history(job_name, "failed", "manual")
