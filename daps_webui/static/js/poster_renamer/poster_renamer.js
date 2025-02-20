@@ -10,6 +10,7 @@ document.addEventListener("DOMContentLoaded", function () {
     clickFirstFileLink();
   });
   refreshUnmatched();
+  getJobData();
 });
 
 let activePosterIdentifier = null;
@@ -95,6 +96,7 @@ function clickActiveFileLink() {
 const routeMap = {
   renamer: "/poster-renamer/get-file-paths",
   unmatched: "/poster-renamer/unmatched",
+  jobData: "/poster-renamer/job-data",
 };
 
 function refreshSortedFiles(callback) {
@@ -167,6 +169,24 @@ function refreshUnmatched() {
       console.error("Error refreshing unmatched media:", error);
     });
 }
+
+function getJobData() {
+  const endpoint = routeMap.jobData;
+  fetch(endpoint)
+    .then((response) => response.json())
+    .then((data) => {
+      if (data.success) {
+        const jobs = data.jobs;
+        console.log(jobs);
+      } else {
+        console.error("Error fetching job data: " + data.message);
+      }
+    })
+    .catch((error) => {
+      console.error("Error fetching job data:", error);
+    });
+}
+
 function refreshUpdatedImage(clickedIdentifier) {
   if (clickedIdentifier === activeSeriesIdentifier) {
     const seriesImage = document.querySelector(

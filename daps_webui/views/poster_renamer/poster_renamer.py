@@ -1,5 +1,6 @@
 import os
 import re
+from collections import defaultdict
 from pathlib import Path
 
 from flask import Blueprint, jsonify, render_template, request, send_from_directory
@@ -15,6 +16,7 @@ from daps_webui import (
     run_renamer_task,
     run_unmatched_assets_task,
 )
+from daps_webui.models import CurrentJobs, JobHistory
 from daps_webui.utils.database import Database
 from daps_webui.utils.webhook_manager import WebhookManager
 from progress import progress_instance
@@ -233,6 +235,31 @@ def delete_poster():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+def get_jobs_data():
+    current_jobs = db.session.query(CurrentJobs).all()
+    current_jobs_dict = {
+        job.job_name: {
+            "last_run": job.last_run,
+            "next_run": job.next_run,
+        }
+        for job in current_jobs
+    }
+
+    job_history = db.session.query(JobHistory).all()
+    job_history_sorted = sorted(job_history, key=lambda job: job.run_time, reverse=True)
+    job_history_dict = defaultdict(list)
+
+    for job in job_history_sorted:
+        job_history_dict[job.job_name].append(
+            {"run_time": job.run_time, "status": job.status, "run_type": job.run_type}
+        )
+
+    return {
+        "current_jobs": current_jobs_dict,
+        "job_history": dict(job_history_dict),
+    }
+
+
 def fetch_unmatched_stats_from_db() -> dict[str, int | str]:
     stats = models.UnmatchedStats.query.get(1)
     if stats:
@@ -350,6 +377,20 @@ def fetch_hide_collection_flag():
     if settings:
         return bool(settings.disable_unmatched_collections)
     return False
+
+
+@poster_renamer.route("/poster-renamer/job-data", methods=["GET"])
+def fetch_job_history():
+    try:
+        jobs = get_jobs_data()
+        return jsonify(
+            {
+                "success": True,
+                "jobs": jobs,
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
 
 
 @poster_renamer.route("/poster-renamer/unmatched", methods=["GET"])
