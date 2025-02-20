@@ -176,8 +176,24 @@ function getJobData() {
     .then((response) => response.json())
     .then((data) => {
       if (data.success) {
-        const jobs = data.jobs;
-        console.log(jobs);
+        console.log(data);
+        const { jobs } = data;
+        const { current_jobs, job_history } = jobs;
+        Object.keys(current_jobs).forEach((jobKey) => {
+          const jobDiv = document.querySelector(`[data-job-id="${jobKey}"]`);
+          if (jobDiv) {
+            const historyDiv = jobDiv.querySelector(".job-history");
+            historyDiv.innerHTML = "";
+            const jobInfo = current_jobs[jobKey];
+            const nextRun = document.createElement("p");
+            nextRun.textContent = `Next Run: ${jobInfo.next_run ? formatExactDate(jobInfo.next_run).toLocaleString() : "Not Scheduled"}`;
+            const lastRun = document.createElement("p");
+            lastRun.textContent = `Last Run: ${jobInfo.last_run ? formatExactDate(jobInfo.last_run).toLocaleString() : "Never"}`;
+            historyDiv.appendChild(nextRun);
+            historyDiv.appendChild(lastRun);
+            console.log("Job History for", jobKey, job_history[jobKey]);
+          }
+        });
       } else {
         console.error("Error fetching job data: " + data.message);
       }
@@ -185,6 +201,9 @@ function getJobData() {
     .catch((error) => {
       console.error("Error fetching job data:", error);
     });
+}
+function formatExactDate(timestamp) {
+  return new Date(timestamp).toLocaleString("en-US", { timeZone: "UTC" });
 }
 
 function refreshUpdatedImage(clickedIdentifier) {
@@ -715,6 +734,7 @@ function previewImage(filePath, fileLink, identifier, isSeasonLink = false) {
     "run-plex-uploader",
     "plex-upload-progress",
     "RUN PLEX UPLOADERR",
+    "plex_uploaderr",
   );
   const plexUploadRunButton = plexUploadRunProgress.querySelector("button");
   attachRunListener(
@@ -727,6 +747,7 @@ function previewImage(filePath, fileLink, identifier, isSeasonLink = false) {
     "run-border-replacer",
     "border-replace-progress",
     "RUN BORDER REPLACERR",
+    "border_replacerr",
   );
   const borderReplaceRunButton =
     borderReplaceRunProgress.querySelector("button");
@@ -874,6 +895,7 @@ function createPosterRenamerBox() {
     "run-renamer",
     "poster-renamer-progress",
     "RUN RENAMERR",
+    "poster_renamerr",
   );
   const posterRenamerRunButton =
     posterRenamerRunProgress.querySelector("button");
@@ -890,6 +912,7 @@ function createPosterRenamerBox() {
     "run-unmatched",
     "unmatched-progress",
     "RUN UNMATCHED ASSETS",
+    "unmatched_assets",
   );
   unmatchedRunProgress.id = "unmatchedProgressDiv";
   unmatchedRunProgress.classList.add("unmatched-progress");
@@ -905,6 +928,7 @@ function createPosterRenamerBox() {
     "run-drive-sync",
     "drive-sync-progress",
     "RUN DRIVE SYNC",
+    "drive_sync",
   );
   driveSyncRunProgress.id = "driveSyncProgressDiv";
   driveSyncRunProgress.classList.add("drive-sync-progress");
@@ -926,9 +950,11 @@ function createPosterRenamerBox() {
   unmatchedContainer.appendChild(driveSyncRunProgress);
 }
 
-function createRunProgress(buttonId, progressId, buttonText) {
+function createRunProgress(buttonId, progressId, buttonText, jobIdentifier) {
   const progressRunDiv = document.createElement("div");
   progressRunDiv.classList.add("progress-run-div");
+  progressRunDiv.setAttribute("data-job-id", jobIdentifier);
+
   const progressContainer = document.createElement("div");
   progressContainer.classList.add("progress");
 
@@ -941,9 +967,15 @@ function createRunProgress(buttonId, progressId, buttonText) {
   progressBar.id = progressId;
   progressBar.classList.add("progress-bar");
 
+  const jobHistoryDiv = document.createElement("div");
+  jobHistoryDiv.classList.add("job-history");
+  jobHistoryDiv.id = `history-${jobIdentifier}`;
+
   progressContainer.appendChild(progressBar);
   progressRunDiv.appendChild(progressContainer);
   progressRunDiv.appendChild(runButton);
+  progressRunDiv.appendChild(jobHistoryDiv);
+
   return progressRunDiv;
 }
 

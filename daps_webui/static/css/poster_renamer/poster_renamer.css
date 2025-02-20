@@ -156,6 +156,10 @@
   background-color: var(--secondary);
   border-radius: 0 0 4px 4px;
 }
+.job-history {
+  padding-top: 5px;
+  color: var(--light);
+}
 
 @media (max-width: 768px) {
   .content-box {
