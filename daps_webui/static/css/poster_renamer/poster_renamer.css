@@ -292,7 +292,8 @@
 
 .job-history {
   display: flex;
-  justify-content: space-between;
+  flex-direction: row;
+  gap: 1.5rem;
   align-items: center;
   font-size: 0.9rem;
   padding-top: 10px;
@@ -307,7 +308,6 @@
   font-size: 0.8rem;
   font-weight: bold;
   display: inline-block;
-  margin-left: 3px;
 }
 .job-history-btn {
   background: none;
