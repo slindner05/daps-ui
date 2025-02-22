@@ -10,7 +10,6 @@ document.addEventListener("DOMContentLoaded", function () {
     clickFirstFileLink();
   });
   refreshUnmatched();
-  getJobData();
 });
 
 let activePosterIdentifier = null;
@@ -181,18 +180,48 @@ function getJobData() {
         const { current_jobs, job_history } = jobs;
         Object.keys(current_jobs).forEach((jobKey) => {
           const jobDiv = document.querySelector(`[data-job-id="${jobKey}"]`);
-          if (jobDiv) {
-            const historyDiv = jobDiv.querySelector(".job-history");
-            historyDiv.innerHTML = "";
-            const jobInfo = current_jobs[jobKey];
-            const nextRun = document.createElement("p");
-            nextRun.textContent = `Next Run: ${jobInfo.next_run ? formatExactDate(jobInfo.next_run).toLocaleString() : "Not Scheduled"}`;
-            const lastRun = document.createElement("p");
-            lastRun.textContent = `Last Run: ${jobInfo.last_run ? formatExactDate(jobInfo.last_run).toLocaleString() : "Never"}`;
-            historyDiv.appendChild(nextRun);
-            historyDiv.appendChild(lastRun);
-            console.log("Job History for", jobKey, job_history[jobKey]);
+          if (!jobDiv) {
+            console.warn(`No job div found for: ${jobKey}`);
+            return;
           }
+
+          const historyDiv = jobDiv.querySelector(".job-history");
+          if (!historyDiv) {
+            console.warn(`No .job-history div found for: ${jobKey}`);
+            return;
+          }
+
+          historyDiv.innerHTML = "";
+
+          const jobInfo = current_jobs[jobKey] || {};
+
+          const nextRunTimestamp = jobInfo.next_run || null;
+          const lastRunTimestamp = jobInfo.last_run || null;
+
+          const nextRunText = nextRunTimestamp
+            ? formatExactDate(nextRunTimestamp, true)
+            : "Not Scheduled";
+          const lastRunText = lastRunTimestamp
+            ? formatExactDate(lastRunTimestamp, false)
+            : "Never";
+
+          const nextRun = document.createElement("p");
+          nextRun.innerHTML = `<i class= "fas fa-clock"></i><span class="badge">${nextRunText}</span>`;
+
+          const lastRun = document.createElement("p");
+          if (lastRunText === "Never") {
+            lastRun.innerHTML = `<i class="fas fa-history"></i> <span class="badge">${lastRunText}</span>`;
+          } else {
+            lastRun.innerHTML = `<i class="fas fa-history"></i><button class="badge job-history-btn" data-job-key="${jobKey}">${lastRunText}</button>`;
+          }
+          historyDiv.appendChild(nextRun);
+          historyDiv.appendChild(lastRun);
+        });
+        document.querySelectorAll(".job-history-btn").forEach((btn) => {
+          btn.addEventListener("click", function () {
+            const jobKey = this.getAttribute("data-job-key");
+            openJobHistoryModal(jobKey, job_history[jobKey] || []);
+          });
         });
       } else {
         console.error("Error fetching job data: " + data.message);
@@ -202,8 +231,107 @@ function getJobData() {
       console.error("Error fetching job data:", error);
     });
 }
-function formatExactDate(timestamp) {
-  return new Date(timestamp).toLocaleString("en-US", { timeZone: "UTC" });
+function openJobHistoryModal(jobKey, history) {
+  const modal = document.getElementById("jobHistoryModal");
+  const modalTitle = document.getElementById("modalTitle");
+  const modalBody = document.getElementById("modalBody");
+  const closeButton = modal.querySelector(".close");
+  if (!closeButton.dataset.listenerAdded) {
+    closeButton.addEventListener("click", closeModal);
+    closeButton.dataset.listenerAdded = "true";
+  }
+
+  modalTitle.textContent = `Job history for ${jobKey}`;
+  modalBody.innerHTML = "";
+  if (history.length === 0) {
+    modalBody.innerHTML = "<p>No history available.</p>";
+  } else {
+    const table = document.createElement("table");
+    table.classList.add("job-history-table");
+    table.innerHTML = `
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Run Type</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${history
+          .map(
+            (entry) => `
+        <tr>
+          <td>${formatExactDate(entry.run_time, false)}</td>
+          <td>${entry.run_type}</td>
+          <td>${entry.status}</td>
+        </tr>`,
+          )
+          .join("")}
+      </tbody>
+    `;
+    modalBody.appendChild(table);
+  }
+  modal.style.display = "block";
+}
+
+function closeModal() {
+  document.getElementById("jobHistoryModal").style.display = "none";
+}
+
+window.onclick = function (event) {
+  const modal = document.getElementById("jobHistoryModal");
+  if (event.target === modal) {
+    closeModal();
+  }
+};
+
+function formatExactDate(timestamp, isFuture = false) {
+  const utcDate = new Date(timestamp);
+  const localDate = new Date(
+    utcDate.getTime() + utcDate.getTimezoneOffset() * 60000,
+  );
+  const now = new Date();
+
+  const diffInMs = Math.abs(localDate.getTime() - now.getTime());
+  const diffInMinutes = Math.round(diffInMs / 60000);
+  const diffInHours = Math.round(diffInMs / 3600000);
+  const diffInDays = Math.round(diffInMs / 86400000);
+
+  if (isFuture) {
+    if (diffInMinutes < 1) return "Less than 1 minute";
+    if (diffInMinutes < 60) return `In ${diffInMinutes} minutes`;
+    if (diffInHours === 1) return "In 1 hour";
+    if (diffInHours < 24)
+      return `Today at ${localDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}`;
+    if (diffInDays === 1)
+      return `Tomorrow at ${localDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}`;
+  } else {
+    if (diffInMinutes < 1) return "Just Now";
+    if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`;
+    if (diffInHours === 1) return "1 hour ago";
+    if (diffInHours < 24)
+      return `Yesterday at ${localDate.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })}`;
+    if (diffInDays === 1)
+      return `Yesterday at ${localDate.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })}`;
+  }
+
+  return localDate.toLocaleString("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
 function refreshUpdatedImage(clickedIdentifier) {
@@ -765,6 +893,7 @@ function previewImage(filePath, fileLink, identifier, isSeasonLink = false) {
   previewDiv.appendChild(plexUploadRunProgress);
   previewDiv.appendChild(borderReplaceRunProgress);
   previewContainer.appendChild(previewDiv);
+  getJobData();
 }
 
 function toggleDeleteButtons(deleteButton) {
@@ -971,6 +1100,14 @@ function createRunProgress(buttonId, progressId, buttonText, jobIdentifier) {
   jobHistoryDiv.classList.add("job-history");
   jobHistoryDiv.id = `history-${jobIdentifier}`;
 
+  const nextRun = document.createElement("p");
+  nextRun.innerHTML = `<i class= "fas fa-clock"></i><span class="badge">Not Scheduled</span>`;
+
+  const lastRun = document.createElement("p");
+  lastRun.innerHTML = `<i class="fas fa-history"></i><span class="badge">Never</span>`;
+  jobHistoryDiv.appendChild(nextRun);
+  jobHistoryDiv.appendChild(lastRun);
+
   progressContainer.appendChild(progressBar);
   progressRunDiv.appendChild(progressContainer);
   progressRunDiv.appendChild(runButton);
@@ -1043,7 +1180,7 @@ function checkProgress(jobId, button, progressId, jobName, jobRoute) {
       } else {
         console.log("Job Complete");
         progressBar.textContent = "100%";
-        refrushUI(jobRoute);
+        refreshUI(jobRoute);
         setTimeout(() => {
           button.disabled = false;
           button.classList.remove("disabled");
@@ -1062,10 +1199,17 @@ function checkProgress(jobId, button, progressId, jobName, jobRoute) {
     });
 }
 
-function refrushUI(jobRoute) {
+function refreshUI(jobRoute) {
   switch (jobRoute) {
     case "/run-unmatched-job":
       refreshUnmatched();
+      getJobData();
+      break;
+    case "/run-plex-upload-job":
+      getJobData();
+      break;
+    case "/run-drive-sync-job":
+      getJobData();
       break;
     case "/run-renamer-job":
       refreshSortedFiles(() => {
@@ -1073,6 +1217,7 @@ function refrushUI(jobRoute) {
         addFileLinkListeners();
         clickActiveFileLink();
         refreshUnmatched();
+        getJobData();
       });
       break;
     case "/run-border-replace-job":
@@ -1080,6 +1225,7 @@ function refrushUI(jobRoute) {
         filterTabContent();
         addFileLinkListeners();
         clickActiveFileLink();
+        getJobData();
       });
       break;
     default:

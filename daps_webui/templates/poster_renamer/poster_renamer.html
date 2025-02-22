@@ -11,8 +11,15 @@
 {% block layout_content_div %}
     <div class="poster-renamer-container">
         <div id="file-browser-container" class="content-box"></div>
-        <div id="image-preview-container" class="content-box"></div>
-        <div id="unmatched-container" class="content-box"></div>
+        <div id="image-preview-container" class="content-box image-container"></div>
+        <div id="unmatched-container" class="content-box unmatched-container"></div>
+        <div id="jobHistoryModal" class="modal">
+            <div class="modal-content">
+                <span class="close">×</span>
+                <h2 id="modalTitle"></h2>
+                <div id="modalBody"></div>
+            </div>
+        </div>
     </div>
 {% endblock layout_content_div %}
 {% block script_content %}
