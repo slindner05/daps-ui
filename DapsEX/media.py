@@ -54,7 +54,7 @@ class Media:
                     "has_episodes": True,
                 }
                 season_number = season.seasonNumber
-                episode_count = season.episodeFileCount
+                episode_count = getattr(season, "episodeFileCount", 0)
                 has_episodes = episode_count > 0
                 formatted_season = f"season{season_number:02}"
 
