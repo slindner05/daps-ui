@@ -503,11 +503,17 @@ class Database:
 
     def delete_cached_file(self, file_path: str) -> None:
         with self.get_db_connection() as conn:
-            with closing(conn.cursor()) as cursor:
-                cursor.execute(
-                    "DELETE FROM file_cache WHERE file_path = ?", (file_path,)
+            try:
+                with closing(conn.cursor()) as cursor:
+                    cursor.execute(
+                        "DELETE FROM file_cache WHERE file_path = ?", (file_path,)
+                    )
+                    conn.commit()
+            except Exception as e:
+                conn.rollback()
+                self.logger.error(
+                    f"Failed to remove item: '{file_path}' from database: {e}"
                 )
-                conn.commit()
 
     def return_all_files(self, webhook_run: bool | None = None) -> dict[str, dict]:
         with self.get_db_connection() as conn:

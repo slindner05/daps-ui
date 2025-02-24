@@ -474,6 +474,7 @@ def run_drive_sync_task(chained: bool = False) -> dict:
         def remove_job_cb(fut):
             try:
                 fut.result()
+                progress_instance(job_id, 100, ProgressState.COMPLETED)
             except Exception as e:
                 daps_logger.debug(f"Error removing job {job_id}: {e}")
             finally:

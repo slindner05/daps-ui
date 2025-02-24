@@ -106,7 +106,7 @@ class DriveSync:
                 if cb and job_id:
                     cb(
                         job_id,
-                        min(current_progress, 100),
+                        min(current_progress, 99),
                         ProgressState.IN_PROGRESS,
                     )
                 continue
@@ -126,10 +126,11 @@ class DriveSync:
                 "--drive-use-trash=false",
                 "--drive-chunk-size=512M",
                 "--exclude=**.partial",
-                "--check-first",
+                # "--check-first",
                 "--bwlimit=80M",
                 "--size-only",
-                "--delete-after",
+                "--delete-during",
+                # "--log-file=/config/rclone.log",
                 "-v",
             ]
 
@@ -172,7 +173,7 @@ class DriveSync:
                     if cb and job_id:
                         cb(
                             job_id,
-                            min(current_progress, 100),
+                            min(current_progress, 99),
                             ProgressState.IN_PROGRESS,
                         )
                 else:
@@ -183,7 +184,7 @@ class DriveSync:
                     if cb and job_id:
                         cb(
                             job_id,
-                            min(current_progress, 100),
+                            min(current_progress, 99),
                             ProgressState.IN_PROGRESS,
                         )
 
@@ -193,8 +194,10 @@ class DriveSync:
                 if cb and job_id:
                     cb(
                         job_id,
-                        min(current_progress, 100),
+                        min(current_progress, 99),
                         ProgressState.IN_PROGRESS,
                     )
+
+        self.logger.info("Finished sync of all drives.")
         if cb and job_id:
-            cb(job_id, 100, ProgressState.IN_PROGRESS)
+            cb(job_id, 99, ProgressState.IN_PROGRESS)

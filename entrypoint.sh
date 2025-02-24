@@ -34,7 +34,7 @@ if [ "$APP_MODE" = "WEB" ]; then
         echo "Starting scheduler.py.."
         gosu appuser python /code/scheduler.py &
         echo "Starting Gunicorn in production mode as $PUID:$PGID"
-        exec gosu appuser gunicorn --timeout 600 -w 3 --preload -b 0.0.0.0:8000 daps_webui:app
+        exec gosu appuser gunicorn --timeout 1800 -w 3 --preload -b 0.0.0.0:8000 daps_webui:app
 
     fi
 else

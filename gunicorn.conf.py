@@ -1,5 +1,9 @@
 import os
 
+# accesslog = "/config/logs/web-ui/web_ui_debug.log"
+# errorlog = "/config/logs/web-ui/web_ui_debug.log"
+# loglevel = "debug"
+
 
 def on_starting(server):
     from daps_webui import app, daps_logger, db
