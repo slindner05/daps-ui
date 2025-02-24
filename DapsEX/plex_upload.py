@@ -605,6 +605,7 @@ class PlexUploaderr:
                     current_has_file = movies_lookup[title]
                     if current_has_file != cached_has_file:
                         cached_item["has_file"] = int(current_has_file)
+                        self.db.remove_upload_data_for_file(file_path)
                         self.db.update_has_file(file_path, current_has_file)
                 else:
                     self.logger.warning(
@@ -624,6 +625,7 @@ class PlexUploaderr:
                             cached_item["has_episodes"] = int(
                                 current_season_has_episodes
                             )
+                            self.db.remove_upload_data_for_file(file_path)
                             self.db.update_has_episodes(
                                 file_path, current_season_has_episodes
                             )
@@ -635,6 +637,7 @@ class PlexUploaderr:
                             cached_item["has_episodes"] = int(
                                 current_series_has_episodes
                             )
+                            self.db.remove_upload_data_for_file(file_path)
                             self.db.update_has_episodes(
                                 file_path, current_series_has_episodes
                             )

@@ -489,6 +489,24 @@ class Database:
                         f"Failed to clear uploaded_to_libraries and uploaded_editions data: {e}"
                     )
 
+    def remove_upload_data_for_file(self, file_path: str) -> None:
+        with self.get_db_connection() as conn:
+            with closing(conn.cursor()) as cursor:
+                try:
+                    cursor.execute(
+                        "UPDATE file_cache SET uploaded_to_libraries = ?, uploaded_editions = ? WHERE file_path = ?",
+                        ("[]", "[]", file_path),
+                    )
+                    conn.commit()
+                    self.logger.info(
+                        f"Successfully reset upload data for: '{file_path}'"
+                    )
+                except Exception as e:
+                    conn.rollback()
+                    self.logger.error(
+                        f"Failed to clear uploaded_to_libraries and uploaded_editions data for {file_path}: {e}"
+                    )
+
     def get_cached_file(self, file_path: str) -> dict[str, str] | None:
         with self.get_db_connection() as conn:
             with closing(conn.cursor()) as cursor:
