@@ -286,9 +286,18 @@ window.onclick = function (event) {
 };
 
 function formatExactDate(timestamp, isFuture = false) {
+  // const utcDate = new Date(timestamp);
+  // const localDate = new Date(
+  //   utcDate.getTime() + utcDate.getTimezoneOffset() * 60000,
+  // );
   const utcDate = new Date(timestamp);
   const localDate = new Date(
-    utcDate.getTime() + utcDate.getTimezoneOffset() * 60000,
+    utcDate.getUTCFullYear(),
+    utcDate.getUTCMonth(),
+    utcDate.getUTCDate(),
+    utcDate.getUTCHours(),
+    utcDate.getUTCMinutes(),
+    utcDate.getUTCSeconds(),
   );
   const now = new Date();
 
@@ -301,10 +310,10 @@ function formatExactDate(timestamp, isFuture = false) {
     if (diffInMinutes < 1) return "Less than 1 minute";
     if (diffInMinutes < 60) return `In ${diffInMinutes} minutes`;
     if (diffInHours === 1) return "In 1 hour";
-    if (diffInHours < 24)
-      return `Today at ${localDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}`;
-    if (diffInDays === 1)
-      return `Tomorrow at ${localDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}`;
+    if (diffInHours < 24 && localDate.getDate() === now.getDate())
+      return `Today at ${localDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: false })}`;
+    if (diffInDays === 1 || localDate.getDate() === now.getDate() + 1)
+      return `Tomorrow at ${localDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: false })}`;
   } else {
     if (diffInMinutes < 1) return "Just Now";
     if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`;
@@ -313,24 +322,24 @@ function formatExactDate(timestamp, isFuture = false) {
       return `Yesterday at ${localDate.toLocaleTimeString("en-US", {
         hour: "numeric",
         minute: "2-digit",
-        hour12: true,
+        hour12: false,
       })}`;
     if (diffInDays === 1)
       return `Yesterday at ${localDate.toLocaleTimeString("en-US", {
         hour: "numeric",
         minute: "2-digit",
-        hour12: true,
+        hour12: false,
       })}`;
   }
 
   return localDate.toLocaleString("en-US", {
-    weekday: "long",
+    weekday: "short",
     month: "short",
     day: "numeric",
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
-    hour12: true,
+    hour12: false,
   });
 }
 
