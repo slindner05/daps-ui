@@ -286,10 +286,6 @@ window.onclick = function (event) {
 };
 
 function formatExactDate(timestamp, isFuture = false) {
-  // const utcDate = new Date(timestamp);
-  // const localDate = new Date(
-  //   utcDate.getTime() + utcDate.getTimezoneOffset() * 60000,
-  // );
   const utcDate = new Date(timestamp);
   const localDate = new Date(
     utcDate.getUTCFullYear(),
@@ -304,27 +300,41 @@ function formatExactDate(timestamp, isFuture = false) {
   const diffInMs = Math.abs(localDate.getTime() - now.getTime());
   const diffInMinutes = Math.round(diffInMs / 60000);
   const diffInHours = Math.round(diffInMs / 3600000);
-  const diffInDays = Math.round(diffInMs / 86400000);
+
+  const isToday =
+    localDate.getDate() === now.getDate() &&
+    localDate.getMonth() === now.getMonth() &&
+    localDate.getFullYear() === now.getFullYear();
+
+  const isYesterday =
+    localDate.getDate() === now.getDate() - 1 &&
+    localDate.getMonth() === now.getMonth() &&
+    localDate.getFullYear() === now.getFullYear();
+
+  const isTomorrow =
+    localDate.getDate() === now.getDate() + 1 &&
+    localDate.getMonth() === now.getMonth() &&
+    localDate.getFullYear() === now.getFullYear();
 
   if (isFuture) {
     if (diffInMinutes < 1) return "Less than 1 minute";
     if (diffInMinutes < 60) return `In ${diffInMinutes} minutes`;
     if (diffInHours === 1) return "In 1 hour";
-    if (diffInHours < 24 && localDate.getDate() === now.getDate())
+    if (isToday)
       return `Today at ${localDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: false })}`;
-    if (diffInDays === 1 || localDate.getDate() === now.getDate() + 1)
+    if (isTomorrow)
       return `Tomorrow at ${localDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: false })}`;
   } else {
     if (diffInMinutes < 1) return "Just Now";
     if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`;
     if (diffInHours === 1) return "1 hour ago";
-    if (diffInHours < 24)
-      return `Yesterday at ${localDate.toLocaleTimeString("en-US", {
+    if (isToday)
+      return `Today at ${localDate.toLocaleTimeString("en-US", {
         hour: "numeric",
         minute: "2-digit",
         hour12: false,
       })}`;
-    if (diffInDays === 1)
+    if (isYesterday)
       return `Yesterday at ${localDate.toLocaleTimeString("en-US", {
         hour: "numeric",
         minute: "2-digit",
