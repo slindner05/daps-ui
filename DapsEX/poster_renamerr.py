@@ -358,6 +358,19 @@ class PosterRenamerr:
 
         return source_files
 
+    def handle_movie_match(self, matched_movies, file, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, sanitized_movie_title, unique_items):
+        matched_movies[file] = {
+            "has_file": movie_has_file,
+            "status": movie_status,
+        }
+        if webhook_run:
+            matched_movies[file]["webhook_run"] = (
+                webhook_run
+            )
+        unique_items.add(sanitized_name_without_extension)
+        unique_items.add(sanitized_movie_title)
+
+
     def handle_show_season_match(self, season, matched_shows, file, webhook_run, unique_items, main_match, sanitized_name_without_extension, alt_matches, show_seasons):
         season_has_episodes = season.get(
             "has_episodes", None
@@ -578,19 +591,10 @@ class PosterRenamerr:
 
                         if id_match:
                             matched = True
-                            matched_files["movies"][file] = {
-                                "has_file": movie_has_file,
-                                "status": movie_status,
-                            }
-                            if webhook_run:
-                                matched_files["movies"][file]["webhook_run"] = (
-                                    webhook_run
-                                )
-                            unique_items.add(sanitized_name_without_extension)
-                            unique_items.add(sanitized_movie_title)
                             self.logger.debug(
                                 f"Found exact match for movie (by ID): {movie_title} with {file}"
                             )
+                            self.handle_movie_match(matched_files["movies"], file, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, sanitized_movie_title, unique_items)
                             break # found a matchbreak the search match loop
 
                         if (
@@ -598,19 +602,10 @@ class PosterRenamerr:
                             == sanitized_movie_title
                         ):
                             matched = True
-                            matched_files["movies"][file] = {
-                                "has_file": movie_has_file,
-                                "status": movie_status,
-                            }
-                            if webhook_run:
-                                matched_files["movies"][file]["webhook_run"] = (
-                                    webhook_run
-                                )
-                            unique_items.add(sanitized_name_without_extension)
-                            unique_items.add(utils.remove_chars(movie_title))
                             self.logger.debug(
                                 f"Found exact match for movie: {movie_title} with {file}"
                             )
+                            self.handle_movie_match(matched_files["movies"], file, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, utils.remove_chars(movie_title), unique_items)
                             break # found a matchbreak the search match loop
 
                         elif movie_years:
@@ -623,22 +618,11 @@ class PosterRenamerr:
                                     == sanitized_movie_title_alternate_year
                                 ):
                                     matched = True
-                                    matched_files["movies"][file] = {
-                                        "has_file": movie_has_file,
-                                        "status": movie_status,
-                                    }
-                                    if webhook_run:
-                                        matched_files["movies"][file][
-                                            "webhook_run"
-                                        ] = webhook_run
-                                    unique_items.add(
-                                        sanitized_name_without_extension
-                                    )
                                     self.logger.debug(
                                         f"Found year based match for movie: {movie_title} with {file}"
                                     )
-                                    movies_list_copy.remove(movie_data)
-                                    break
+                                    self.handle_movie_match(matched_files["movies"], file, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, "", unique_items)
+                                    break # found a matchbreak the search match loop
                 progress_bar.update(1)
                 processed_files += 1
                 if job_id and cb:
@@ -715,7 +699,7 @@ class PosterRenamerr:
                     )
 
                     if season_num:
-                        self.logger.debug(f"found a season num match for file {file}, trying to match_show_season")
+                        self.logger.debug(f"found a season num ({season_num}) for file {file}, trying to match_show_season")
                         result = self._match_show_season(
                             name_without_extension,
                             show_name,
