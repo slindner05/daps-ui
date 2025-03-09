@@ -361,10 +361,11 @@ class PosterRenamerr:
 
         return source_files
 
-    def handle_movie_match(self, matched_movies, file, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, sanitized_movie_title, unique_items):
+    def handle_movie_match(self, matched_movies, file, movie_data, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, sanitized_movie_title, unique_items):
         matched_movies[file] = {
             "has_file": movie_has_file,
             "status": movie_status,
+            "match": movie_data
         }
         if webhook_run:
             matched_movies[file]["webhook_run"] = (
@@ -376,12 +377,13 @@ class PosterRenamerr:
     def is_season_complete(self, show_seasons, show_data):
         return not show_seasons and "series_poster_matched" in show_data and show_data["series_poster_matched"]
 
-    def handle_show_season_match(self, season, matched_shows, file, webhook_run, unique_items, main_match, sanitized_name_without_extension, alt_matches, show_seasons):
+    def handle_show_season_match(self, season, matched_shows, file, show_data, webhook_run, unique_items, main_match, sanitized_name_without_extension, alt_matches, show_seasons):
         season_has_episodes = season.get(
             "has_episodes", None
         )
         matched_shows[file] = {
-            "has_episodes": season_has_episodes
+            "has_episodes": season_has_episodes,
+            "match": show_data,
         }
         if webhook_run:
             matched_shows[file][
@@ -402,6 +404,7 @@ class PosterRenamerr:
         matched_shows[file] = {
             "status": show_status,
             "has_episodes": show_has_episodes,
+            "match": show_data,
         }
         if webhook_run:
             matched_shows[file]["webhook_run"] = (
@@ -523,7 +526,11 @@ class PosterRenamerr:
                             sanitized_file_name_without_collection
                             == sanitized_collection_name
                         ):
-                            matched_files["collections"].append(file)
+                            # instead of appending just the file... should append whatever else is also needed for the copy/rename stuff
+                            obj = {'file': file}
+                            obj['match'] = collection_name
+                            # then append obj instead of file
+                            matched_files["collections"].append(obj)
                             unique_items.add(sanitized_file_name_without_collection)
                             matched_collection = True
                             self.logger.debug(
@@ -597,7 +604,7 @@ class PosterRenamerr:
                             self.logger.debug(
                                 f"Found exact match for movie (by ID): {movie_title} with {file}"
                             )
-                            self.handle_movie_match(matched_files["movies"], file, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, sanitized_movie_title, unique_items)
+                            self.handle_movie_match(matched_files["movies"], file, movie_data, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, sanitized_movie_title, unique_items)
                             matched_movies += 1
                             break # found a match break the search match loop
 
@@ -609,7 +616,7 @@ class PosterRenamerr:
                             self.logger.debug(
                                 f"Found exact match for movie: {movie_title} with {file}"
                             )
-                            self.handle_movie_match(matched_files["movies"], file, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, utils.remove_chars(movie_title), unique_items)
+                            self.handle_movie_match(matched_files["movies"], file, movie_data, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, utils.remove_chars(movie_title), unique_items)
                             matched_movies += 1
                             break # found a match break the search match loop
 
@@ -626,7 +633,7 @@ class PosterRenamerr:
                                     self.logger.debug(
                                         f"Found year based match for movie: {movie_title} with {file}"
                                     )
-                                    self.handle_movie_match(matched_files["movies"], file, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, "", unique_items)
+                                    self.handle_movie_match(matched_files["movies"], file, movie_data, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, "", unique_items)
                                     matched_movies += 1
                                     break # found a match break the search match loop
                 if not matched_movie:
@@ -737,7 +744,7 @@ class PosterRenamerr:
                                         self.logger.debug(
                                             f"Matched season {season_num} for show: {show_name} with {file}"
                                         )
-                                        self.handle_show_season_match(season, matched_files["shows"], file, webhook_run, unique_items, main_match, sanitized_name_without_extension, alt_matches, show_seasons)                                        
+                                        self.handle_show_season_match(season, matched_files["shows"], file, show_data, webhook_run, unique_items, main_match, sanitized_name_without_extension, alt_matches, show_seasons)                                        
                                         matched_seasons += 1
                                         matched_season = True
                                         break # this break is fine
@@ -767,7 +774,7 @@ class PosterRenamerr:
                                     self.logger.debug(
                                         f"Matched special season for show: {show_name}"
                                     )
-                                    self.handle_show_season_match(season, matched_files["shows"], file, webhook_run, unique_items, main_match, sanitized_name_without_extension, alt_matches, show_seasons)
+                                    self.handle_show_season_match(season, matched_files["shows"], file, show_data, webhook_run, unique_items, main_match, sanitized_name_without_extension, alt_matches, show_seasons)
                                     matched_seasons += 1
                                     matched_season = True
                                     break # don't need to process more seasons
@@ -1246,6 +1253,30 @@ class PosterRenamerr:
         if temp_path is not None and temp_path.exists():
             temp_path.unlink()
 
+
+    def setup_dirs(self, type, media_name, file_path, asset_folders, season_special="", separator=""):
+        self.log_matched_file(type, media_name, str(file_path), season_special)
+        target_dir = None
+        backup_dir = None
+        file_name_format = None
+        if file_path.exists() and file_path.is_file():
+            if asset_folders:
+                target_dir = self.target_path / sanitize_filename(media_name)
+                backup_dir = self.backup_dir / sanitize_filename(media_name)
+                file_prefix = season_special if not season_special == "" else "poster"
+                file_name_format = f"{file_prefix}{file_path.suffix}"
+                if not target_dir.exists():
+                    target_dir.mkdir(parents=True, exist_ok=True)
+                    self.logger.debug(f"Created directory -> '{target_dir}'")
+                if not backup_dir.exists():
+                    backup_dir.mkdir(parents=True, exist_ok=True)
+
+            else:
+                backup_dir = None
+                target_dir = self.target_path
+                file_name_format = sanitize_filename(f"{media_name}{separator}{season_special}{file_path.suffix}")
+        return target_dir, backup_dir, file_name_format
+
     def copy_rename_files(
         self,
         matched_files: dict[str, dict],
@@ -1271,23 +1302,9 @@ class PosterRenamerr:
             for key, items in matched_files.items():
                 if key == "movies":
                     for file_path, data in items.items():
-                        movie_result = self._handle_movie(
-                            file_path, movies_dict_list, asset_folders
-                        )
-                        if not movie_result:
-                            continue
-
-                        if isinstance(movie_result, tuple):
-                            target_dir, backup_dir, file_name_format = movie_result
-                            if not target_dir.exists():
-                                target_dir.mkdir(parents=True, exist_ok=True)
-                                self.logger.debug(f"Created directory -> '{target_dir}'")
-                            if not backup_dir.exists():
-                                backup_dir.mkdir(parents=True, exist_ok=True)
-                        else:
-                            backup_dir = None
-                            target_dir = self.target_path
-                            file_name_format = sanitize_filename(movie_result)
+                        movie_data = data['match']
+                        movie_title = movie_data['title']
+                        target_dir, backup_dir, file_name_format = self.setup_dirs("movie", movie_title, file_path, asset_folders)
 
                         self._copy_file(
                             file_path,
@@ -1308,25 +1325,12 @@ class PosterRenamerr:
 
                 if key == "collections":
                     for item in items:
-                        collection_result = self._handle_collections(
-                            item, collections_list, asset_folders
-                        )
-                        if not collection_result:
-                            continue
-                        if isinstance(collection_result, tuple):
-                            target_dir, backup_dir, file_name_format = collection_result
-                            if not target_dir.exists():
-                                target_dir.mkdir(parents=True, exist_ok=True)
-                                self.logger.debug(f"Created directory -> '{target_dir}'")
-                            if not backup_dir.exists():
-                                backup_dir.mkdir(parents=True, exist_ok=True)
-                        else:
-                            backup_dir = None
-                            target_dir = self.target_path
-                            file_name_format = sanitize_filename(collection_result)
+                        file_path = item['file']
+                        collection = item['match']
+                        target_dir, backup_dir, file_name_format = self.setup_dirs("collection", collection, file_path, asset_folders)
 
                         self._copy_file(
-                            item,
+                            file_path,
                             key,
                             target_dir,
                             backup_dir,
@@ -1341,22 +1345,22 @@ class PosterRenamerr:
 
                 if key == "shows":
                     for file_path, data in items.items():
-                        show_result = self._handle_series(
-                            file_path, show_dict_list, asset_folders
-                        )
-                        if not show_result:
-                            continue
-                        if isinstance(show_result, tuple):
-                            target_dir, backup_dir, file_name_format = show_result
-                            if not target_dir.exists():
-                                target_dir.mkdir(parents=True, exist_ok=True)
-                                self.logger.debug(f"Created directory -> '{target_dir}'")
-                            if not backup_dir.exists():
-                                backup_dir.mkdir(parents=True, exist_ok=True)
+                        show_data = data['match']
+                        show_name = show_data['title']
+
+                        match_season = re.match(r"(.+?) - Season (\d+)", file_path.stem)
+                        match_specials = re.match(r"(.+?) - Specials", file_path.stem)
+
+                        if match_season:
+                            show_name_season = match_season.group(1)
+                            season_num = int(match_season.group(2))
+                            formatted_season_num = f"Season{season_num:02}"
+                            target_dir, backup_dir, file_name_format = self.setup_dirs("season", show_name, file_path, asset_folders, formatted_season_num, "_")
+                        elif match_specials:
+                            show_name_specials = match_specials.group(1)
+                            target_dir, backup_dir, file_name_format = self.setup_dirs("special", show_name, file_path, asset_folders, "Season00", "_")
                         else:
-                            backup_dir = None
-                            target_dir = self.target_path
-                            file_name_format = sanitize_filename(show_result)
+                            target_dir, backup_dir, file_name_format = self.setup_dirs("series", show_name, file_path, asset_folders)
 
                         self._copy_file(
                             file_path,
@@ -1374,205 +1378,6 @@ class PosterRenamerr:
                         if job_id and cb:
                             progress = int((processed_items / total_matched_items) * 10)
                             cb(job_id, 80 + progress, ProgressState.IN_PROGRESS)
-
-
-    def _handle_movie(
-        self, item: Path, movies_list_dict: list[dict], asset_folders: bool
-    ) -> str | tuple[Path, Path, str] | None:
-        poster_id_pattern = re.compile(r"\{(imdb|tmdb|tvdb)-([a-zA-Z0-9]+)\}")
-        has_id = bool(poster_id_pattern.search(item.stem))
-
-        matched_file = utils.remove_chars(item.stem)
-
-        for item_dict in movies_list_dict:
-            movie_title = item_dict.get("title", "")
-            movie_years = item_dict.get("years", [])
-            movie_clean = utils.remove_chars((utils.strip_id(movie_title)))
-            movie_clean_without_year = utils.remove_chars(
-                utils.strip_year(utils.strip_id(movie_title))
-            )
-            id_match = False
-            if has_id:
-                id_match = self._match_id(item.stem, movie_title, poster_id_pattern)
-
-            if id_match or matched_file == movie_clean:
-                self.log_matched_file("movie", movie_title, str(item))
-                if item.exists() and item.is_file():
-                    if asset_folders:
-                        target_dir = self.target_path / sanitize_filename(movie_title)
-                        backup_dir = self.backup_dir / sanitize_filename(movie_title)
-                        file_name_format = f"poster{item.suffix}"
-                        return target_dir, backup_dir, file_name_format
-                    else:
-                        return f"{movie_title}{item.suffix}"
-
-            for year in movie_years:
-                movie_title_alternate_year = f"{movie_clean_without_year} {year}"
-                if matched_file == movie_title_alternate_year:
-                    self.log_matched_file("movie", movie_title, str(item))
-                    if item.exists() and item.is_file():
-                        if asset_folders:
-                            target_dir = self.target_path / sanitize_filename(
-                                movie_title
-                            )
-                            backup_dir = self.backup_dir / sanitize_filename(
-                                movie_title
-                            )
-                            file_name_format = f"poster{item.suffix}"
-                            return target_dir, backup_dir, file_name_format
-                        else:
-                            return f"{movie_title}{item.suffix}"
-        return None
-
-    def _handle_collections(
-        self, item: Path, collections_list: list[str], asset_folders: bool
-    ) -> str | tuple[Path, Path, str] | None:
-        collection_name = utils.remove_chars(item.stem).removesuffix(" collection")
-        for collection in collections_list:
-            collection_clean = utils.remove_chars(collection).removesuffix(
-                " collection"
-            )
-            if collection_name == collection_clean:
-                self.log_matched_file("collection", collection, str(item))
-                if item.exists() and item.is_file():
-                    if asset_folders:
-                        target_dir = self.target_path / sanitize_filename(collection)
-                        backup_dir = self.backup_dir / sanitize_filename(collection)
-                        file_name_format = f"poster{item.suffix}"
-                        return target_dir, backup_dir, file_name_format
-                    else:
-                        return f"{collection}{item.suffix}"
-        return None
-
-    def _handle_series(
-        self,
-        item: Path,
-        show_list_dict: list[dict],
-        asset_folders,
-    ) -> str | tuple[Path, Path, str] | None:
-        poster_id_pattern = re.compile(r"\{(imdb|tmdb|tvdb)-([a-zA-Z0-9]+)\}")
-        has_id = bool(poster_id_pattern.search(item.stem))
-
-        match_season = re.match(r"(.+?) - Season (\d+)", item.stem)
-        match_specials = re.match(r"(.+?) - Specials", item.stem)
-
-        def clean_show_name(show: str) -> str:
-            return utils.remove_chars(utils.strip_id(show))
-
-        def is_match(
-            file_name,
-            media_dict_name,
-            alt_titles_clean,
-            poster_id_pattern: re.Pattern,
-            check_id: bool = False,
-        ):
-            if check_id and not self._match_id(
-                file_name, media_dict_name, poster_id_pattern
-            ):
-                return False
-
-            year = re.search(r"\((\d{4})\)", media_dict_name)
-            alt_year_pattern = re.compile(r"\b(19|20)\d{2}\b")
-            media_dict_name_clean = clean_show_name(media_dict_name)
-            file_name_clean = clean_show_name(file_name)
-
-            if media_dict_name_clean == file_name_clean:
-                return True
-            else:
-                for title in alt_titles_clean:
-                    if alt_year_pattern.search(title):
-                        alt_title_with_year = title
-                    else:
-                        alt_title_with_year = (
-                            f"{title} {year.group(1) if year else ''}".strip()
-                        )
-                    if alt_title_with_year == file_name_clean:
-                        return True
-            return False
-
-        if match_season:
-            show_name_season = match_season.group(1)
-            season_num = int(match_season.group(2))
-            formatted_season_num = f"Season{season_num:02}"
-
-            for item_dict in show_list_dict:
-                alt_titles_clean = [
-                    utils.remove_chars(alt)
-                    for alt in item_dict.get("alternate_titles", [])
-                ]
-                show_name = item_dict.get("title", "")
-                match = is_match(
-                    show_name_season,
-                    show_name,
-                    alt_titles_clean,
-                    poster_id_pattern,
-                    check_id=has_id,
-                )
-                if match:
-                    self.log_matched_file(
-                        "season", show_name, str(item), formatted_season_num
-                    )
-                    if item.exists() and item.is_file():
-                        if asset_folders:
-                            target_dir = self.target_path / sanitize_filename(show_name)
-                            backup_dir = self.backup_dir / sanitize_filename(show_name)
-                            file_name_format = f"{formatted_season_num}{item.suffix}"
-                            return target_dir, backup_dir, file_name_format
-                        else:
-                            return f"{show_name}_{formatted_season_num}{item.suffix}"
-            return None
-        elif match_specials:
-            show_name_specials = match_specials.group(1)
-            for item_dict in show_list_dict:
-                alt_titles_clean = [
-                    utils.remove_chars(alt)
-                    for alt in item_dict.get("alternate_titles", [])
-                ]
-                show_name = item_dict.get("title", "")
-                match = is_match(
-                    show_name_specials,
-                    show_name,
-                    alt_titles_clean,
-                    poster_id_pattern,
-                    check_id=has_id,
-                )
-                if match:
-                    self.log_matched_file("special", show_name, str(item), "Season00")
-                    if item.exists() and item.is_file():
-                        if asset_folders:
-                            target_dir = self.target_path / sanitize_filename(show_name)
-                            backup_dir = self.backup_dir / sanitize_filename(show_name)
-                            file_name_format = f"Season00{item.suffix}"
-                            return target_dir, backup_dir, file_name_format
-                        else:
-                            return f"{show_name}_Season00{item.suffix}"
-            return None
-        else:
-            show_name_normal = item.stem
-            for item_dict in show_list_dict:
-                alt_titles_clean = [
-                    utils.remove_chars(alt)
-                    for alt in item_dict.get("alternate_titles", [])
-                ]
-                show_name = item_dict.get("title", "")
-                match = is_match(
-                    show_name_normal,
-                    show_name,
-                    alt_titles_clean,
-                    poster_id_pattern,
-                    check_id=has_id,
-                )
-                if match:
-                    self.log_matched_file("series", show_name, str(item))
-                    if item.exists() and item.is_file():
-                        if asset_folders:
-                            target_dir = self.target_path / sanitize_filename(show_name)
-                            backup_dir = self.backup_dir / sanitize_filename(show_name)
-                            file_name_format = f"poster{item.suffix}"
-                            return target_dir, backup_dir, file_name_format
-                        else:
-                            return f"{show_name}{item.suffix}"
-        return None
 
     def handle_single_item(
         self,
