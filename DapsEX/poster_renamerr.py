@@ -354,6 +354,9 @@ class PosterRenamerr:
                     unique_files.add(poster.name)
                     source_files.setdefault(source_dir, []).append(poster)
 
+                if (source_dir in source_files):
+                    # Sort files alphabetically to make processing and matching more consistent
+                    source_files[source_dir] = sorted(source_files[source_dir], key=lambda x: x.as_posix().lower())
                 dir_progress.update(1)
 
         return source_files
@@ -370,6 +373,8 @@ class PosterRenamerr:
         unique_items.add(sanitized_name_without_extension)
         unique_items.add(sanitized_movie_title)
 
+    def is_season_complete(self, show_seasons, show_data):
+        return not show_seasons and "series_poster_matched" in show_data and show_data["series_poster_matched"]
 
     def handle_show_season_match(self, season, matched_shows, file, webhook_run, unique_items, main_match, sanitized_name_without_extension, alt_matches, show_seasons):
         season_has_episodes = season.get(
@@ -388,6 +393,7 @@ class PosterRenamerr:
         )
         if alt_matches:
             unique_items.update(alt_matches)
+        # remove to determine later if we have all of the seasons
         show_seasons.remove(season)
         
 
@@ -409,14 +415,6 @@ class PosterRenamerr:
         self.logger.debug(
             f"Show seasons: {show_seasons}"
         )
-        if (
-            not show_seasons
-            and show_data["series_poster_matched"]
-        ):
-            shows_list_copy.remove(show_data)
-            self.logger.debug(
-                f"All seasons and series poster matched. Removed show: {show_name}"
-            )
 
 
     def compute_asset_values_for_match(self, search_match) -> None:
@@ -470,10 +468,10 @@ class PosterRenamerr:
             for directory, files in source_files.items():
                 self.logger.info(f"Processing directory: {directory}")
                 for file in files:
-                    # likely need to get the file's name on its own here
                     name_without_extension = file.stem
                     # could add an id --> file lookup here :-) 
-                    # not building an asset type index here yet
+                    # not building an asset type index here yet since we process assets on-the-fly
+                    # everything will be placed into the 'all' asset type for now
                     file_ref = {'file': file}
                     self.build_search_index(name_without_extension, file_ref, "all", self.logger, debug_items=None)
                     items_indexed += 1
@@ -490,8 +488,9 @@ class PosterRenamerr:
             unmatched_collections = 0
             for collection_name in flattened_col_list[:]:
                 search_matches = self.search_matches(collection_name, "all", self.logger, debug_search=False)
-                self.logger.info(f"SEARCH (collections): matched assets for {collection_name}")
-                self.logger.info(search_matches)
+                self.logger.debug(f"SEARCH (collections): matched assets for {collection_name}")
+                self.logger.debug(search_matches)
+                matched_collection = False
                 for search_match in search_matches:
                     # start duplicate code block
                     self.compute_asset_values_for_match(search_match)
@@ -514,7 +513,6 @@ class PosterRenamerr:
                     matched = False
                     # end duplicate code block
 
-
                     if not poster_file_year and not has_season_info:
                         # already know I'm in collections... but the above check could still be true 
                         # since we're looping over matches across all assets...
@@ -527,14 +525,16 @@ class PosterRenamerr:
                         ):
                             matched_files["collections"].append(file)
                             unique_items.add(sanitized_file_name_without_collection)
-                            matched = True
+                            matched_collection = True
                             self.logger.debug(
                                 f"Matched collection poster for {collection_name} with {file}"
                             )
                             matched_collections += 1
                             break
-                        else: # not a match
-                            unmatched_collections += 1
+                if not matched_collection:
+                    unmatched_collections += 1
+                    self.logger.info(f"No match found for collection {collection_name}")
+
                 progress_bar.update(1)
                 processed_files += 1
                 if job_id and cb:
@@ -543,10 +543,13 @@ class PosterRenamerr:
             
             # looping over a copy, but guessing we don't need to 
             # and I can delete the remove line maybe?
+            matched_movies = 0
+            unmatched_movies = 0
             for movie_data in movies_list_copy[:]:
                 search_matches = self.search_matches(movie_data.get("title", ""), "all", self.logger, debug_search=False)
-                self.logger.info(f"SEARCH (movies): matched assets for {movie_data.get('title', '')}")
-                self.logger.info(search_matches)
+                self.logger.debug(f"SEARCH (movies): matched assets for {movie_data.get('title', '')}")
+                self.logger.debug(search_matches)
+                matched_movie = False
                 for search_match in search_matches:
                     # start duplicate code block
                     self.compute_asset_values_for_match(search_match)
@@ -590,23 +593,25 @@ class PosterRenamerr:
                             id_match = bool(poster_id and (poster_id == movie_id_match.group(0) if movie_id_match else None))
 
                         if id_match:
-                            matched = True
+                            matched_movie = True
                             self.logger.debug(
                                 f"Found exact match for movie (by ID): {movie_title} with {file}"
                             )
                             self.handle_movie_match(matched_files["movies"], file, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, sanitized_movie_title, unique_items)
-                            break # found a matchbreak the search match loop
+                            matched_movies += 1
+                            break # found a match break the search match loop
 
                         if (
                             sanitized_name_without_extension
                             == sanitized_movie_title
                         ):
-                            matched = True
+                            matched_movie = True
                             self.logger.debug(
                                 f"Found exact match for movie: {movie_title} with {file}"
                             )
                             self.handle_movie_match(matched_files["movies"], file, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, utils.remove_chars(movie_title), unique_items)
-                            break # found a matchbreak the search match loop
+                            matched_movies += 1
+                            break # found a match break the search match loop
 
                         elif movie_years:
                             for year in movie_years:
@@ -617,27 +622,36 @@ class PosterRenamerr:
                                     sanitized_name_without_extension
                                     == sanitized_movie_title_alternate_year
                                 ):
-                                    matched = True
+                                    matched_movie = True
                                     self.logger.debug(
                                         f"Found year based match for movie: {movie_title} with {file}"
                                     )
                                     self.handle_movie_match(matched_files["movies"], file, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, "", unique_items)
-                                    break # found a matchbreak the search match loop
+                                    matched_movies += 1
+                                    break # found a match break the search match loop
+                if not matched_movie:
+                    unmatched_movies += 1
+                    self.logger.info(f"No match found for movie {movie_data.get('title', '')}")
                 progress_bar.update(1)
                 processed_files += 1
                 if job_id and cb:
                     progress = int((processed_files / total_files) * 70)
                     cb(job_id, progress + 10, ProgressState.IN_PROGRESS)
 
-
+            matched_shows = 0
+            unmatched_shows = 0
+            matched_seasons = 0
+            unmatched_with_missing_episodes = 0
+            unmatched_only_missing_specials_season = 0
             for show_data in shows_list_copy[:]:
                 search_matches = self.search_matches(show_data.get("title", ""), "all", self.logger, debug_search=False)
-                self.logger.info(f"SEARCH (shows): matched assets for {show_data.get('title', '')}")
-                self.logger.info(search_matches)
+                self.logger.debug(f"SEARCH (shows): matched assets for {show_data.get('title', '')}")
+                self.logger.debug(search_matches)
                 
                 # really inefficient for now but I have to ensure we loop over _ever single match since seasons are calculated on the fly based on the files
                 # this is expensive - especially since we don't remove items from the match list (though we could....)
                 # the better solution is not to remove things but instead to pre-calculate seasons based on the asset files and then when you match you get everything in one shot
+                matched_entire_show = False
                 for search_match in search_matches:
                     # start duplicate code block
                     self.compute_asset_values_for_match(search_match)
@@ -724,15 +738,17 @@ class PosterRenamerr:
                                             f"Matched season {season_num} for show: {show_name} with {file}"
                                         )
                                         self.handle_show_season_match(season, matched_files["shows"], file, webhook_run, unique_items, main_match, sanitized_name_without_extension, alt_matches, show_seasons)                                        
+                                        matched_seasons += 1
                                         matched_season = True
                                         break # this break is fine
                             if matched_season:
-                                if not show_seasons and series_poster_matched:
-                                    shows_list_copy.remove(show_data)
-                                    self.logger.debug(
-                                        f"All seasons and series poster matched. Removed show: {show_name}"
-                                    )
-                                continue # break # make this continue?
+                                if (self.is_season_complete(show_seasons, show_data)):
+                                    # self.logger.debug(f"show seasons: {show_seasons}")
+                                    # self.logger.debug(f"show_data: {show_data}")
+                                    self.logger.debug(f"All seasons and series poster matched for {show_name}")
+                                    matched_entire_show = True
+                                    break # can stop looping if we have everything
+                                continue # otherwise keep looping
 
                     if not matched_season:
                         self.logger.debug(f"no match yet for file {file}, trying to match_show_special")
@@ -746,21 +762,21 @@ class PosterRenamerr:
                         self.logger.debug(f"results: {result}")
                         if isinstance(result, tuple):
                             main_match, alt_matches = result
-                            for season in show_seasons:
+                            for season in show_seasons[:]:
                                 if "season00" in season.get("season", ""):
                                     self.logger.debug(
                                         f"Matched special season for show: {show_name}"
                                     )
                                     self.handle_show_season_match(season, matched_files["shows"], file, webhook_run, unique_items, main_match, sanitized_name_without_extension, alt_matches, show_seasons)
+                                    matched_seasons += 1
                                     matched_season = True
                                     break # don't need to process more seasons
                         if matched_season:
-                            if not show_seasons and series_poster_matched:
-                                shows_list_copy.remove(show_data)
-                                self.logger.debug(
-                                    f"All seasons and series poster matched. Removed show: {show_name}"
-                                )
-                            continue # break
+                            if (self.is_season_complete(show_seasons, show_data)):
+                                self.logger.debug(f"All seasons and series poster matched for {show_name}")
+                                matched_entire_show = True
+                                break # can stop looping if we have everything
+                            continue # otherwise keep looping
 
                     if not matched_season:
                         # why is id match so far down? that should take precedence, no?
@@ -785,7 +801,12 @@ class PosterRenamerr:
                                                     shows_list_copy,
                                                     show_seasons,
                                                     show_data)
-                                continue # keep looping for seasons / posters
+                                if (self.is_season_complete(show_seasons, show_data)):
+                                    self.logger.debug(f"All seasons and series poster matched for {show_name}")
+                                    matched_entire_show = True
+                                    matched_shows += 1
+                                    break # can stop looping if we have everything
+                                continue # otherwise keep looping
                         self.logger.debug(f"no id match yet for file {file}, trying to sanitized names")
 
                         if (
@@ -806,8 +827,13 @@ class PosterRenamerr:
                                                    shows_list_copy,
                                                    show_seasons,
                                                    show_data)
-                            continue # keep looping for seasons / posters
-                        # this is where I need to deal with alt titles... search for matches and re-loop _everything_
+                            if (self.is_season_complete(show_seasons, show_data)):
+                                self.logger.debug(f"All seasons and series poster matched for {show_name}")
+                                matched_entire_show = True
+                                matched_shows += 1
+                                break # can stop looping if we have everything
+                            continue # otherwise keep looping
+                        # TODO: this is where I need to deal with alt titles... search for matches and re-loop _everything_
                         self.logger.debug(f"no match yet for file {file}, trying to match alt tiles")
 
                         if alt_titles_clean:
@@ -825,18 +851,53 @@ class PosterRenamerr:
                                                         webhook_run,
                                                         unique_items,
                                                         sanitized_show_name,
-                                                        "",
+                                                        "", # change this to likely take a list of things to add to unique items vs. 2....
                                                         alt_titles_clean,
                                                         shows_list_copy,
                                                         show_seasons,
                                                         show_data)
-                                    continue
+                                    if (self.is_season_complete(show_seasons, show_data)):
+                                        self.logger.debug(f"All seasons and series poster matched for {show_name}")
+                                        matched_entire_show = True
+                                        matched_shows += 1
+                                        break # can stop looping if we have everything
+                                    continue # otherwise keep looping
+                if not matched_entire_show:
+                    found_missing_episodes = False
+                    for season in show_seasons:
+                        if season['has_episodes']:
+                            unmatched_with_missing_episodes += 1
+                            found_missing_episodes = True
+                            break
+                        if "season00" in season.get("season", "") and len(show_seasons) == 1:
+                            unmatched_only_missing_specials_season += 1
+
+                    if show_seasons and found_missing_episodes:
+                        unmatched_shows += 1
+                        self.logger.debug(f"no match and missing episodes {show_data}")
+                    elif not "series_poster_matched" in show_data or ("series_poster_matched" in show_data and not show_data["series_poster_matched"]):
+                        # this means the poster is missing
+                        unmatched_shows += 1
+                        self.logger.debug(f"no match and missing poster {show_data}")
+                    else:
+                        matched_shows += 1 #claim this as a match since the only seasons leftover didn't have episodes
+
+                    self.logger.info(f"No match found for show {show_data.get('title', '')}")
+
                 progress_bar.update(1)
                 processed_files += 1
                 if job_id and cb:
                     progress = int((processed_files / total_files) * 70)
                     cb(job_id, progress + 10, ProgressState.IN_PROGRESS)
-
+        self.logger.info(f"matched_collections: {matched_collections}") # should be accurate
+        self.logger.info(f"unmatched_collections: {unmatched_collections}") # should be accurate
+        self.logger.info(f"matched_movies: {matched_movies}") # can be higher than expected due to items in radarr but not w/ files
+        self.logger.info(f"unmatched_movies: {unmatched_movies}") # can be higher than expected due to items in radarr but not w/ files / not released 
+        self.logger.info(f"matched_shows: {matched_shows}") # can be higher than expected due to items in radarr but not w/ files
+        self.logger.info(f"unmatched_shows: {unmatched_shows}") # can be higher than expected due to items in radarr but not w/ files / not released 
+        self.logger.info(f"matched_seasons: {matched_seasons}")
+        self.logger.info(f"unmatched_with_missing_episodes: {unmatched_with_missing_episodes}")
+        self.logger.info(f"unmatched_only_missing_specials_season: {unmatched_only_missing_specials_season}")
         self.logger.debug("Matched files summary:")
         self.logger.debug(pformat(matched_files))
         return matched_files
@@ -1191,103 +1252,129 @@ class PosterRenamerr:
         media_dict: dict[str, list],
         collections_dict: dict[str, list[str]],
         asset_folders: bool,
+        cb: Callable[[str, int, ProgressState], None] | None = None,
+        job_id: str | None = None,
     ) -> None:
         show_dict_list = media_dict.get("shows", [])
         movies_dict_list = media_dict.get("movies", [])
         collections_list = [
             item for sublist in collections_dict.values() for item in sublist
         ]
-        for key, items in matched_files.items():
-            if key == "movies":
-                for file_path, data in items.items():
-                    movie_result = self._handle_movie(
-                        file_path, movies_dict_list, asset_folders
-                    )
-                    if not movie_result:
-                        continue
+        matched_movies = len(matched_files.get("movies", []))
+        matched_shows = len(matched_files.get("shows", []))
+        matched_collections = len(matched_files.get("collections", []))
+        total_matched_items = matched_movies + matched_shows + matched_collections
+        with tqdm(
+            total=total_matched_items, desc="Processing matched files"
+        ) as progress_bar:
+            processed_items = 0
+            for key, items in matched_files.items():
+                if key == "movies":
+                    for file_path, data in items.items():
+                        movie_result = self._handle_movie(
+                            file_path, movies_dict_list, asset_folders
+                        )
+                        if not movie_result:
+                            continue
 
-                    if isinstance(movie_result, tuple):
-                        target_dir, backup_dir, file_name_format = movie_result
-                        if not target_dir.exists():
-                            target_dir.mkdir(parents=True, exist_ok=True)
-                            self.logger.debug(f"Created directory -> '{target_dir}'")
-                        if not backup_dir.exists():
-                            backup_dir.mkdir(parents=True, exist_ok=True)
-                    else:
-                        backup_dir = None
-                        target_dir = self.target_path
-                        file_name_format = sanitize_filename(movie_result)
+                        if isinstance(movie_result, tuple):
+                            target_dir, backup_dir, file_name_format = movie_result
+                            if not target_dir.exists():
+                                target_dir.mkdir(parents=True, exist_ok=True)
+                                self.logger.debug(f"Created directory -> '{target_dir}'")
+                            if not backup_dir.exists():
+                                backup_dir.mkdir(parents=True, exist_ok=True)
+                        else:
+                            backup_dir = None
+                            target_dir = self.target_path
+                            file_name_format = sanitize_filename(movie_result)
 
-                    self._copy_file(
-                        file_path,
-                        key,
-                        target_dir,
-                        backup_dir,
-                        file_name_format,
-                        self.replace_border,
-                        status=data.get("status", None),
-                        has_file=data.get("has_file", None),
-                        webhook_run=data.get("webhook_run", None),
-                    )
+                        self._copy_file(
+                            file_path,
+                            key,
+                            target_dir,
+                            backup_dir,
+                            file_name_format,
+                            self.replace_border,
+                            status=data.get("status", None),
+                            has_file=data.get("has_file", None),
+                            webhook_run=data.get("webhook_run", None),
+                        )
+                        processed_items += 1
+                        progress_bar.update(1)
+                        if job_id and cb:
+                            progress = int((processed_items / total_matched_items) * 10)
+                            cb(job_id, 80 + progress, ProgressState.IN_PROGRESS)
 
-            if key == "collections":
-                for item in items:
-                    collection_result = self._handle_collections(
-                        item, collections_list, asset_folders
-                    )
-                    if not collection_result:
-                        continue
-                    if isinstance(collection_result, tuple):
-                        target_dir, backup_dir, file_name_format = collection_result
-                        if not target_dir.exists():
-                            target_dir.mkdir(parents=True, exist_ok=True)
-                            self.logger.debug(f"Created directory -> '{target_dir}'")
-                        if not backup_dir.exists():
-                            backup_dir.mkdir(parents=True, exist_ok=True)
-                    else:
-                        backup_dir = None
-                        target_dir = self.target_path
-                        file_name_format = sanitize_filename(collection_result)
+                if key == "collections":
+                    for item in items:
+                        collection_result = self._handle_collections(
+                            item, collections_list, asset_folders
+                        )
+                        if not collection_result:
+                            continue
+                        if isinstance(collection_result, tuple):
+                            target_dir, backup_dir, file_name_format = collection_result
+                            if not target_dir.exists():
+                                target_dir.mkdir(parents=True, exist_ok=True)
+                                self.logger.debug(f"Created directory -> '{target_dir}'")
+                            if not backup_dir.exists():
+                                backup_dir.mkdir(parents=True, exist_ok=True)
+                        else:
+                            backup_dir = None
+                            target_dir = self.target_path
+                            file_name_format = sanitize_filename(collection_result)
 
-                    self._copy_file(
-                        item,
-                        key,
-                        target_dir,
-                        backup_dir,
-                        file_name_format,
-                        self.replace_border,
-                    )
+                        self._copy_file(
+                            item,
+                            key,
+                            target_dir,
+                            backup_dir,
+                            file_name_format,
+                            self.replace_border,
+                        )
+                        processed_items += 1
+                        progress_bar.update(1)
+                        if job_id and cb:
+                            progress = int((processed_items / total_matched_items) * 10)
+                            cb(job_id, 80 + progress, ProgressState.IN_PROGRESS)
 
-            if key == "shows":
-                for file_path, data in items.items():
-                    show_result = self._handle_series(
-                        file_path, show_dict_list, asset_folders
-                    )
-                    if not show_result:
-                        continue
-                    if isinstance(show_result, tuple):
-                        target_dir, backup_dir, file_name_format = show_result
-                        if not target_dir.exists():
-                            target_dir.mkdir(parents=True, exist_ok=True)
-                            self.logger.debug(f"Created directory -> '{target_dir}'")
-                        if not backup_dir.exists():
-                            backup_dir.mkdir(parents=True, exist_ok=True)
-                    else:
-                        backup_dir = None
-                        target_dir = self.target_path
-                        file_name_format = sanitize_filename(show_result)
+                if key == "shows":
+                    for file_path, data in items.items():
+                        show_result = self._handle_series(
+                            file_path, show_dict_list, asset_folders
+                        )
+                        if not show_result:
+                            continue
+                        if isinstance(show_result, tuple):
+                            target_dir, backup_dir, file_name_format = show_result
+                            if not target_dir.exists():
+                                target_dir.mkdir(parents=True, exist_ok=True)
+                                self.logger.debug(f"Created directory -> '{target_dir}'")
+                            if not backup_dir.exists():
+                                backup_dir.mkdir(parents=True, exist_ok=True)
+                        else:
+                            backup_dir = None
+                            target_dir = self.target_path
+                            file_name_format = sanitize_filename(show_result)
 
-                    self._copy_file(
-                        file_path,
-                        key,
-                        target_dir,
-                        backup_dir,
-                        file_name_format,
-                        self.replace_border,
-                        status=data.get("status", None),
-                        has_episodes=data.get("has_episodes", None),
-                        webhook_run=data.get("webhook_run", None),
-                    )
+                        self._copy_file(
+                            file_path,
+                            key,
+                            target_dir,
+                            backup_dir,
+                            file_name_format,
+                            self.replace_border,
+                            status=data.get("status", None),
+                            has_episodes=data.get("has_episodes", None),
+                            webhook_run=data.get("webhook_run", None),
+                        )
+                        processed_items += 1
+                        progress_bar.update(1)
+                        if job_id and cb:
+                            progress = int((processed_items / total_matched_items) * 10)
+                            cb(job_id, 80 + progress, ProgressState.IN_PROGRESS)
+
 
     def _handle_movie(
         self, item: Path, movies_list_dict: list[dict], asset_folders: bool
@@ -1653,6 +1740,8 @@ class PosterRenamerr:
                 effective_media_dict,
                 effective_collections_dict,
                 self.asset_folders,
+                cb,
+                job_id,
             )
 
             if self.clean_assets and not single_item:
