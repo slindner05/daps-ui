@@ -411,6 +411,105 @@ def fetch_unmatched_assets():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+@poster_renamer.route("/kometa-webhook", methods=["POST"])
+def receive_kometa_webhook():
+    from daps_webui import db
+    from daps_webui.models import Settings
+    '''
+    kometa webhook called with: 
+    {'event': 'changes', '
+    server_name': 'Esquire Plex', 
+    'library_name': 'Movies', 
+    'collection': 'Harry Potter Universe',  --> gives us the name of hte collection
+    'created': True, --> only need to worry about if it was created in the past run
+    'poster': None,  --> will pass us a poster if it used one... prob want to strip this out of the object... it's big for logs
+    'background': None, 
+    'poster_url': None,  
+    'background_url': None, 
+    'additions':  --> perhaps if no additions and this was just created we ignore? empty collection? 
+        [{'title': 'Fantastic Beasts and Where to Find Them (2016)', 'tmdb': 259316}, {'title': 'Fantastic Beasts: The Crimes of Grindelwald (2018)', 'tmdb': 338952}, {'title': 'Fantastic Beasts: The Crimes of Grindelwald (2018)', 'tmdb': 338952}, {'title': 'Fantastic Beasts: The Secrets of Dumbledore (2022)', 'tmdb': 338953}, {'title': "Harry Potter and the Sorcerer's Stone (2001)", 'tmdb': 671}, {'title': 'Harry Potter and the Chamber of Secrets (2002)', 'tmdb': 672}, {'title': 'Harry Potter and the Prisoner of Azkaban (2004)', 'tmdb': 673}, {'title': 'Harry Potter and the Goblet of Fire (2005)', 'tmdb': 674}, {'title': 'Harry Potter and the Order of the Phoenix (2007)', 'tmdb': 675}, {'title': 'Harry Potter and the Half-Blood Prince (2009)', 'tmdb': 767}, {'title': 'Harry Potter and the Deathly Hallows: Part 1 (2010)', 'tmdb': 12444}, {'title': 'Harry Potter and the Deathly Hallows: Part 2 (2011)', 'tmdb': 12445}], 
+    'removals': [], 
+    'radarr_adds': [], 
+    'sonarr_adds': [], 
+    'library_mapping_name': 'Movies'}
+    '''
+
+    # probably want to grab all plex collections
+    # and then find the one that matches above
+    # and then process _just that_
+    # maybe need to consider multiple plex instances
+    # also what happens if a collection name is used multiple times (like 'trending' in tv and movies in theory... but this would mess up posters anyway - couldn't have diff ones... so just trigger all that match)
+    data = request.json
+    if data['poster']:
+        data['poster'] = "poster removed due to size"
+    daps_logger.info(f"kometa webhook called with: {data}")
+    if not data['created']:
+        daps_logger.info(f"kometa webhook called, but the collection wasn't created so we are skipping: {data}")
+        return jsonify({"message": "ignoring this as a collection wasn't created"}), 202
+    
+    kometa_item = {
+        "type": "collection",
+        "item_id": None, # vote would be to create some sort of type-specific structure like below
+        "instance_name": None,
+        "item_path": None,
+        "type_data": {"collection": data['collection'], "library": data['library_name'], "server_name": data['server_name']}
+    }
+    daps_logger.info(f"created kometa item: {kometa_item}")
+
+    job_name = DapsEX.Settings.POSTER_RENAMERR.value
+
+    run_single_item = Settings.query.with_entities(Settings.run_single_item).scalar()
+
+    # passes us the poster contents if something is set
+    # otherwise None... maybe could skip if passed in? or compare content? 
+    # 
+    runtype = "kometa_webhook"
+
+    if run_single_item is None:
+        daps_logger.error("No settings found or run_single_item is not configured.")
+        database.add_job_to_history(job_name, "failed", runtype)
+        database.update_scheduled_job(job_name, None)
+        return jsonify({"message": "Settings not configured"}), 500
+    if not run_single_item:
+        daps_logger.debug("Single item processing is disabled in settings.")
+        database.add_job_to_history(job_name, "skipped (disabled)", runtype)
+        database.update_scheduled_job(job_name, None)
+        return jsonify({"message": "Single item processing disabled"}), 403
+
+    webhook_manager = WebhookManager(db.session, daps_logger)
+
+    try:
+        if not data:
+            daps_logger.error("No data received in the webhook")
+            database.add_job_to_history(job_name, "failed", runtype)
+            database.update_scheduled_job(job_name, None)
+            return jsonify({"message": "No data received"}), 400
+        
+        daps_logger.debug(f"===== Kometa Webhook data =====\n{data}")
+
+        # is_duplicate = webhook_manager.is_duplicate_webhook(new_item)
+        # if is_duplicate:
+        #     daps_logger.debug(f"Duplicate webhook detected: {new_item}")
+        #     database.add_job_to_history(job_name, "skipped (dupe)", runtype)
+        #     database.update_scheduled_job(job_name, None)
+        #     return jsonify({"message": "Skipped task (duplicate)"}), 200
+        # else:
+        daps_logger.debug(f"Extracted item: {kometa_item}")
+        result = run_renamer_task(webhook_item=kometa_item)
+        result = {"success": True} # hard coding acceptance for now
+    except Exception as e:
+        daps_logger.error(
+            f"Error retrieving single item from webhook: {e}", exc_info=True
+        )
+        database.add_job_to_history(job_name, "failed", runtype)
+        return jsonify({"message": "Internal server error"}), 500
+
+    database.add_job_to_history(job_name, "success", runtype)
+    database.update_scheduled_job(job_name, None)
+    daps_logger.debug(f"Returning response: {result}")
+    return jsonify(result), 500 if result["success"] is False else 202
+
+
 @poster_renamer.route("/arr-webhook", methods=["POST"])
 def recieve_webhook():
     from daps_webui import db

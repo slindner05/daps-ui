@@ -1038,7 +1038,7 @@ class PosterRenamerr:
                         backup_dir = None
                         target_dir = self.target_path
                         file_name_format = sanitize_filename(collection_result)
-
+                    # does it matter about webhook run here?
                     self._copy_file(
                         item,
                         key,
@@ -1342,17 +1342,40 @@ class PosterRenamerr:
             collections_dict = {}
             self._log_banner()
             if single_item:
-                self.logger.info("Run triggered for a single item via webhook")
                 asset_type = single_item.get("type", "")
+                self.logger.info(f"Run triggered for a single item via webhook for asset_type: '{asset_type}'")
+                self.logger.info(f"single item: {single_item}")
                 combined_instances_dict = self.radarr_instances | self.sonarr_instances
                 collections_dict = {"movies": [], "shows": []}
 
-                media_dict = self.handle_single_item(
-                    asset_type,
-                    combined_instances_dict,
-                    single_item,
-                    self.upload_to_plex,
-                )
+                # can prob just populate the collections_dict with the right info?
+                # need to figure out which it belongs too though - movies or shows.
+                if (asset_type == "collection"):
+                    media_dict = {"movies": [], "shows": []}
+                    collections_dict_tmp = utils.get_combined_collections_dict(self.plex_instances)
+                    self.logger.info(f"in collection webhook, collections are: { collections_dict_tmp}")
+                    match = False
+                    for media_type in collections_dict_tmp:
+                        for collection in collections_dict_tmp[media_type]:
+                            self.logger.info(f"comparing '{collection}' with '{single_item['type_data']['collection']}'")
+                            if collection == single_item['type_data']['collection']:
+                                self.logger.info("found a match!! breaking!")
+                                match = True
+                                break
+                        if match:
+                            self.logger.info("adding an item to the collections_dict")
+                            collections_dict[media_type].append(single_item['type_data']['collection'])
+                            break
+        # "type_data": {"collection": data['collection'], "library": data['library_name'], "server_name": data['server_name']}
+                else:
+                    media_dict = self.handle_single_item(
+                        asset_type,
+                        combined_instances_dict,
+                        single_item,
+                        self.upload_to_plex,
+                    )
+
+                # basically we want things in the media dict and tagged w/ "webhook_run":True it seems
                 if not media_dict:
                     self.logger.error(
                         "Failed to create media dictionary for single item.. Exiting."
