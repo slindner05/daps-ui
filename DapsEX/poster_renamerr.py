@@ -399,7 +399,7 @@ class PosterRenamerr:
         show_seasons.remove(season)
         
 
-    def handle_show_series_match(self, matched_shows, file, show_status, show_has_episodes, webhook_run, unique_items, sanitized_name_without_extension, sanitized_show_name, alt_titles_clean, shows_list_copy, show_seasons, show_data):
+    def handle_show_series_match(self, matched_shows, file, show_status, show_has_episodes, webhook_run, unique_items, sanitized_name_without_extension, sanitized_show_name, alt_titles_clean, show_seasons, show_data):
         show_name = show_data.get("title", "")
         matched_shows[file] = {
             "status": show_status,
@@ -490,55 +490,12 @@ class PosterRenamerr:
             matched_collections = 0
             unmatched_collections = 0
             for collection_name in flattened_col_list[:]:
-                search_matches = self.search_matches(collection_name, "all", self.logger, debug_search=False)
-                self.logger.debug(f"SEARCH (collections): matched assets for {collection_name}")
-                self.logger.debug(search_matches)
-                matched_collection = False
-                for search_match in search_matches:
-                    # start duplicate code block
-                    self.compute_asset_values_for_match(search_match)
-                    file = search_match['file']
-                    name_without_extension = search_match['name_without_extension']
-                    sanitized_name_without_extension = search_match['sanitized_name_without_extension']
-                    sanitized_file_name_without_collection = search_match['sanitized_file_name_without_collection']
-                    poster_file_year = search_match['poster_file_year']
-                    poster_id = search_match['poster_id']
-                    has_id = bool(search_match['poster_id'])
-                    has_season_info = search_match['has_season_info']
-
-                    if (
-                        sanitized_name_without_extension in unique_items
-                        or sanitized_file_name_without_collection in unique_items
-                    ):
-                        self.logger.debug(f"Skipping already matched file '{file}'")
-                        continue
-
-                    matched = False
-                    # end duplicate code block
-
-                    if not poster_file_year and not has_season_info:
-                        # already know I'm in collections... but the above check could still be true 
-                        # since we're looping over matches across all assets...
-                        sanitized_collection_name = utils.remove_chars(
-                            collection_name
-                        ).removesuffix(" collection")
-                        if (
-                            sanitized_file_name_without_collection
-                            == sanitized_collection_name
-                        ):
-                            # instead of appending just the file... should append whatever else is also needed for the copy/rename stuff
-                            obj = {'file': file}
-                            obj['match'] = collection_name
-                            # then append obj instead of file
-                            matched_files["collections"].append(obj)
-                            unique_items.add(sanitized_file_name_without_collection)
-                            matched_collection = True
-                            self.logger.debug(
-                                f"Matched collection poster for {collection_name} with {file}"
-                            )
-                            matched_collections += 1
-                            break
-                if not matched_collection:
+                matched_collection_files = self.find_collection_matches(unique_items, collection_name)
+                num_matches = len(matched_collection_files["collections"])
+                if (num_matches > 0):
+                    matched_collections += 1
+                    matched_files["collections"].extend(matched_collection_files["collections"])
+                else: 
                     unmatched_collections += 1
                     self.logger.info(f"No match found for collection {collection_name}")
 
@@ -553,92 +510,18 @@ class PosterRenamerr:
             matched_movies = 0
             unmatched_movies = 0
             for movie_data in movies_list_copy[:]:
-                search_matches = self.search_matches(movie_data.get("title", ""), "all", self.logger, debug_search=False)
-                self.logger.debug(f"SEARCH (movies): matched assets for {movie_data.get('title', '')}")
-                self.logger.debug(search_matches)
-                matched_movie = False
-                for search_match in search_matches:
-                    # start duplicate code block
-                    self.compute_asset_values_for_match(search_match)
-                    file = search_match['file']
-                    name_without_extension = search_match['name_without_extension']
-                    sanitized_name_without_extension = search_match['sanitized_name_without_extension']
-                    sanitized_file_name_without_collection = search_match['sanitized_file_name_without_collection']
-                    poster_file_year = search_match['poster_file_year']
-                    poster_id = search_match['poster_id']
-                    has_id = bool(search_match['poster_id'])
-                    has_season_info = search_match['has_season_info']
-
-                    if (
-                        sanitized_name_without_extension in unique_items
-                        or sanitized_file_name_without_collection in unique_items
-                    ):
-                        self.logger.debug(f"Skipping already matched file '{file}'")
-                        continue
-
-                    matched = False
-                    # end duplicate code block
-
-                    if poster_file_year and not has_season_info:
-                        movie_title = movie_data.get("title", "")
-                        movie_years = movie_data.get("years", [])
-                        movie_status = movie_data.get("status", "")
-                        movie_has_file = movie_data.get("has_file", None)
-                        webhook_run = movie_data.get("webhook_run", None)
-                        sanitized_movie_title = utils.remove_chars(
-                            utils.strip_id(movie_title)
-                        )
-                        sanitized_movie_title_without_year = utils.remove_chars(
-                            utils.strip_year(utils.strip_id(movie_title))
-                        )
-
-                        id_match = False
-
-                        if has_id:
-                            # we really only need to get the movie title here since we pre-compute the poster id string above..
-                            movie_id_match = self.poster_id_pattern.search(movie_title)
-                            id_match = bool(poster_id and (poster_id == movie_id_match.group(0) if movie_id_match else None))
-
-                        if id_match:
-                            matched_movie = True
-                            self.logger.debug(
-                                f"Found exact match for movie (by ID): {movie_title} with {file}"
-                            )
-                            self.handle_movie_match(matched_files["movies"], file, movie_data, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, sanitized_movie_title, unique_items)
-                            matched_movies += 1
-                            break # found a match break the search match loop
-
-                        if (
-                            sanitized_name_without_extension
-                            == sanitized_movie_title
-                        ):
-                            matched_movie = True
-                            self.logger.debug(
-                                f"Found exact match for movie: {movie_title} with {file}"
-                            )
-                            self.handle_movie_match(matched_files["movies"], file, movie_data, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, utils.remove_chars(movie_title), unique_items)
-                            matched_movies += 1
-                            break # found a match break the search match loop
-
-                        elif movie_years:
-                            for year in movie_years:
-                                sanitized_movie_title_alternate_year = (
-                                    f"{sanitized_movie_title_without_year} {year}"
-                                )
-                                if (
-                                    sanitized_name_without_extension
-                                    == sanitized_movie_title_alternate_year
-                                ):
-                                    matched_movie = True
-                                    self.logger.debug(
-                                        f"Found year based match for movie: {movie_title} with {file}"
-                                    )
-                                    self.handle_movie_match(matched_files["movies"], file, movie_data, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, "", unique_items)
-                                    matched_movies += 1
-                                    break # found a match break the search match loop
-                if not matched_movie:
+                # neat idea _maybe_? why not just do all the alt matches lookups here? it would still scan them in priority order... so it comes down to the cost of the lookups
+                # or better need to extract all of this into a function so we can 1) all for main movie, check result, and if not matched then 2) loop and call for alt titles
+                matched_movie_files = self.find_movie_matches(unique_items, movie_data)
+                num_matches = len(matched_movie_files["movies"])
+                if (num_matches > 0):
+                    matched_movies += 1
+                    # merge the new match with existing matches
+                    matched_files["movies"] = matched_files["movies"] | matched_movie_files["movies"]
+                else: 
                     unmatched_movies += 1
                     self.logger.info(f"No match found for movie {movie_data.get('title', '')}")
+                
                 progress_bar.update(1)
                 processed_files += 1
                 if job_id and cb:
@@ -651,251 +534,42 @@ class PosterRenamerr:
             unmatched_with_missing_episodes = 0
             unmatched_only_missing_specials_season = 0
             for show_data in shows_list_copy[:]:
-                search_matches = self.search_matches(show_data.get("title", ""), "all", self.logger, debug_search=False)
-                self.logger.debug(f"SEARCH (shows): matched assets for {show_data.get('title', '')}")
-                self.logger.debug(search_matches)
+                matched_show_files = self.find_series_matches(unique_items, show_data)
+                num_matches= len(matched_show_files["shows"])
+                matched_entire_show = matched_show_files["matched_entire_show"]
+                if (num_matches > 0):
+                    matched_shows += 1
+                    matched_files["shows"] = matched_files["shows"] | matched_show_files["shows"]
+                    # show_seasons = show_data.get("seasons", [])
+                    # if not matched_entire_show:
+                    #     found_missing_episodes = False
+                    #     for season in show_seasons:
+                    #         if season['has_episodes']:
+                    #             unmatched_with_missing_episodes += 1
+                    #             found_missing_episodes = True
+                    #             break
+                    #         if "season00" in season.get("season", "") and len(show_seasons) == 1:
+                    #             unmatched_only_missing_specials_season += 1
+
+                    #     if show_seasons and found_missing_episodes:
+                    #         unmatched_shows += 1
+                    #         self.logger.debug(f"no match and missing episodes {show_data}")
+                    #     elif not "series_poster_matched" in show_data or ("series_poster_matched" in show_data and not show_data["series_poster_matched"]):
+                    #                 # this means the poster is missing
+                    #         unmatched_shows += 1
+                    #         self.logger.debug(f"no match and missing poster {show_data}")
+                    #     else:
+                    #         matched_shows += 1 #claim this as a match since the only seasons leftover didn't have episodes                
+                else:
+                    unmatched_shows += 1
+                    self.logger.info(f"No full match found for show {show_data.get('title', '')}")
                 
-                # really inefficient for now but I have to ensure we loop over _ever single match since seasons are calculated on the fly based on the files
-                # this is expensive - especially since we don't remove items from the match list (though we could....)
-                # the better solution is not to remove things but instead to pre-calculate seasons based on the asset files and then when you match you get everything in one shot
-                matched_entire_show = False
-                for search_match in search_matches:
-                    # start duplicate code block
-                    self.compute_asset_values_for_match(search_match)
-                    file = search_match['file']
-                    name_without_extension = search_match['name_without_extension']
-                    sanitized_name_without_extension = search_match['sanitized_name_without_extension']
-                    sanitized_file_name_without_collection = search_match['sanitized_file_name_without_collection']
-                    poster_file_year = search_match['poster_file_year']
-                    poster_id = search_match['poster_id']
-                    has_id = bool(search_match['poster_id'])
-                    has_season_info = search_match['has_season_info']
-                    season_num = search_match['season_num']
-
-                    if (
-                        sanitized_name_without_extension in unique_items
-                        or sanitized_file_name_without_collection in unique_items
-                    ):
-                        self.logger.debug(f"Skipping already matched file '{file}'")
-                        continue
-
-                    matched = False
-                    # end duplicate code block
-
-                    if not poster_file_year:
-                        self.logger.debug(f"Skipping collection file: '{file}'")
-                        continue # it's a collection, skip it.
-
-                    show_name = show_data.get("title", "")
-                    show_year = re.search(r"\((\d{4})\)", show_name)
-                    show_status = show_data.get("status", "")
-                    show_seasons = show_data.get("seasons", [])
-                    show_has_episodes = show_data.get("has_episodes", None)
-                    webhook_run = show_data.get("webhook_run", None)
-                    sanitized_show_name = utils.remove_chars(
-                        utils.strip_id(show_name)
-                    )
-
-                    # need to do something here around alt titles
-                    # need to find matches based on the alt and loop through those *IFFF* the main one doesn't find a match.
-                    if self.match_alt or webhook_run:
-                        alt_titles_clean = [
-                            utils.remove_chars(alt)
-                            for alt in show_data.get("alternate_titles", [])
-                        ]
-                        if show_year:
-                            year_pattern = re.compile(r"\b(19|20)\d{2}\b")
-                            alt_titles_clean = [
-                                alt
-                                if year_pattern.search(alt)
-                                else f"{alt} {show_year.group(1)}"
-                                for alt in alt_titles_clean
-                            ]
-                    else:
-                        alt_titles_clean = []
-
-                    matched_season = False
-                    series_poster_matched = show_data.get(
-                        "series_poster_matched", False
-                    )
-
-                    if season_num:
-                        self.logger.debug(f"found a season num ({season_num}) for file {file}, trying to match_show_season")
-                        result = self._match_show_season(
-                            name_without_extension,
-                            show_name,
-                            alt_titles_clean,
-                            self.poster_id_pattern,
-                            check_id=has_id,
-                        )
-                        self.logger.debug(f"results: {result}")
-                        if isinstance(result, tuple):
-                            main_match, alt_matches = result
-                            for season in show_seasons[:]:
-                                season_str = season.get("season", "")
-                                season_str_match = re.match(
-                                    r"season(\d+)", season_str
-                                )
-                                if season_str_match:
-                                    media_season_num = int(
-                                        season_str_match.group(1)
-                                    )
-                                    if season_num == media_season_num:
-                                        self.logger.debug(
-                                            f"Matched season {season_num} for show: {show_name} with {file}"
-                                        )
-                                        self.handle_show_season_match(season, matched_files["shows"], file, show_data, webhook_run, unique_items, main_match, sanitized_name_without_extension, alt_matches, show_seasons)                                        
-                                        matched_seasons += 1
-                                        matched_season = True
-                                        break # this break is fine
-                            if matched_season:
-                                if (self.is_season_complete(show_seasons, show_data)):
-                                    # self.logger.debug(f"show seasons: {show_seasons}")
-                                    # self.logger.debug(f"show_data: {show_data}")
-                                    self.logger.debug(f"All seasons and series poster matched for {show_name}")
-                                    matched_entire_show = True
-                                    break # can stop looping if we have everything
-                                continue # otherwise keep looping
-
-                    if not matched_season:
-                        self.logger.debug(f"no match yet for file {file}, trying to match_show_special")
-                        result = self._match_show_special(
-                            name_without_extension,
-                            show_name,
-                            alt_titles_clean,
-                            self.poster_id_pattern,
-                            check_id=has_id,
-                        )
-                        self.logger.debug(f"results: {result}")
-                        if isinstance(result, tuple):
-                            main_match, alt_matches = result
-                            for season in show_seasons[:]:
-                                if "season00" in season.get("season", ""):
-                                    self.logger.debug(
-                                        f"Matched special season for show: {show_name}"
-                                    )
-                                    self.handle_show_season_match(season, matched_files["shows"], file, show_data, webhook_run, unique_items, main_match, sanitized_name_without_extension, alt_matches, show_seasons)
-                                    matched_seasons += 1
-                                    matched_season = True
-                                    break # don't need to process more seasons
-                        if matched_season:
-                            if (self.is_season_complete(show_seasons, show_data)):
-                                self.logger.debug(f"All seasons and series poster matched for {show_name}")
-                                matched_entire_show = True
-                                break # can stop looping if we have everything
-                            continue # otherwise keep looping
-
-                    if not matched_season:
-                        # why is id match so far down? that should take precedence, no?
-                        self.logger.debug(f"no match yet for file {file}, trying to match_id")
-                        id_match = False
-                        if has_id:
-                            show_id_match = self.poster_id_pattern.search(show_name)
-                            id_match = bool(poster_id and (poster_id == show_id_match.group(0) if show_id_match else None))
-                            # only need to check the id match if the match has an id
-                            if id_match:
-                                self.logger.debug(
-                                    f"Matched series poster for show (by ID): {show_name} with {file}"
-                                )
-                                self.handle_show_series_match(matched_files["shows"], 
-                                                    file, show_status,
-                                                    show_has_episodes,
-                                                    webhook_run,
-                                                    unique_items,
-                                                    sanitized_name_without_extension,
-                                                    sanitized_show_name,
-                                                    alt_titles_clean,
-                                                    shows_list_copy,
-                                                    show_seasons,
-                                                    show_data)
-                                if (self.is_season_complete(show_seasons, show_data)):
-                                    self.logger.debug(f"All seasons and series poster matched for {show_name}")
-                                    matched_entire_show = True
-                                    matched_shows += 1
-                                    break # can stop looping if we have everything
-                                continue # otherwise keep looping
-                        self.logger.debug(f"no id match yet for file {file}, trying to sanitized names")
-
-                        if (
-                            sanitized_name_without_extension
-                            == sanitized_show_name
-                        ):
-                            self.logger.debug(
-                                f"Matched series poster for show: {show_name} with {file}"
-                            )
-                            self.handle_show_series_match(matched_files["shows"], 
-                                                   file, show_status,
-                                                   show_has_episodes,
-                                                   webhook_run,
-                                                   unique_items,
-                                                   sanitized_name_without_extension,
-                                                   "",
-                                                   alt_titles_clean,
-                                                   shows_list_copy,
-                                                   show_seasons,
-                                                   show_data)
-                            if (self.is_season_complete(show_seasons, show_data)):
-                                self.logger.debug(f"All seasons and series poster matched for {show_name}")
-                                matched_entire_show = True
-                                matched_shows += 1
-                                break # can stop looping if we have everything
-                            continue # otherwise keep looping
-                        # TODO: this is where I need to deal with alt titles... search for matches and re-loop _everything_
-                        self.logger.debug(f"no match yet for file {file}, trying to match alt tiles")
-
-                        if alt_titles_clean:
-                            for alt_title in alt_titles_clean:
-                                if (
-                                    sanitized_name_without_extension
-                                    == alt_title
-                                ):
-                                    self.logger.debug(
-                                        f"Matched series poster for show: {show_name} with {file}"
-                                    )
-                                    self.handle_show_series_match(matched_files["shows"], 
-                                                        file, show_status,
-                                                        show_has_episodes,
-                                                        webhook_run,
-                                                        unique_items,
-                                                        sanitized_show_name,
-                                                        "", # change this to likely take a list of things to add to unique items vs. 2....
-                                                        alt_titles_clean,
-                                                        shows_list_copy,
-                                                        show_seasons,
-                                                        show_data)
-                                    if (self.is_season_complete(show_seasons, show_data)):
-                                        self.logger.debug(f"All seasons and series poster matched for {show_name}")
-                                        matched_entire_show = True
-                                        matched_shows += 1
-                                        break # can stop looping if we have everything
-                                    continue # otherwise keep looping
-                if not matched_entire_show:
-                    found_missing_episodes = False
-                    for season in show_seasons:
-                        if season['has_episodes']:
-                            unmatched_with_missing_episodes += 1
-                            found_missing_episodes = True
-                            break
-                        if "season00" in season.get("season", "") and len(show_seasons) == 1:
-                            unmatched_only_missing_specials_season += 1
-
-                    if show_seasons and found_missing_episodes:
-                        unmatched_shows += 1
-                        self.logger.debug(f"no match and missing episodes {show_data}")
-                    elif not "series_poster_matched" in show_data or ("series_poster_matched" in show_data and not show_data["series_poster_matched"]):
-                        # this means the poster is missing
-                        unmatched_shows += 1
-                        self.logger.debug(f"no match and missing poster {show_data}")
-                    else:
-                        matched_shows += 1 #claim this as a match since the only seasons leftover didn't have episodes
-
-                    self.logger.info(f"No match found for show {show_data.get('title', '')}")
-
                 progress_bar.update(1)
                 processed_files += 1
                 if job_id and cb:
                     progress = int((processed_files / total_files) * 70)
                     cb(job_id, progress + 10, ProgressState.IN_PROGRESS)
+        
         self.logger.info(f"matched_collections: {matched_collections}") # should be accurate
         self.logger.info(f"unmatched_collections: {unmatched_collections}") # should be accurate
         self.logger.info(f"matched_movies: {matched_movies}") # can be higher than expected due to items in radarr but not w/ files
@@ -908,6 +582,240 @@ class PosterRenamerr:
         self.logger.debug("Matched files summary:")
         self.logger.debug(pformat(matched_files))
         return matched_files
+
+    def find_series_matches(self, unique_items, show_data):
+        matched_files = {"shows": {},
+                         "matched_entire_show" : False}
+        search_matches = self.search_matches(show_data.get("title", ""), "all", self.logger, debug_search=False)
+        self.logger.debug(f"SEARCH (shows): matched assets for {show_data.get('title', '')}")
+        self.logger.debug(search_matches)
+                
+        # really inefficient for now but I have to ensure we loop over _ever single match since seasons are calculated on the fly based on the files
+        # this is expensive - especially since we don't remove items from the match list (though we could....)
+        # the better solution is not to remove things but instead to pre-calculate seasons based on the asset files and then when you match you get everything in one shot
+        # prob want to do an entire pass with main matches... then secondary pass with alt titles here... can't do it from within
+        # ORRR use the alt titles here as well, but then also would need to do searches after?
+        matched_entire_show = False
+        for search_match in search_matches:
+            self.compute_asset_values_for_match(search_match)
+            file = search_match['file']
+            name_without_extension = search_match['name_without_extension']
+            sanitized_name_without_extension = search_match['sanitized_name_without_extension']
+            sanitized_file_name_without_collection = search_match['sanitized_file_name_without_collection']
+            poster_file_year = search_match['poster_file_year']
+            poster_id = search_match['poster_id']
+            has_id = bool(search_match['poster_id'])
+            has_season_info = search_match['has_season_info']
+            season_num = search_match['season_num']
+
+            if (sanitized_name_without_extension in unique_items or sanitized_file_name_without_collection in unique_items):
+                self.logger.debug(f"Skipping already matched file '{file}'")
+                continue
+
+            if not poster_file_year:
+                self.logger.debug(f"Skipping collection file: '{file}'")
+                continue # it's a collection, skip it.
+
+            show_name = show_data.get("title", "")
+            show_year = re.search(r"\((\d{4})\)", show_name)
+            show_status = show_data.get("status", "")
+            show_seasons = show_data.get("seasons", [])
+            show_has_episodes = show_data.get("has_episodes", None)
+            webhook_run = show_data.get("webhook_run", None)
+            sanitized_show_name = utils.remove_chars(utils.strip_id(show_name))
+
+            # need to do something here around alt titles
+            # TODO: need to find matches based on the alt and loop through those *IFFF* the main one doesn't find a match.
+            if self.match_alt or webhook_run:
+                alt_titles_clean = [utils.remove_chars(alt) for alt in show_data.get("alternate_titles", [])]
+                if show_year:
+                    year_pattern = re.compile(r"\b(19|20)\d{2}\b")
+                    alt_titles_clean = [alt if year_pattern.search(alt) else f"{alt} {show_year.group(1)}" for alt in alt_titles_clean]
+            else:
+                alt_titles_clean = []
+
+            matched_season = False
+            series_poster_matched = show_data.get("series_poster_matched", False)
+
+            if season_num:
+                self.logger.debug(f"found a season num ({season_num}) for file {file}, trying to match_show_season")
+                result = self._match_show_season(name_without_extension, show_name, alt_titles_clean, self.poster_id_pattern, check_id=has_id)
+                self.logger.debug(f"results: {result}")
+                if isinstance(result, tuple):
+                    main_match, alt_matches = result
+                    for season in show_seasons[:]:
+                        season_str = season.get("season", "")
+                        season_str_match = re.match(r"season(\d+)", season_str)
+                        if season_str_match:
+                            media_season_num = int(season_str_match.group(1))
+                            if season_num == media_season_num:
+                                self.logger.debug(f"Matched season {season_num} for show: {show_name} with {file}")
+                                self.handle_show_season_match(season, matched_files["shows"], file, show_data, webhook_run, unique_items, main_match, sanitized_name_without_extension, alt_matches, show_seasons)                                        
+                                matched_season = True
+                                break # this break is fine
+                    if matched_season:
+                        if (self.is_season_complete(show_seasons, show_data)):
+                            # self.logger.debug(f"show seasons: {show_seasons}")
+                            # self.logger.debug(f"show_data: {show_data}")
+                            self.logger.debug(f"All seasons and series poster matched for {show_name}")
+                            matched_entire_show = True
+                            break # can stop looping if we have everything
+                        continue # otherwise keep looping
+
+            if not matched_season:
+                self.logger.debug(f"no match yet for file {file}, trying to match_show_special")
+                result = self._match_show_special(name_without_extension, show_name, alt_titles_clean, self.poster_id_pattern, check_id=has_id,)
+                self.logger.debug(f"results: {result}")
+                if isinstance(result, tuple):
+                    main_match, alt_matches = result
+                    for season in show_seasons[:]:
+                        if "season00" in season.get("season", ""):
+                            self.logger.debug(f"Matched special season for show: {show_name}")
+                            self.handle_show_season_match(season, matched_files["shows"], file, show_data, webhook_run, unique_items, main_match, sanitized_name_without_extension, alt_matches, show_seasons)
+                            matched_season = True
+                            break # don't need to process more seasons
+                if matched_season:
+                    if (self.is_season_complete(show_seasons, show_data)):
+                        self.logger.debug(f"All seasons and series poster matched for {show_name}")
+                        matched_entire_show = True
+                        break # can stop looping if we have everything
+                    continue # otherwise keep looping
+
+            if not matched_season:
+                # why is id match so far down? that should take precedence, no?
+                self.logger.debug(f"no match yet for file {file}, trying to match_id")
+                id_match = False
+                if has_id:
+                    show_id_match = self.poster_id_pattern.search(show_name)
+                    id_match = bool(poster_id and (poster_id == show_id_match.group(0) if show_id_match else None))
+                    # only need to check the id match if the match has an id
+                    if id_match:
+                        self.logger.debug(f"Matched series poster for show (by ID): {show_name} with {file}")
+                        self.handle_show_series_match(matched_files["shows"], file, show_status, show_has_episodes, webhook_run, unique_items, sanitized_name_without_extension, 
+                                                      sanitized_show_name, alt_titles_clean, show_seasons,show_data)
+                        if (self.is_season_complete(show_seasons, show_data)):
+                            self.logger.debug(f"All seasons and series poster matched for {show_name}")
+                            matched_entire_show = True
+                            break # can stop looping if we have everything
+                        continue # otherwise keep looping
+                self.logger.debug(f"no id match yet for file {file}, trying to sanitized names")
+
+                if (sanitized_name_without_extension == sanitized_show_name):
+                    self.logger.debug(f"Matched series poster for show: {show_name} with {file}")
+                    self.handle_show_series_match(matched_files["shows"], file, show_status, show_has_episodes, webhook_run, unique_items, sanitized_name_without_extension, "", 
+                                                  alt_titles_clean, show_seasons, show_data)
+                    if (self.is_season_complete(show_seasons, show_data)):
+                        self.logger.debug(f"All seasons and series poster matched for {show_name}")
+                        matched_entire_show = True
+                        break # can stop looping if we have everything
+                    continue # otherwise keep looping
+                # TODO: this is where I need to deal with alt titles... search for matches and re-loop _everything_
+                self.logger.debug(f"no match yet for file {file}, trying to match alt titles")
+
+                if alt_titles_clean:
+                    # this is saying for the orig matches do any alt matches match.... but separately we need to do lookups based on alt matches most likely
+                    for alt_title in alt_titles_clean:
+                        if (sanitized_name_without_extension == alt_title):
+                            self.logger.debug(f"Matched series poster for show: {show_name} with {file}")
+                            # change this to likely take a list of things to add to unique items vs. 2 with an empty string
+                            self.handle_show_series_match(matched_files["shows"], file, show_status, show_has_episodes, webhook_run, unique_items, sanitized_show_name, "",
+                                                          alt_titles_clean, show_seasons,show_data)
+                            if (self.is_season_complete(show_seasons, show_data)):
+                                self.logger.debug(f"All seasons and series poster matched for {show_name}")
+                                matched_entire_show = True
+                                break # can stop looping if we have everything
+                            continue # otherwise keep looping
+                # perhaps here we now look at alt titles and re-do logic above?
+        matched_files["matched_entire_show"] = matched_entire_show
+        return matched_files
+
+    def find_movie_matches(self, unique_items, movie_data):
+        matched_files = {"movies": {}}
+        search_matches = self.search_matches(movie_data.get("title", ""), "all", self.logger, debug_search=False)
+        self.logger.debug(f"SEARCH (movies): matched assets for {movie_data.get('title', '')}")
+        self.logger.debug(search_matches)
+        for search_match in search_matches:
+            self.compute_asset_values_for_match(search_match)
+            file = search_match['file']
+            name_without_extension = search_match['name_without_extension']
+            sanitized_name_without_extension = search_match['sanitized_name_without_extension']
+            sanitized_file_name_without_collection = search_match['sanitized_file_name_without_collection']
+            poster_file_year = search_match['poster_file_year']
+            poster_id = search_match['poster_id']
+            has_id = bool(search_match['poster_id'])
+            has_season_info = search_match['has_season_info']
+
+            if (sanitized_name_without_extension in unique_items or sanitized_file_name_without_collection in unique_items):
+                self.logger.debug(f"Skipping already matched file '{file}'")
+                continue
+
+            if poster_file_year and not has_season_info:
+                movie_title = movie_data.get("title", "")
+                movie_years = movie_data.get("years", [])
+                movie_status = movie_data.get("status", "")
+                movie_has_file = movie_data.get("has_file", None)
+                webhook_run = movie_data.get("webhook_run", None)
+                sanitized_movie_title = utils.remove_chars(utils.strip_id(movie_title))
+                sanitized_movie_title_without_year = utils.remove_chars(utils.strip_year(utils.strip_id(movie_title)))
+
+                if has_id:
+                    # we really only need to get the movie title here since we pre-compute the poster id string above..
+                    movie_id_match = self.poster_id_pattern.search(movie_title)
+                    id_match = bool(poster_id and (poster_id == movie_id_match.group(0) if movie_id_match else None))
+
+                    if id_match:
+                        self.logger.debug(f"Found exact match for movie (by ID): {movie_title} with {file}")
+                        self.handle_movie_match(matched_files["movies"], file, movie_data, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, sanitized_movie_title, unique_items)
+                        break # found a match break the search match loop
+
+                if (sanitized_name_without_extension == sanitized_movie_title):
+                    self.logger.debug(f"Found exact match for movie: {movie_title} with {file}")
+                    self.handle_movie_match(matched_files["movies"], file, movie_data, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, utils.remove_chars(movie_title), unique_items)
+                    break # found a match break the search match loop
+
+                elif movie_years:
+                    for year in movie_years:
+                        sanitized_movie_title_alternate_year = (f"{sanitized_movie_title_without_year} {year}")
+                        if (sanitized_name_without_extension == sanitized_movie_title_alternate_year):
+                            self.logger.debug(f"Found year based match for movie: {movie_title} with {file}")
+                            self.handle_movie_match(matched_files["movies"], file, movie_data, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, "", unique_items)
+                            break # found a match break the search match loop
+        return matched_files             
+
+    # need to return some data here... prob just a boolean for "did we find a match"
+    def find_collection_matches(self, unique_items, collection_name):
+        matched_files = {"collections": []}
+        search_matches = self.search_matches(collection_name, "all", self.logger, debug_search=False)
+        self.logger.debug(f"SEARCH (collections): matched assets for {collection_name}")
+        self.logger.debug(search_matches)
+        for search_match in search_matches:
+            self.compute_asset_values_for_match(search_match)
+            file = search_match['file']
+            name_without_extension = search_match['name_without_extension']
+            sanitized_name_without_extension = search_match['sanitized_name_without_extension']
+            sanitized_file_name_without_collection = search_match['sanitized_file_name_without_collection']
+            poster_file_year = search_match['poster_file_year']
+            poster_id = search_match['poster_id']
+            has_id = bool(search_match['poster_id'])
+            has_season_info = search_match['has_season_info']
+
+            if (sanitized_name_without_extension in unique_items or sanitized_file_name_without_collection in unique_items):
+                self.logger.debug(f"Skipping already matched file '{file}'")
+                continue
+
+            if not poster_file_year and not has_season_info:
+                # already know we're in collections... but the above check could still be true 
+                # since we're looping over matches across all asset types...
+                sanitized_collection_name = utils.remove_chars(collection_name).removesuffix(" collection")
+                if (sanitized_file_name_without_collection == sanitized_collection_name):
+                    # instead of appending just the file... append the entire match to avoid re-finding again in copy/rename
+                    collection_object = {'file': file}
+                    collection_object['match'] = collection_name
+                    matched_files["collections"].append(collection_object)
+                    unique_items.add(sanitized_file_name_without_collection)
+                    self.logger.debug(f"Matched collection poster for {collection_name} with {file}")
+                    break
+        return matched_files 
 
     def _match_id(self, file_name: str, media_name: str, poster_id_pattern: re.Pattern):
         poster_id_match = poster_id_pattern.search(file_name)
