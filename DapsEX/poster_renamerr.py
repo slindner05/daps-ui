@@ -105,7 +105,8 @@ class PosterRenamerr:
 
         # Optionally remove common words
         common_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to'}
-        return ' '.join(word for word in name.split() if word not in common_words)
+        # maybe for collections we need to _not_ do this? i.e. 'FX.jpg vs. FX Collection' - only an issue when a collection name is 1 or 2 chars...
+        return ''.join(word for word in name.split() if word not in common_words)
 
     def save_cached_structs_to_disk(self, assets_list, path, logger):
         """
