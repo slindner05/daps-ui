@@ -489,13 +489,35 @@ class PosterRenamerr:
             # need to loop over copy here...
             matched_collections = 0
             unmatched_collections = 0
+            collections_alt_title_searches_performed = 0
+            collections_matches_found_with_alt_title_searches = 0
             for collection_name in flattened_col_list[:]:
-                matched_collection_files = self.find_collection_matches(prefix_index, collection_name, unique_items)
-                num_matches = len(matched_collection_files["collections"])
-                if (num_matches > 0):
-                    matched_collections += 1
-                    matched_files["collections"].extend(matched_collection_files["collections"])
-                else: 
+                # for collections they are a bit "special" in that it could be x.jpg or x collection.jpg on the file and the prefix of those two
+                # files in the index is different.  So for a collection we effectively want to search for the main version to start
+                # and then fall back to the other variation.  This is effectively mimicking alternate title searching.
+                variations_to_search = [collection_name]
+                lower_collection_name = collection_name.lower()
+                if lower_collection_name.endswith( " collection"):
+                    variations_to_search.append(lower_collection_name.removesuffix(" collection"))
+                else:
+                    variations_to_search.append(lower_collection_name + " collection")
+
+                found_matching_collection = False
+                collections_main_title_search = True
+                for collection_name_to_search in variations_to_search:
+                    if (not collections_main_title_search):
+                        collections_alt_title_searches_performed += 1
+                    matched_collection_files = self.find_collection_matches(prefix_index, collection_name_to_search, collection_name, unique_items)
+                    num_matches = len(matched_collection_files["collections"])
+                    if (num_matches > 0):
+                        found_matching_collection = True
+                        matched_collections += 1
+                        if (not collections_main_title_search):
+                            collections_matches_found_with_alt_title_searches += 1
+                        matched_files["collections"].extend(matched_collection_files["collections"])
+                        break
+                    collections_main_title_search = False
+                if not found_matching_collection:
                     unmatched_collections += 1
                     self.logger.info(f"No match found for collection {collection_name}")
 
@@ -597,6 +619,8 @@ class PosterRenamerr:
         
         self.logger.info(f"matched_collections: {matched_collections}") # should be accurate
         self.logger.info(f"unmatched_collections: {unmatched_collections}") # should be accurate
+        self.logger.info(f"collections_alt_title_searches_performed: {collections_alt_title_searches_performed}") # should be accurate
+        self.logger.info(f"collections_matches_found_with_alt_title_searches: {collections_matches_found_with_alt_title_searches}") # should be accurate
         self.logger.info(f"matched_movies: {matched_movies}") # can be higher than expected due to items in radarr but not w/ files
         self.logger.info(f"unmatched_movies: {unmatched_movies}") # can be higher than expected due to items in radarr but not w/ files / not released 
         self.logger.info(f"fully_matched_shows: {fully_matched_shows}") # this means poster + all seasons
@@ -810,9 +834,9 @@ class PosterRenamerr:
         return matched_files             
 
     # need to return some data here... prob just a boolean for "did we find a match"
-    def find_collection_matches(self, prefix_index, collection_name, unique_items):
+    def find_collection_matches(self, prefix_index, collection_name_to_search, collection_name, unique_items):
         matched_files = {"collections": []}
-        search_matches = self.search_matches(prefix_index, collection_name, "all", self.logger, debug_search=False)
+        search_matches = self.search_matches(prefix_index, collection_name_to_search, "all", self.logger, debug_search=False)
         self.logger.debug(f"SEARCH (collections): matched assets for {collection_name}")
         self.logger.debug(search_matches)
         for search_match in search_matches:
