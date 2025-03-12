@@ -355,7 +355,7 @@ class PosterRenamerr:
 
         return source_files
 
-    def handle_movie_match(self, matched_movies, file, movie_data, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, sanitized_movie_title, unique_items):
+    def handle_movie_match(self, matched_movies, file, movie_data, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, sanitized_movie_title, unique_items, alt_titles_clean):
         matched_movies[file] = {
             "has_file": movie_has_file,
             "status": movie_status,
@@ -367,6 +367,9 @@ class PosterRenamerr:
             )
         unique_items.add(sanitized_name_without_extension)
         unique_items.add(sanitized_movie_title)
+        if alt_titles_clean:
+            unique_items.update(alt_titles_clean)
+
 
     def is_season_complete(self, show_seasons, show_data):
         return not show_seasons and "series_poster_matched" in show_data and show_data["series_poster_matched"]
@@ -531,19 +534,45 @@ class PosterRenamerr:
             # and I can delete the remove line maybe?
             matched_movies = 0
             unmatched_movies = 0
+            movies_alt_title_searches_performed = 0
+            movies_matches_found_with_alt_title_searches = 0
             for movie_data in movies_list_copy[:]:
-                # neat idea _maybe_? why not just do all the alt matches lookups here? it would still scan them in priority order... so it comes down to the cost of the lookups
-                # or better need to extract all of this into a function so we can 1) all for main movie, check result, and if not matched then 2) loop and call for alt titles
-                matched_movie_files = self.find_movie_matches(prefix_index, movie_data.get("title", ""), unique_items, movie_data)
-                num_matches = len(matched_movie_files["movies"])
-                if (num_matches > 0):
-                    matched_movies += 1
-                    # merge the new match with existing matches
-                    matched_files["movies"] = matched_files["movies"] | matched_movie_files["movies"]
-                else: 
+                if self.match_alt or movie_data.get("webhook_run", None):
+                    alt_titles_clean = [utils.remove_chars(alt) for alt in movie_data.get("alternate_titles", [])]
+                    movie_year = re.search(r"\((\d{4})\)", movie_data.get("title", ""))
+                    if movie_year:
+                        alt_titles_clean = [alt if self.year_pattern.search(alt) else f"{alt} {movie_year.group(1)}" for alt in alt_titles_clean]
+                else:
+                    alt_titles_clean = []
+
+                titles_to_search = [movie_data.get("title", "")]
+                # append alt titles to the end.  Will only be used if the main title search isn't found
+                titles_to_search.extend(alt_titles_clean)
+                movies_main_title_search = True
+                self.logger.debug(f"titles_to_search: {titles_to_search}")
+                found_a_match = False
+                for title in titles_to_search:
+                    if movies_main_title_search:
+                        self.logger.debug(f"doing main title search for {movie_data.get('title', '')} of: {title}")
+                    else:
+                        movies_alt_title_searches_performed += 1
+                        self.logger.debug(f"doing alt title search for {movie_data.get('title', '')} of: {title}")
+
+                    matched_movie_files = self.find_movie_matches(prefix_index, title, unique_items, movie_data, alt_titles_clean)
+                    num_matches = len(matched_movie_files["movies"])
+                    if (num_matches > 0):
+                        matched_movies += 1
+                        if not movies_main_title_search:
+                            movies_matches_found_with_alt_title_searches += 1
+                        # merge the new match with existing matches
+                        matched_files["movies"] = matched_files["movies"] | matched_movie_files["movies"]
+                        found_a_match = True
+                        break
+                    movies_main_title_search = False
+                if not found_a_match:
                     unmatched_movies += 1
                     self.logger.info(f"No match found for movie {movie_data.get('title', '')}")
-                
+
                 progress_bar.update(1)
                 processed_files += 1
                 if job_id and cb:
@@ -556,36 +585,35 @@ class PosterRenamerr:
             partial_matched_missing_seasons = 0
             partial_matched_missing_poster = 0
             partial_matched_only_missing_specials = 0
-            matches_found_with_alt_title_searches = 0
-            alt_title_searches_performed = 0
+            shows_matches_found_with_alt_title_searches = 0
+            shows_alt_title_searches_performed = 0
             for show_data in shows_list_copy[:]:
+                alt_titles_clean = []
                 if self.match_alt or show_data.get("webhook_run", None):
                     alt_titles_clean = [utils.remove_chars(alt) for alt in show_data.get("alternate_titles", [])]
                     show_year = re.search(r"\((\d{4})\)", show_data.get("title", ""))
                     if show_year:
                         alt_titles_clean = [alt if self.year_pattern.search(alt) else f"{alt} {show_year.group(1)}" for alt in alt_titles_clean]
-                else:
-                    alt_titles_clean = []
 
                 titles_to_search = [show_data.get("title", "")]
                 # append alt titles to the end.  Will only be used if the main title search isn't found
                 titles_to_search.extend(alt_titles_clean)
-                main_title_search = True
+                shows_main_title_search = True
                 self.logger.debug(f"titles_to_search: {titles_to_search}")
                 found_a_match = False
                 for title in titles_to_search:
-                    if main_title_search:
+                    if shows_main_title_search:
                         self.logger.debug(f"doing main title search for {show_data.get('title', '')} of: {title}")
                     else:
-                        alt_title_searches_performed += 1
+                        shows_alt_title_searches_performed += 1
                         self.logger.debug(f"doing alt title search for {show_data.get('title', '')} of: {title}")
-                    matched_show_files = self.find_series_matches(prefix_index, title, unique_items, show_data)
+                    matched_show_files = self.find_series_matches(prefix_index, title, unique_items, show_data, alt_titles_clean)
                     num_matches= len(matched_show_files["shows"])
                     matched_entire_show = matched_show_files["matched_entire_show"]
                     # this will have been updated from within the lookup function.
                     if (num_matches > 0):
-                        if not main_title_search:
-                            matches_found_with_alt_title_searches += 1
+                        if not shows_main_title_search:
+                            shows_matches_found_with_alt_title_searches += 1
                         found_a_match = True
                         matched_files["shows"] = matched_files["shows"] | matched_show_files["shows"]
 
@@ -605,7 +633,7 @@ class PosterRenamerr:
                         else:
                             fully_matched_shows += 1
                         break # if we found any match then we stop here vs. searching for alt titles
-                    main_title_search = False
+                    shows_main_title_search = False
 
                 if not found_a_match:
                     unmatched_shows += 1
@@ -623,18 +651,20 @@ class PosterRenamerr:
         self.logger.info(f"collections_matches_found_with_alt_title_searches: {collections_matches_found_with_alt_title_searches}") # should be accurate
         self.logger.info(f"matched_movies: {matched_movies}") # can be higher than expected due to items in radarr but not w/ files
         self.logger.info(f"unmatched_movies: {unmatched_movies}") # can be higher than expected due to items in radarr but not w/ files / not released 
+        self.logger.info(f"movies_alt_title_searches_performed: {movies_alt_title_searches_performed}") # can be higher than expected due to items in radarr but not w/ files / not released 
+        self.logger.info(f"movies_matches_found_with_alt_title_searches: {movies_matches_found_with_alt_title_searches}") # can be higher than expected due to items in radarr but not w/ files / not released 
         self.logger.info(f"fully_matched_shows: {fully_matched_shows}") # this means poster + all seasons
         self.logger.info(f"partial_matched_shows: {partial_matched_shows}") # this means something was missing - a season or poster, etc.
         self.logger.info(f"partial_matched_shows_missing_seasons: {partial_matched_missing_seasons}") # this means a season had espisodes and wasn't found
         self.logger.info(f"partial_matched_shows_missing_poster: {partial_matched_missing_poster}") # this means a poster was missing
         self.logger.info(f"partial_matched_shows_missing_only_specials: {partial_matched_only_missing_specials}") # this means only the specials season was missing
-        self.logger.info(f"matches_found_with_alt_title_searches: {matches_found_with_alt_title_searches}")
-        self.logger.info(f"alt_title_searches_performed: {alt_title_searches_performed}")
+        self.logger.info(f"matches_found_with_alt_title_searches: {shows_matches_found_with_alt_title_searches}")
+        self.logger.info(f"alt_title_searches_performed: {shows_alt_title_searches_performed}")
         self.logger.debug("Matched files summary:")
         self.logger.debug(pformat(matched_files))
         return matched_files
 
-    def find_series_matches(self, prefix_index, search_title, unique_items, show_data):
+    def find_series_matches(self, prefix_index, search_title, unique_items, show_data, alt_titles_clean):
         matched_files = {"shows": {},
                          "matched_entire_show" : False}
         search_matches = self.search_matches(prefix_index, search_title, "all", self.logger, debug_search=False)
@@ -674,16 +704,6 @@ class PosterRenamerr:
             show_has_episodes = show_data.get("has_episodes", None)
             webhook_run = show_data.get("webhook_run", None)
             sanitized_show_name = utils.remove_chars(utils.strip_id(show_name))
-
-            # need to do something here around alt titles
-            # TODO: need to find matches based on the alt and loop through those *IFFF* the main one doesn't find a match.
-            if self.match_alt or webhook_run:
-                alt_titles_clean = [utils.remove_chars(alt) for alt in show_data.get("alternate_titles", [])]
-                if show_year:
-                    year_pattern = re.compile(r"\b(19|20)\d{2}\b")
-                    alt_titles_clean = [alt if year_pattern.search(alt) else f"{alt} {show_year.group(1)}" for alt in alt_titles_clean]
-            else:
-                alt_titles_clean = []
 
             matched_season = False
             series_poster_matched = show_data.get("series_poster_matched", False)
@@ -780,7 +800,7 @@ class PosterRenamerr:
         matched_files["matched_entire_show"] = matched_entire_show
         return matched_files
 
-    def find_movie_matches(self, prefix_index, search_title, unique_items, movie_data):
+    def find_movie_matches(self, prefix_index, search_title, unique_items, movie_data, alt_titles_clean):
         matched_files = {"movies": {}}
         search_matches = self.search_matches(prefix_index, search_title, "all", self.logger, debug_search=False)
         self.logger.debug(f"SEARCH (movies): matched assets for {movie_data.get('title', '')}")
@@ -799,7 +819,7 @@ class PosterRenamerr:
             if (sanitized_name_without_extension in unique_items or sanitized_file_name_without_collection in unique_items):
                 self.logger.debug(f"Skipping already matched file '{file}'")
                 continue
-
+            
             if poster_file_year and not has_season_info:
                 movie_title = movie_data.get("title", "")
                 movie_years = movie_data.get("years", [])
@@ -816,12 +836,12 @@ class PosterRenamerr:
 
                     if id_match:
                         self.logger.debug(f"Found exact match for movie (by ID): {movie_title} with {file}")
-                        self.handle_movie_match(matched_files["movies"], file, movie_data, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, sanitized_movie_title, unique_items)
+                        self.handle_movie_match(matched_files["movies"], file, movie_data, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, sanitized_movie_title, unique_items, alt_titles_clean)
                         break # found a match break the search match loop
 
                 if (sanitized_name_without_extension == sanitized_movie_title):
                     self.logger.debug(f"Found exact match for movie: {movie_title} with {file}")
-                    self.handle_movie_match(matched_files["movies"], file, movie_data, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, utils.remove_chars(movie_title), unique_items)
+                    self.handle_movie_match(matched_files["movies"], file, movie_data, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, utils.remove_chars(movie_title), unique_items, alt_titles_clean)
                     break # found a match break the search match loop
 
                 elif movie_years:
@@ -829,8 +849,17 @@ class PosterRenamerr:
                         sanitized_movie_title_alternate_year = (f"{sanitized_movie_title_without_year} {year}")
                         if (sanitized_name_without_extension == sanitized_movie_title_alternate_year):
                             self.logger.debug(f"Found year based match for movie: {movie_title} with {file}")
-                            self.handle_movie_match(matched_files["movies"], file, movie_data, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, "", unique_items)
+                            self.handle_movie_match(matched_files["movies"], file, movie_data, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, "", unique_items, alt_titles_clean)
                             break # found a match break the search match loop
+                if alt_titles_clean:
+                    # this is saying for the orig matches do any alt matches match.... but separately we need to do lookups based on alt matches most likely
+                    for alt_title in alt_titles_clean:
+                        if (sanitized_name_without_extension == alt_title):
+                            self.logger.debug(f"Matched movie with alt title: {movie_title} with {file}")
+                            # change this to likely take a list of things to add to unique items vs. 2 with an empty string
+                            self.handle_movie_match(matched_files["movies"], file, movie_data, movie_has_file, movie_status, webhook_run, sanitized_name_without_extension, "", unique_items, alt_titles_clean)
+                            continue # otherwise keep looping
+
         return matched_files             
 
     # need to return some data here... prob just a boolean for "did we find a match"

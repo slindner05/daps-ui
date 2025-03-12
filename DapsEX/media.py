@@ -72,7 +72,7 @@ class Media:
         return titles_with_seasons
 
     def get_movies_with_years(
-        self, all_movie_objects: list[Movie], instance_name: str
+        self, all_movie_objects: list[Movie], instance_name: str, logger
     ) -> list[dict[str, str | list[str]]]:
         titles_with_years = []
         release_years = re.compile(r"^\d{4}")
@@ -90,6 +90,7 @@ class Media:
                 "years": [],
                 "status": "",
                 "has_file": False,
+                "alternate_titles": [],
                 "instance": instance_name,
             }
 
@@ -105,6 +106,14 @@ class Media:
                 extract_year(media_object.digitalRelease),
                 extract_year(media_object.inCinemas),
             ]
+            # get raw
+            try:
+                raw_api = media_object._raw
+                movie_data = raw_api.get_movie_id(movie_id)
+                alternate_titles = self.extract_movie_alternate_titles(movie_data.get("alternateTitles", []))
+                dict_with_years["alternate_titles"] = alternate_titles
+            except Exception as e:
+                logger.error(f"Error fetching movie data for ID {movie_id}: {e}")
             dict_with_years["title"] = title
             dict_with_years["status"] = status
             dict_with_years["has_file"] = has_file
@@ -126,6 +135,14 @@ class Media:
             and title_entry.get("title", "").strip()
         ]
 
+    def extract_movie_alternate_titles(self, alternate_titles_list):
+        return [
+            title_entry["title"].strip()
+            for title_entry in alternate_titles_list
+            if title_entry.get("title", "").strip()
+        ]
+
+
 
 class Radarr(Media):
     def __init__(self, base_url: str, api: str, instance_name: str, logger: Logger):
@@ -136,7 +153,7 @@ class Radarr(Media):
             self.instance_name = instance_name
             self.all_movie_objects = self.get_all_movies()
             self.movies = self.get_movies_with_years(
-                self.all_movie_objects, self.instance_name
+                self.all_movie_objects, self.instance_name, logger
             )
         except ArrApiUnauthorized as e:
             self.logger.error(
@@ -156,7 +173,7 @@ class Radarr(Media):
         movie_list = []
         movie = self.radarr.get_movie(id)
         movie_list.append(movie)
-        return self.get_movies_with_years(movie_list, self.instance_name)
+        return self.get_movies_with_years(movie_list, self.instance_name, self.logger)
 
 
 class Sonarr(Media):
