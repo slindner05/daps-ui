@@ -112,7 +112,6 @@ class DriveSync:
                 continue
 
             self.logger.info(f"Starting sync for: '{drive_name}' -> '{drive_location}'")
-
             rclone_command = [
                 "rclone",
                 "sync",
@@ -130,9 +129,12 @@ class DriveSync:
                 "--bwlimit=80M",
                 "--size-only",
                 "--delete-during",
-                # "--log-file=/config/rclone.log",
                 "-v",
             ]
+
+            if self.logger.isEnabledFor(logging.DEBUG):
+                rclone_command.append("--log-file=/config/rclone.log")
+
 
             # Initialize using OAuth
             if self.client_id and self.rclone_secret and self.rclone_token:
