@@ -100,6 +100,9 @@ class UnmatchedAssets:
 
         return extracted_assets
 
+    # need to update this function to be aligned with the matching... really need a common function
+    # that takes in raw asset and raw media and "does magic" in both places... but not so simple...
+    # removing prefixes, spaces, and (us) etc breaks here...
     def get_unmatched_assets(
         self,
         media_dict: dict[str, list[dict]],
