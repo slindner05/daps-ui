@@ -87,6 +87,8 @@ class DriveSync:
         progress_step = 90 // total_drives if total_drives > 0 else 90
 
         # rotate the prior log file and also delete older log files
+        # could consider setting up something more official w/ logrotate perhaps?
+        # but this should suffice.
         rclone_log_dir = "/config/"
         rclone_log_file = "rclone.log"
         rclone_rotated_log_suffix = "1"
