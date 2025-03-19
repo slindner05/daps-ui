@@ -1,6 +1,7 @@
 import json
 import logging
 import subprocess
+import os
 from collections.abc import Callable
 from pathlib import Path
 
@@ -85,6 +86,24 @@ class DriveSync:
 
         progress_step = 90 // total_drives if total_drives > 0 else 90
 
+        # rotate the prior log file and also delete older log files
+        # could consider setting up something more official w/ logrotate perhaps?
+        # but this should suffice.
+        rclone_log_dir = "/config/"
+        rclone_log_file = "rclone.log"
+        rclone_rotated_log_suffix = "1"
+        rclone_full_log_path = rclone_log_dir + rclone_log_file
+        rclone_rotated_log_path = rclone_full_log_path + rclone_rotated_log_suffix
+        if os.path.isfile(rclone_full_log_path):
+            try:
+                if os.path.isfile(rclone_rotated_log_path):
+                    os.remove(rclone_rotated_log_path)
+                os.rename(rclone_full_log_path, rclone_rotated_log_path)
+            except Exception as e:
+                self.logger.error(f"Problem rotating rclone log file: {e}")
+                self.logger.error(f"rclone log file full path: {rclone_full_log_path}")
+                self.logger.error(f"rclone log file rotated path: {rclone_full_log_path + rclone_rotated_log_suffix}")
+
         for drive in self.gdrives:
             drive_name = drive["drive_name"]
             drive_location = drive["drive_location"]
@@ -112,7 +131,6 @@ class DriveSync:
                 continue
 
             self.logger.info(f"Starting sync for: '{drive_name}' -> '{drive_location}'")
-
             rclone_command = [
                 "rclone",
                 "sync",
@@ -130,9 +148,12 @@ class DriveSync:
                 "--bwlimit=80M",
                 "--size-only",
                 "--delete-during",
-                # "--log-file=/config/rclone.log",
                 "-v",
             ]
+
+            if self.logger.isEnabledFor(logging.DEBUG):
+                rclone_command.append(f"--log-file={rclone_full_log_path}")
+
 
             # Initialize using OAuth
             if self.client_id and self.rclone_secret and self.rclone_token:
