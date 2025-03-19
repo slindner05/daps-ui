@@ -447,14 +447,21 @@ class PosterRenamerr:
             (asset['has_season_info'] and 'show_seasons' in media)
         ))
 
+        # if "houseofcards" in media['extra_sanitized_no_spaces_no_collection'] and "houseofcards" in asset['extra_sanitized_no_spaces_no_collection']:
+        #     self.logger.debug(f"asset: {asset}")
+        #     self.logger.debug(f"media: {media}")
+
         return match and has_year_match
 
     def compute_variations_for_comparisons(self, orig_string, object_to_populate) -> None:
         lowered_orig_string = orig_string.lower()
-        sanitized_name_without_extension = utils.remove_chars(utils.strip_id(lowered_orig_string))
+        stripped_id = utils.strip_id(lowered_orig_string)
+        sanitized_name_without_extension = utils.remove_chars(stripped_id)
 
         # handle some countries being included in names.
-        extra_sanitized_name_without_extension = re.sub(r'\((us|uk|au|ca|nz|fr)\)', '', sanitized_name_without_extension)
+        extra_sanitized_name_without_extension = re.sub(r'\((us|uk|au|ca|nz|fr)\)', '', stripped_id)
+        extra_sanitized_name_without_extension = utils.remove_chars(extra_sanitized_name_without_extension)
+
         # replace certain prefixes
         extra_sanitized_name_without_extension = re.sub(r'^\b{}\b'.format("(the|a|an)"), '', extra_sanitized_name_without_extension)
 
