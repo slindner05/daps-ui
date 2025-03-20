@@ -383,7 +383,6 @@ class PosterRenamerr:
         if not has_year_match:
             # no media years (collection) but asset has some year value
             if 'media_item_years' not in media and asset['item_year'] is not None:
-                self.logger.debug(f"year_mismatch: {'media_item_years' not in media} asset={asset['item_year']}")
                 return False
 
             # no media years (collection) and asset also doesn't have years (collection)
