@@ -370,16 +370,20 @@ class PosterRenamerr:
         self.logger.debug(
             f"Show seasons: {show_seasons}"
         )
-
+    # need to have a version without the year in compute...
     def compare_asset_to_media(self, asset, media):
         match = False
         has_year_match = False
+        local_debug = False
+        # local_debug = "runhidefight" in media['extra_sanitized_no_spaces_no_collection'] and "runhidefight" in asset['extra_sanitized_no_spaces_no_collection']
 
         # if both sides have an id AND the match, we have a match.  Otherwise try alternatives
         if (asset['item_id'] and media['item_id'] and asset['item_id'] == media['item_id']):
             return True
 
         has_year_match = (media['item_year'] == None and asset['item_year'] == None) or (media['item_year'] == asset['item_year'])
+        if local_debug:
+            self.logger.debug(f"has year match: {has_year_match}")
         if not has_year_match:
             # no media years (collection) but asset has some year value
             if 'media_item_years' not in media and asset['item_year'] is not None:
@@ -391,7 +395,11 @@ class PosterRenamerr:
                 has_year_match = True
 
             if 'media_item_years' in media:
+                if local_debug:
+                    self.logger.debug(f"we do have media_item_years!")
                 for year in media['media_item_years']:
+                    if local_debug:
+                        self.logger.debug(f"looping... year= {year}")
                     if year == asset['item_year']:
                         has_year_match = True
                         break
@@ -415,19 +423,20 @@ class PosterRenamerr:
             (asset['has_season_info'] and 'show_seasons' in media)
         ))
 
-        # if "houseofcards" in media['extra_sanitized_no_spaces_no_collection'] and "houseofcards" in asset['extra_sanitized_no_spaces_no_collection']:
-        #     self.logger.debug(f"asset: {asset}")
-        #     self.logger.debug(f"media: {media}")
+        if local_debug:
+            self.logger.debug(f"asset: {asset}")
+            self.logger.debug(f"media: {media}")
 
         return match and has_year_match
 
     def compute_variations_for_comparisons(self, orig_string, object_to_populate) -> None:
         lowered_orig_string = orig_string.lower()
         stripped_id = utils.strip_id(lowered_orig_string)
-        sanitized_name_without_extension = utils.remove_chars(stripped_id)
+        stripped_year = utils.strip_year(stripped_id)
+        sanitized_name_without_extension = utils.remove_chars(stripped_year)
 
         # handle some countries being included in names.
-        extra_sanitized_name_without_extension = re.sub(r'\((us|uk|au|ca|nz|fr)\)', '', stripped_id)
+        extra_sanitized_name_without_extension = re.sub(r'\((us|uk|au|ca|nz|fr)\)', '', stripped_year)
         extra_sanitized_name_without_extension = utils.remove_chars(extra_sanitized_name_without_extension)
 
         # replace certain prefixes

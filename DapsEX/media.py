@@ -93,7 +93,6 @@ class Media:
                 "alternate_titles": [],
                 "instance": instance_name,
             }
-
             path = Path(media_object.path)  # type: ignore
             movie_id = media_object.id
             title = path.name
@@ -112,6 +111,9 @@ class Media:
                 movie_data = raw_api.get_movie_id(movie_id)
                 alternate_titles = self.extract_movie_alternate_titles(movie_data.get("alternateTitles", []))
                 dict_with_years["alternate_titles"] = alternate_titles
+                secondary_year = movie_data.get("secondaryYear", None)
+                if secondary_year:
+                    dict_with_years["years"].append(str(secondary_year))
             except Exception as e:
                 logger.error(f"Error fetching movie data for ID {movie_id}: {e}")
             dict_with_years["title"] = title
