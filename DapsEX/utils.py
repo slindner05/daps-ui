@@ -3,6 +3,7 @@ import re
 import unicodedata
 from logging import Logger
 from pathlib import Path
+from unidecode import unidecode
 
 from DapsEX.media import Radarr, Server, Sonarr
 from Payloads.poster_renamerr_payload import Payload as PosterRenamerPayload
@@ -135,6 +136,8 @@ def create_plex_instances(
 
 
 def remove_chars(file_name: str) -> str:
+    # adding this prob removes the need for some of the lower items, but leave in for now
+    file_name = unidecode(file_name)
     file_name = unicodedata.normalize("NFKC", file_name)
     file_name = unicodedata.normalize("NFD", file_name)
     file_name = file_name.replace("⁄", "/")
