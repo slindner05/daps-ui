@@ -1,4 +1,5 @@
 import logging
+import os
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -43,9 +44,23 @@ def init_logger(
 
     file_path = log_dir / file_name
 
+    max_bytes_multiplier = float(os.environ.get('LOGGER_MAX_BYTES_MULTIPLIER', 1))
+    if max_bytes_multiplier and isinstance(max_bytes_multiplier, (int, float, complex)):
+        if max_bytes_multiplier <=0:
+            max_bytes_multiplier = 1
+    else:
+        max_bytes_multiplier = 1
+
+    max_backup_files = int(os.environ.get('LOGGER_MAX_BACKUP_FILES', 10))
+    if max_backup_files and isinstance(max_backup_files, (int, float, complex)):
+        if max_backup_files <10:
+            max_backup_files = 10 # minimum of 10
+    else:
+        max_backup_files = 10
+
     # Configure RotatingFileHandler for the logger
     file_handler = RotatingFileHandler(
-        file_path, mode="a", maxBytes=10 * 1024 * 1024, backupCount=10
+        file_path, mode="a", maxBytes=10 * 1024 * 1024 * max_bytes_multiplier, backupCount=max_backup_files
     )
     file_handler.setLevel(log_level)
     file_handler.setFormatter(formatter)
