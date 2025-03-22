@@ -87,6 +87,7 @@ class Media:
             dict_with_years = {
                 "title": "",
                 "id": None,
+                "media_year": "",
                 "years": [],
                 "status": "",
                 "has_file": False,
@@ -100,11 +101,6 @@ class Media:
             status = media_object.status
             has_file = media_object.hasFile
 
-            years = [
-                extract_year(media_object.physicalRelease),
-                extract_year(media_object.digitalRelease),
-                extract_year(media_object.inCinemas),
-            ]
             # get raw
             try:
                 raw_api = media_object._raw
@@ -120,10 +116,7 @@ class Media:
             dict_with_years["status"] = status
             dict_with_years["has_file"] = has_file
             dict_with_years["id"] = movie_id
-
-            for year in years:
-                if year and year not in dict_with_years["years"] and year != title_year:
-                    dict_with_years["years"].append(year)
+            dict_with_years["media_year"] = title_year
 
             titles_with_years.append(dict_with_years)
         return titles_with_years
