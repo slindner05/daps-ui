@@ -2,6 +2,7 @@ import json
 import logging
 import re
 import shutil
+import os
 from collections.abc import Callable
 from pathlib import Path
 from pprint import pformat
@@ -371,19 +372,15 @@ class PosterRenamerr:
             f"Show seasons: {show_seasons}"
         )
     # need to have a version without the year in compute...
-    def compare_asset_to_media(self, asset, media):
+    def compare_asset_to_media(self, asset, media, special_debug=False):
         match = False
         has_year_match = False
-        local_debug = False
-        # local_debug = "runhidefight" in media['extra_sanitized_no_spaces_no_collection'] and "runhidefight" in asset['extra_sanitized_no_spaces_no_collection']
 
         # if both sides have an id AND the match, we have a match.  Otherwise try alternatives
         if (asset['item_id'] and media['item_id'] and asset['item_id'] == media['item_id']):
             return True
 
         has_year_match = (media['item_year'] == None and asset['item_year'] == None) or (media['item_year'] == asset['item_year'])
-        if local_debug:
-            self.logger.debug(f"has year match: {has_year_match}")
         if not has_year_match:
             # no media years (collection) but asset has some year value
             if 'media_item_years' not in media and asset['item_year'] is not None:
@@ -395,16 +392,10 @@ class PosterRenamerr:
                 has_year_match = True
 
             if 'media_item_years' in media:
-                if local_debug:
-                    self.logger.debug(f"we do have media_item_years!")
                 for year in media['media_item_years']:
-                    if local_debug:
-                        self.logger.debug(f"looping... year= {year}")
                     if year == asset['item_year']:
                         has_year_match = True
                         break
-                if has_year_match:
-                    self.logger.debug(f"media_item_years match! media={media['media_item_years']} (main year={media['item_year']}, name={media['sanitized_name_without_extension']}), asset={asset['item_year']}")
         match = ((
         asset['sanitized_name_without_extension'] == media['sanitized_name_without_extension'] or
         asset['extra_sanitized_name_without_extension'] == media['extra_sanitized_name_without_extension'] or
@@ -423,9 +414,11 @@ class PosterRenamerr:
             (asset['has_season_info'] and 'show_seasons' in media)
         ))
 
-        if local_debug:
+        if special_debug:
             self.logger.debug(f"asset: {asset}")
             self.logger.debug(f"media: {media}")
+            self.logger.debug(f"match= {match}")
+            self.logger.debug(f"has_year_match= {has_year_match}")
 
         return match and has_year_match
 
@@ -744,10 +737,17 @@ class PosterRenamerr:
         self.compute_variations_for_comparisons(search_title, media_object)
         media_object['show_status'] = show_status
         media_object['show_seasons'] = show_seasons
+        local_debug = self.check_debug_mode(media_object)
+        prior_level = self.logger.getEffectiveLevel()
+        if local_debug:
+            self.logger.info(f"changing log level from {prior_level} to {logging.DEBUG}")
+            self.logger.setLevel(logging.DEBUG)
+            for handler in self.logger.handlers:
+                handler.setLevel(logging.DEBUG)
 
 
         search_matches = self.search_matches(prefix_index, search_title, "all", self.logger, debug_search=False)
-        self.logger.debug(f"SEARCH (shows): matched assets for {show_data.get('title', '')}")
+        self.logger.debug(f"SEARCH (shows): matched assets for {show_data.get('title', '')} with query {search_title}")
         self.logger.debug(search_matches)
 
         # really inefficient for now but I have to ensure we loop over _ever single match since seasons are calculated on the fly based on the files
@@ -757,6 +757,7 @@ class PosterRenamerr:
         matched_poster = False
         for search_match in search_matches:
             if 'previously_matched' in search_match:
+                self.logger.debug(f"skipping a previously matched item {search_match}")
                 continue
             self.compute_asset_values_for_match(search_match)
             file = search_match['file']
@@ -772,7 +773,7 @@ class PosterRenamerr:
             matched_season = False
 
             special_asset = extra_sanitized_no_spaces_no_collection.endswith("specials")
-            if self.compare_asset_to_media(search_match, media_object):
+            if self.compare_asset_to_media(search_match, media_object, special_debug=local_debug):
                 if season_num or has_season_info:
                     self.logger.debug(f"found a season num ({season_num}) for file {file}, trying to match_show_season")
                     for season in show_seasons[:]:
@@ -811,7 +812,24 @@ class PosterRenamerr:
                 break # stop everything.
 
         matched_files["matched_entire_show"] = matched_entire_show
+        self.logger.setLevel(prior_level)
+        for handler in self.logger.handlers:
+            handler.setLevel(prior_level)
+
         return matched_files
+
+    def check_debug_mode(self, media_object):
+        enable_debug = False
+        search_debug_string = os.environ.get('SEARCH_DEBUG', None)
+        if search_debug_string:
+            debug_strings = search_debug_string.split('|')
+            for debug_string in debug_strings:
+                debug_string = debug_string.strip()
+                if len(debug_string) > 1 and debug_string in media_object['extra_sanitized_no_spaces_no_collection']:
+                    enable_debug = True
+                    self.logger.info(f"ENABLE_SPECIAL_DEBUG!!")
+                    break
+        return enable_debug
 
     def find_movie_matches(self, prefix_index, search_title, movie_data):
         matched_files = {"movies": {}}
@@ -821,13 +839,21 @@ class PosterRenamerr:
         movie_has_file = movie_data.get("has_file", None)
         webhook_run = movie_data.get("webhook_run", None)
 
-        search_matches = self.search_matches(prefix_index, search_title, "all", self.logger, debug_search=False)
-        self.logger.debug(f"SEARCH (movies): matched assets for {movie_data.get('title', '')}")
-        self.logger.debug(search_matches)
-
         media_object = {}
         self.compute_variations_for_comparisons(search_title, media_object)
         media_object['media_item_years'] = movie_years
+        local_debug = self.check_debug_mode(media_object)
+        prior_level = self.logger.getEffectiveLevel()
+        if local_debug:
+            self.logger.info(f"changing log level from {prior_level} to {logging.DEBUG}")
+            self.logger.setLevel(logging.DEBUG)
+            for handler in self.logger.handlers:
+                handler.setLevel(logging.DEBUG)
+
+        search_matches = self.search_matches(prefix_index, search_title, "all", self.logger, debug_search=False)
+        self.logger.debug(f"SEARCH (movies): matched assets for {movie_data.get('title', '')} with query {search_title}")
+        self.logger.debug(search_matches)
+
 
         for search_match in search_matches:
             if 'previously_matched' in search_match:
@@ -838,11 +864,15 @@ class PosterRenamerr:
             has_season_info = search_match['has_season_info']
 
             if poster_file_year and not has_season_info:
-                if self.compare_asset_to_media(search_match, media_object):
+                if self.compare_asset_to_media(search_match, media_object, special_debug=local_debug):
                     self.logger.debug(f"Found match for movie: {movie_title} with {file}")
                     self.handle_movie_match(matched_files["movies"], file, movie_data, movie_has_file, movie_status, webhook_run)
                     search_match['previously_matched'] = True
                     break # found a match break the search match loop
+
+        self.logger.setLevel(prior_level)
+        for handler in self.logger.handlers:
+            handler.setLevel(prior_level)
 
         return matched_files
 
@@ -852,8 +882,17 @@ class PosterRenamerr:
         media_object = {}
         self.compute_variations_for_comparisons(collection_name_to_search, media_object)
 
+        local_debug = self.check_debug_mode(media_object)
+        prior_level = self.logger.getEffectiveLevel()
+        if local_debug:
+            self.logger.info(f"changing log level from {prior_level} to {logging.DEBUG}")
+            self.logger.setLevel(logging.DEBUG)
+            for handler in self.logger.handlers:
+                handler.setLevel(logging.DEBUG)
+
+
         search_matches = self.search_matches(prefix_index, collection_name_to_search, "all", self.logger, debug_search=False)
-        self.logger.debug(f"SEARCH (collections): matched assets for {collection_name}")
+        self.logger.debug(f"SEARCH (collections): matched assets for {collection_name} with query {collection_name_to_search}")
         self.logger.debug(search_matches)
         for search_match in search_matches:
             if 'previously_matched' in search_match:
@@ -867,13 +906,17 @@ class PosterRenamerr:
                 # already know we're in collections... but the above check could still be true
                 # since we're looping over matches across all asset types...
 
-                if self.compare_asset_to_media(search_match, media_object):
+                if self.compare_asset_to_media(search_match, media_object, special_debug=local_debug):
                     collection_object = {'file': file}
                     collection_object['match'] = collection_name
                     matched_files["collections"].append(collection_object)
                     search_match['previously_matched'] = True
                     self.logger.debug(f"Matched collection poster for {collection_name} with {file}")
                     break
+        self.logger.setLevel(prior_level)
+        for handler in self.logger.handlers:
+            handler.setLevel(prior_level)
+
         return matched_files
 
     def _match_id(self, file_name: str, media_name: str, poster_id_pattern: re.Pattern):
