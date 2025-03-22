@@ -125,9 +125,7 @@ class Media:
         return [
             title_entry["title"].strip()
             for title_entry in alternate_titles_list
-            if title_entry.get("seasonNumber") == -1
-            or title_entry.get("sceneSeasonNumber") == -1
-            and title_entry.get("title", "").strip()
+                if title_entry.get("title", "").strip()
         ]
 
     def extract_movie_alternate_titles(self, alternate_titles_list):
