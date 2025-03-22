@@ -748,7 +748,8 @@ class PosterRenamerr:
 
         search_matches = self.search_matches(prefix_index, search_title, "all", self.logger, debug_search=False)
         self.logger.debug(f"SEARCH (shows): matched assets for {show_data.get('title', '')} with query {search_title}")
-        self.logger.debug(search_matches)
+        self.logger.debug(f"show_data: {show_data}")
+        self.logger.debug(f"search_matches: {search_matches}")
 
         # really inefficient for now but I have to ensure we loop over _ever single match since seasons are calculated on the fly based on the files
         # this is expensive - especially since we don't remove items from the match list (though we could....)
