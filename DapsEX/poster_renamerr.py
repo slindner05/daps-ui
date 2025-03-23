@@ -371,14 +371,32 @@ class PosterRenamerr:
         self.logger.debug(
             f"Show seasons: {show_seasons}"
         )
-    # need to have a version without the year in compute...
+
+    def get_common_id_sources(self, asset, media, special_debug=False):
+        common_id_sources = []
+        if asset['media_ids']:
+            if media['media_ids']:
+                for media_id_source, media_id in media['media_ids'].items():
+                    if media_id_source in asset['media_ids']:
+                        common_id_sources.append(media_id_source)
+
+        return common_id_sources
+
     def compare_asset_to_media(self, asset, media, special_debug=False):
         match = False
         has_year_match = False
 
-        # if both sides have an id AND the match, we have a match.  Otherwise try alternatives
-        if (asset['item_id'] and media['item_id'] and asset['item_id'] == media['item_id']):
-            return True
+        common_id_sources = self.get_common_id_sources(asset, media, special_debug=special_debug)
+        if common_id_sources:
+            for id_source in common_id_sources:
+                id_match = asset['media_ids'][id_source] == media['media_ids'][id_source]
+                self.logger.info(f"both sides shared a common id! do they match? {id_match} ... asset_ids= {asset['media_ids']}, media_ids= {media['media_ids']}")
+                # if the current source existed but didn't match, but there are still other IDs to consider - keep looping
+                if id_match:
+                    return True
+            # at this poing we know there were common sources and if any had matched we would have short circuited above.
+            self.logger.info(f"both sides shared a common id! but none matched ... asset_ids= {asset['media_ids']}, media_ids= {media['media_ids']}")
+            return False
 
         has_year_match = (media['item_year'] == None and asset['item_year'] == None) or (media['item_year'] == asset['item_year'])
         if not has_year_match:
@@ -448,8 +466,13 @@ class PosterRenamerr:
         year_match = re.search(r"\((\d{4})\)", lowered_orig_string) # should we improve this ?
         object_to_populate['has_season_info'] = bool(re.search(r" - (season|specials)", lowered_orig_string))
         object_to_populate['item_year'] = year_match.group(1) if year_match else None
-        item_id = self.poster_id_pattern.search(lowered_orig_string)
-        object_to_populate['item_id'] = item_id.group(0) if item_id else None
+        all_item_ids = self.poster_id_pattern.findall(lowered_orig_string)
+        # dict of <media_id_source> --> <media_id>
+        media_ids = {}
+        for item_id_match in all_item_ids:
+            media_ids[item_id_match[0]] = item_id_match[1]
+        object_to_populate['media_ids'] = media_ids
+
         season_num_match = re.search(r"- season (\d+)", lowered_orig_string)
         object_to_populate['season_num'] = int(season_num_match.group(1)) if season_num_match else None
         if object_to_populate['has_season_info']:
