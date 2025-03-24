@@ -33,10 +33,11 @@ COPY entrypoint.sh /entrypoint.sh
 COPY migrate_db.py /code/migrate_db.py
 
 # Set environment variables to switch between development and production
-ENV APP_MODE="WEB" 
+ENV APP_MODE="WEB"
 ENV MAIN_LOG_LEVEL="INFO"
 ENV VERSION="1.0.0.alpha.18"
 ENV RCLONE_CONFIG="/config/rclone/rclone.conf"
+ENV SEARCH_DEBUG="leontheprofessional|utoyajuly|dragonballkai|alice|beast|hellsparadise|curiousgeorge|happyvalley|joker|shameless|rivals"
 
 # Use entrypoint script
 ENTRYPOINT [ "/entrypoint.sh" ]

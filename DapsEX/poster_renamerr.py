@@ -82,7 +82,7 @@ class PosterRenamerr:
     image_exts = {".png", ".jpg", ".jpeg"}
 
     # only need to compile this once
-    poster_id_pattern = re.compile(r"\{(imdb|tmdb|tvdb)-([a-zA-Z0-9]+)\}")
+    poster_id_pattern = re.compile(r"[\[\{](imdb|tmdb|tvdb)-([a-zA-Z0-9]+)[\}\]]")
     year_pattern = re.compile(r"\b(19|20)\d{2}\b")
 
     # length to use as a prefix.  anything shorter than this will be used as-is
