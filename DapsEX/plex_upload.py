@@ -219,12 +219,13 @@ class PlexUploaderr:
                 if isinstance(plex_object, list):
                     for item in plex_object:
                         edition_title = getattr(item, "editionTitle", "")
-                        if edition_title and edition_title in uploaded_editions:
-                            if file_name == item_name:
-                                self.logger.debug(
-                                    f"Edition '{edition_title}' already uploaded to library '{library_name}' for '{item_name}', skipping."
-                                )
-                                continue
+                        if edition_title:
+                            if edition_title in uploaded_editions:
+                                if file_name == item_name:
+                                    self.logger.debug(
+                                        f"Edition '{edition_title}' already uploaded to library '{library_name}' for '{item_name}', skipping."
+                                    )
+                                    continue
                         else:
                             if library_name in uploaded_to_libraries:
                                 if file_name == item_name:
