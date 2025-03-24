@@ -37,7 +37,7 @@ ENV APP_MODE="WEB"
 ENV MAIN_LOG_LEVEL="INFO"
 ENV VERSION="1.0.0.alpha.18"
 ENV RCLONE_CONFIG="/config/rclone/rclone.conf"
-ENV SEARCH_DEBUG="leontheprofessional|utoyajuly|dragonballkai|alice|beast|hellsparadise|curiousgeorge|happyvalley|joker|shameless|rivals"
+ENV SEARCH_DEBUG=
 
 # Use entrypoint script
 ENTRYPOINT [ "/entrypoint.sh" ]
