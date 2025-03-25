@@ -2,6 +2,7 @@ import json
 import logging
 import re
 import time
+import datetime
 from collections.abc import Callable
 from pathlib import Path
 from pprint import pformat
@@ -230,33 +231,33 @@ class PlexUploaderr:
                 item_name = utils.remove_chars(title)
                 if isinstance(plex_object, list):
                     for item in plex_object:
-                        edition_title = getattr(item, "editionTitle", "")
-                        if edition_title and edition_title in uploaded_editions:
-                            if file_name == item_name:
-                                self.logger.debug(
-                                    f"Edition '{edition_title}' already uploaded to library '{library_name}' for '{item_name}', skipping."
-                                )
-                                continue
-                        else:
-                            if library_name in uploaded_to_libraries:
-                                if file_name == item_name:
-                                    self.logger.debug(
-                                        f"File already uploaded to library '{library_name}' for '{item_name}', skipping."
-                                    )
-                                    continue
                         if file_name == item_name:
+                            edition_title = getattr(item, "editionTitle", "")
+                            if edition_title:
+                                if edition_title in uploaded_editions:
+                                    self.logger.debug(f"Edition '{edition_title}' already uploaded to library '{library_name}' for '{item_name}', skipping.")
+                                    continue
+                            else:
+                                if library_name in uploaded_to_libraries:
+                                    self.logger.debug(f"File already uploaded to library '{library_name}' for '{item_name}', skipping.")
+                                    continue
+                            # if we found a match for the file... why do we keep looping both the inner and outer loop?
+                            # this implies this file could match multiple items in the same library?
                             matches.append((library_name, item))
                             library_has_match = True
                 else:
                     if file_name == item_name:
-                        if (
-                            library_name in uploaded_to_libraries
-                            and not library_has_match
-                        ):
-                            self.logger.debug(
-                                f"File already uploaded to library '{library_name}', skipping."
-                            )
-                            continue
+                        edition_title = getattr(plex_object, "editionTitle", "")
+                        if edition_title:
+                            if edition_title in uploaded_editions:
+                                self.logger.debug(f"Edition '{edition_title}' already uploaded to library '{library_name}' for '{item_name}', skipping.")
+                                continue
+                        else:
+                            if (library_name in uploaded_to_libraries and not library_has_match):
+                                self.logger.debug(f"File already uploaded to library '{library_name}', skipping.")
+                                continue
+                        # if we found a match for the file... why do we keep looping both the inner and outer loop?
+                        # this implies this file could match multiple items in the same library?
                         matches.append((library_name, plex_object))
                         library_has_match = True
         return matches
