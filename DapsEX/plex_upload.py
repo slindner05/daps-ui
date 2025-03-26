@@ -2,7 +2,8 @@ import json
 import logging
 import re
 import time
-import datetime
+import traceback
+
 from collections.abc import Callable
 from pathlib import Path
 from pprint import pformat
@@ -134,7 +135,7 @@ class PlexUploaderr:
                 )
                 if not item_matches:
                     self.logger.debug(
-                        "All libraries skipped for file item, no further processing."
+                        "Item not found in plex, no further processing for this item."
                     )
                     processed_files.add(file_path)
                     continue
@@ -224,11 +225,13 @@ class PlexUploaderr:
         uploaded_editions: list,
     ):
         matches = []
-
+        self.logger.debug(f"looking for a match for {file_name}")
         for library_name, item_dict in plex_items.items():
             library_has_match = False
+            self.logger.debug(f"looking for match in library '{library_name}'")
             for title, plex_object in item_dict.items():
                 item_name = utils.remove_chars(title)
+                # if "moana 2" in file_name: self.logger.debug(f"file: {file_name} --> item: {item_name}")
                 if isinstance(plex_object, list):
                     for item in plex_object:
                         if file_name == item_name:
@@ -243,6 +246,7 @@ class PlexUploaderr:
                                     continue
                             # if we found a match for the file... why do we keep looping both the inner and outer loop?
                             # this implies this file could match multiple items in the same library?
+                            self.logger.debug(f"match found '{library_name}': file:{file_name} --> plex:{item_name}")
                             matches.append((library_name, item))
                             library_has_match = True
                 else:
@@ -258,6 +262,7 @@ class PlexUploaderr:
                                 continue
                         # if we found a match for the file... why do we keep looping both the inner and outer loop?
                         # this implies this file could match multiple items in the same library?
+                        self.logger.debug(f"match found '{library_name}': file:{file_name} --> plex:{item_name}")
                         matches.append((library_name, plex_object))
                         library_has_match = True
         return matches
@@ -301,7 +306,7 @@ class PlexUploaderr:
                 combined_collections["collections"][library_name].update(
                     collections_dict
                 )
-
+        self.logger.debug(f"processing all plex movie items")
         if plex_movie_dict:
             self.process_files(
                 processed_files,
@@ -309,7 +314,7 @@ class PlexUploaderr:
                 plex_movie_dict,
                 "movie",
             )
-
+        self.logger.debug(f"processing all plex show items")
         if plex_show_dict:
             for file_path, file_info in shows_only.items():
                 if file_path in processed_files:
@@ -329,7 +334,7 @@ class PlexUploaderr:
                         plex_show_dict,
                         "show",
                     )
-
+        self.logger.debug(f"processing all plex collection items")
         if combined_collections:
             self.process_files(
                 processed_files,
@@ -492,7 +497,7 @@ class PlexUploaderr:
                 "Reapply posters is enabled. Clearing uploaded_to_libraries data and re-uploading them to plex."
             )
         else:
-            self.logger.info("Reapply posters is disabled. No action taken.")
+            self.logger.info("Reapply posters is disabled. Leaving cached upload state in tact")
 
         cached_files = self.db.return_all_files()
 
@@ -529,16 +534,22 @@ class PlexUploaderr:
             self.logger.debug(f"Valid files to process: {len(valid_files)}")
             for name, server in self.plex_instances.items():
                 try:
+                    self.logger.debug(f"Starting to fetch Plex data from '{server}")
                     plex_movie_dict, plex_show_dict = server.get_media()
                     plex_media_dict[name] = {
                         "all_movies": plex_movie_dict,
                         "all_shows": plex_show_dict,
                     }
+                    self.logger.debug(f"Finished fetching Plex data from '{server}")
+
                 except Exception as e:
                     self.logger.error(
                         f"Error retrieving media for Plex instance '{name}': {e}"
                     )
+                    self.logger.error(traceback.print_exc)
                     plex_media_dict[name] = {"all_movies": {}, "all_shows": {}}
+                    raise e # purposely crash if this happens vs. silently going forward to make it obvious
+
             if job_id and cb:
                 cb(job_id, 60, ProgressState.IN_PROGRESS)
 
