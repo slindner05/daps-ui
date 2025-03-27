@@ -132,6 +132,7 @@ def run_renamer_task(webhook_item: dict | None = None):
                         plex,
                         radarr,
                         sonarr,
+                        webhook_item,
                         media_dict,
                         chained=True,
                     )
@@ -164,6 +165,7 @@ def run_renamer_task(webhook_item: dict | None = None):
                     plex,
                     radarr,
                     sonarr,
+                    webhook_item,
                     media_dict,
                     chained=True,
                 )
