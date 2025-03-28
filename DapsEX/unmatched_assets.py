@@ -60,7 +60,7 @@ class UnmatchedAssets:
         is_collection_asset: bool | None = None,
     ) -> list | list[tuple[str, str]]:
         extracted_assets = []
-        season_pattern = r"Season\d{2}"
+        season_pattern = r"Season\d+"
         for asset_path, data in asset_dict.items():
             if data.get("media_type") != asset_type:
                 continue
