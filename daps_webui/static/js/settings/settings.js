@@ -597,33 +597,40 @@ function setupRenamerrRemoveButtons() {
  */
 let driveSelectCounter = 0;
 
-let availableDrives = {
-  drazzilb: "1VeeQ_frBFpp6AZLimaJSSr0Qsrl6Tb7z",
-  zarox: "1wOhY88zc0wdQU-QQmhm4FzHL9QiCQnpu",
-  solen: "1YEuS1pulJAfhKm4L8U9z5-EMtGl-d2s7",
-  bz: "1Xg9Huh7THDbmjeanW0KyRbEm6mGn_jm8",
-  iamspartacus: "1aRngLdC9yO93gvSrTI2LQ_I9BSoGD-7o",
-  lioncitygaming: "1alseEnUBjH6CjXh77b5L4R-ZDGdtOMFr",
-  majorgiant: "1ZfvUgN0qz4lJYkC_iMRjhH-fZ0rDN_Yu",
-  sahara: "1KnwxzwBUQzQyKF1e24q_wlFqcER9xYHM",
-  stupifier: "1bBbK_3JeXCy3ElqTwkFHaNoNxYgqtLug",
-  quafley: "1G77TLQvgs_R7HdMWkMcwHL6vd_96cMp7",
-  dsaq: "1wrSru-46iIN1iqCl2Cjhj5ofdazPgbsz",
-  overbook874: "1LIVG1RbTEd7tTJMbzZr7Zak05XznLFia",
-  mareau: "1hEY9qEdXVDzIbnQ4z9Vpo0SVXXuZBZR-",
-  tokenminal: "1KJlsnMz-z2RAfNxKZp7sYP_U0SD1V6lS",
-  kalyanrajnish: "1Kb1kFZzzKKlq5N_ob8AFxJvStvm9PdiL",
-  minimyself: "1ZhcV8Ybja4sJRrVze-twOmb8fEZfZ2Ci",
-  theotherguy_1: "1TYVIGKpSwhipLyVQQn_OJHTobM6KaokB",
-  theotherguy_2: "15faKB1cDQAhjTQCvj8MvGUQb0nBORWGC",
-  reitenth: "1cqDinU27cnHf5sL5rSlfO7o_T6LSxG77",
-  wenisinmood: "1Wz0S18sKOeyBURkJ1uT3RtkEmSsK1-PG",
-  jpalenz77: "1qBC7p9K4zur5dOCf3F6VTyUROVvHQoSb",
-  chrisdc: "1oBzEOXXrTHGq6sUY_4RMtzMTt4VHyeJp",
-  majorgiant_2: "15sNlcFZmeDox2OQJyGjVxRwtigtd82Ru",
-  iamspartacus_2: "1-WhCVwRLfV6hxyKF7W5IuzIHIYicCdAv",
-  solen_2: "1zWY-ORtJkOLcQChV--oHquxW3JCow1zm",
-};
+let availableDrives = [
+  { name: "drazzilb", id: "1VeeQ_frBFpp6AZLimaJSSr0Qsrl6Tb7z" },
+  { name: "zarox", id: "1wOhY88zc0wdQU-QQmhm4FzHL9QiCQnpu" },
+  { name: "solen", id: "1YEuS1pulJAfhKm4L8U9z5-EMtGl-d2s7" },
+  { name: "bz", id: "1Xg9Huh7THDbmjeanW0KyRbEm6mGn_jm8" },
+  { name: "iamspartacus", id: "1aRngLdC9yO93gvSrTI2LQ_I9BSoGD-7o" },
+  { name: "lioncitygaming", id: "1alseEnUBjH6CjXh77b5L4R-ZDGdtOMFr" },
+  { name: "majorgiant", id: "1ZfvUgN0qz4lJYkC_iMRjhH-fZ0rDN_Yu" },
+  { name: "sahara", id: "1KnwxzwBUQzQyKF1e24q_wlFqcER9xYHM" },
+  { name: "stupifier", id: "1bBbK_3JeXCy3ElqTwkFHaNoNxYgqtLug" },
+  { name: "quafley", id: "1G77TLQvgs_R7HdMWkMcwHL6vd_96cMp7" },
+  { name: "dsaq", id: "1wrSru-46iIN1iqCl2Cjhj5ofdazPgbsz" },
+  { name: "overbook874", id: "1LIVG1RbTEd7tTJMbzZr7Zak05XznLFia" },
+  { name: "mareau", id: "1hEY9qEdXVDzIbnQ4z9Vpo0SVXXuZBZR-" },
+  { name: "tokenminal", id: "1KJlsnMz-z2RAfNxKZp7sYP_U0SD1V6lS" },
+  { name: "kalyanrajnish", id: "1Kb1kFZzzKKlq5N_ob8AFxJvStvm9PdiL" },
+  { name: "minimyself", id: "1ZhcV8Ybja4sJRrVze-twOmb8fEZfZ2Ci" },
+  { name: "theotherguy_1", id: "1TYVIGKpSwhipLyVQQn_OJHTobM6KaokB" },
+  { name: "theotherguy_2", id: "15faKB1cDQAhjTQCvj8MvGUQb0nBORWGC" },
+  { name: "reitenth", id: "1cqDinU27cnHf5sL5rSlfO7o_T6LSxG77" },
+  { name: "wenisinmood", id: "1Wz0S18sKOeyBURkJ1uT3RtkEmSsK1-PG" },
+  { name: "jpalenz77", id: "1qBC7p9K4zur5dOCf3F6VTyUROVvHQoSb" },
+  { name: "chrisdc", id: "1oBzEOXXrTHGq6sUY_4RMtzMTt4VHyeJp" },
+  { name: "majorgiant_2", id: "15sNlcFZmeDox2OQJyGjVxRwtigtd82Ru" },
+  { name: "iamspartacus_2", id: "1-WhCVwRLfV6hxyKF7W5IuzIHIYicCdAv" },
+  { name: "solen_2", id: "1zWY-ORtJkOLcQChV--oHquxW3JCow1zm" },
+];
+
+availableDrives.sort((a, b) => a.name.localeCompare(b.name));
+
+const sortedAvailableDrives = availableDrives.reduce((obj, { name, id }) => {
+  obj[name] = id;
+  return obj;
+}, {});
 
 function attachDriveSync() {
   // Populate the drive sync select options
@@ -631,7 +638,7 @@ function attachDriveSync() {
   driveSelects.forEach((selectWrapper) => {
     const selectElement = selectWrapper.querySelector("select");
     // Add the available drives to the select element
-    Object.entries(availableDrives).forEach(([name, id]) => {
+    Object.entries(sortedAvailableDrives).forEach(([name, id]) => {
       const optionElement = document.createElement("option");
       optionElement.value = id;
       optionElement.textContent = name;
