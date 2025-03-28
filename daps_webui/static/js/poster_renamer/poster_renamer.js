@@ -106,7 +106,7 @@ function refreshSortedFiles(callback) {
     .then((data) => {
       if (data.success) {
         const sortedFiles = data.sorted_files;
-        console.log(sortedFiles);
+        // console.log(sortedFiles);
 
         const isSortedFilesEmpty =
           sortedFiles.movies.length === 0 &&
@@ -128,6 +128,9 @@ function refreshSortedFiles(callback) {
           ...Object.values(sortedFiles.shows),
           ...sortedFiles.collections,
         ];
+
+        allFiles.sort((a, b) => a.file_name.localeCompare(b.file_name));
+
         populateTab("all", allFiles);
         populateTab("movies", sortedFiles.movies);
         populateTab("series", sortedFiles.shows);
