@@ -14,6 +14,9 @@ class WebhookManager:
 
     def is_duplicate_webhook(self, new_item, cache_duration=600) -> bool:
         item_name = Path(new_item["item_path"]).stem
+        if new_item.get("season"):
+            item_name = f"{item_name} - Season {new_item['season']}"
+
         now = datetime.now(timezone.utc)
         cutoff = now - timedelta(seconds=cache_duration)
 

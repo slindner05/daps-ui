@@ -2,6 +2,7 @@ import os
 import re
 from collections import defaultdict
 from pathlib import Path
+from pprint import pformat
 
 from flask import Blueprint, jsonify, render_template, request, send_from_directory
 
@@ -482,11 +483,17 @@ def recieve_webhook():
             return jsonify({"message": "Invalid webhook data"}), 400
 
         item_path = None
+        season = None
 
         if item_type == "movie":
             item_path = data.get(item_type, {}).get("folderPath", None)
         elif item_type == "series":
             item_path = data.get(item_type, {}).get("path", None)
+            episodes = data.get(item_type, {}).get("episodes", [])
+            if episodes:
+                season = episodes[0].get("seasonNumber", None)
+            else:
+                season = None
 
         if not item_path:
             daps_logger.error("Item path missing from webhook data")
@@ -499,7 +506,10 @@ def recieve_webhook():
             "item_id": id,
             "instance_name": instance,
             "item_path": item_path,
+            "season": season,
         }
+
+        daps_logger.debug(f"NEW ITEM = \n{pformat(new_item, indent=2)}")
 
         is_duplicate = webhook_manager.is_duplicate_webhook(new_item)
         if is_duplicate:
