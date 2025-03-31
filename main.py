@@ -88,7 +88,6 @@ def run_plex_uploaderr(
 
 def add_scheduled_jobs(scheduler: BackgroundScheduler, config: YamlConfig):
     def add_job_safe(func, job_id, schedule, schedule_name):
-
         if not schedule:
             logger.warning(f"No schedule found for {schedule_name}. Skipping Job")
             return

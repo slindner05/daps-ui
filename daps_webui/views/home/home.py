@@ -13,4 +13,3 @@ def home_route():
     # daps_logger.info("REFRESHING RIGHT NOW!")
 
     return render_template("home/index.html", my_name=my_name)
-

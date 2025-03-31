@@ -13,6 +13,7 @@ from plexapi.exceptions import BadRequest, UnknownType
 from plexapi.exceptions import Unauthorized as PlexApiUnauthorized
 from plexapi.server import PlexServer
 
+
 class Media:
     def get_series_with_seasons(
         self, logger, all_series_objects: list[Series], instance_name: str
@@ -105,7 +106,9 @@ class Media:
             try:
                 raw_api = media_object._raw
                 movie_data = raw_api.get_movie_id(movie_id)
-                alternate_titles = self.extract_movie_alternate_titles(movie_data.get("alternateTitles", []))
+                alternate_titles = self.extract_movie_alternate_titles(
+                    movie_data.get("alternateTitles", [])
+                )
                 dict_with_years["alternate_titles"] = alternate_titles
                 secondary_year = movie_data.get("secondaryYear", None)
                 if secondary_year:
@@ -125,7 +128,7 @@ class Media:
         return [
             title_entry["title"].strip()
             for title_entry in alternate_titles_list
-                if title_entry.get("title", "").strip()
+            if title_entry.get("title", "").strip()
         ]
 
     def extract_movie_alternate_titles(self, alternate_titles_list):
@@ -134,7 +137,6 @@ class Media:
             for title_entry in alternate_titles_list
             if title_entry.get("title", "").strip()
         ]
-
 
 
 class Radarr(Media):
@@ -294,31 +296,44 @@ class Server:
 
     # largely taken from what Kometa does
     def get_all_with_paging(self, library):
-            self.logger.info(f"Loading All {library.type.capitalize()}s from Library: {library.title}")
-            key = f"/library/sections/{library.key}/all?includeGuids=1&type={plexutils.searchType(library.type)}"
-            container_start = 0
-            container_size = plexapi.X_PLEX_CONTAINER_SIZE
-            results = []
-            total_size = 1
-            while total_size > len(results) and container_start <= total_size:
-                self.logger.debug(f"doing an iteration: total={total_size}, start={container_start}, size={container_size}")
-                data = library._server.query(key, headers={"X-Plex-Container-Start": str(container_start), "X-Plex-Container-Size": str(container_size)})
-                subresults = library.findItems(data, initpath=key)
-                total_size = plexutils.cast(int, data.attrib.get('totalSize') or data.attrib.get('size')) or len(subresults)
+        self.logger.info(
+            f"Loading All {library.type.capitalize()}s from Library: {library.title}"
+        )
+        key = f"/library/sections/{library.key}/all?includeGuids=1&type={plexutils.searchType(library.type)}"
+        container_start = 0
+        container_size = plexapi.X_PLEX_CONTAINER_SIZE
+        results = []
+        total_size = 1
+        while total_size > len(results) and container_start <= total_size:
+            self.logger.debug(
+                f"doing an iteration: total={total_size}, start={container_start}, size={container_size}"
+            )
+            data = library._server.query(
+                key,
+                headers={
+                    "X-Plex-Container-Start": str(container_start),
+                    "X-Plex-Container-Size": str(container_size),
+                },
+            )
+            subresults = library.findItems(data, initpath=key)
+            total_size = plexutils.cast(
+                int, data.attrib.get("totalSize") or data.attrib.get("size")
+            ) or len(subresults)
 
-                librarySectionID = plexutils.cast(int, data.attrib.get('librarySectionID'))
-                if librarySectionID:
-                    for item in subresults:
-                        item.librarySectionID = librarySectionID
+            librarySectionID = plexutils.cast(int, data.attrib.get("librarySectionID"))
+            if librarySectionID:
+                for item in subresults:
+                    item.librarySectionID = librarySectionID
 
-                results.extend(subresults)
-                container_start += container_size
-                self.logger.debug(f"Loaded: {total_size if container_start > total_size else container_start}/{total_size}")
+            results.extend(subresults)
+            container_start += container_size
+            self.logger.debug(
+                f"Loaded: {total_size if container_start > total_size else container_start}/{total_size}"
+            )
 
-            self.logger.info(f"Loaded {total_size} {library.type.capitalize()}s")
+        self.logger.info(f"Loaded {total_size} {library.type.capitalize()}s")
 
-            return results
-
+        return results
 
     def _process_library(
         self,
@@ -331,14 +346,18 @@ class Server:
             item_dict[library.type][library_title] = {}
         if fetch_collections and library_title not in item_dict["collections"]:
             item_dict["collections"][library_title] = {}
-        self.logger.debug(f"Getting all media items from library {library_title}, type={library.type}")
+        self.logger.debug(
+            f"Getting all media items from library {library_title}, type={library.type}"
+        )
 
         self.logger.debug(f"doing paging...")
         all_items = self.get_all_with_paging(library)
         self.logger.debug(f"done doing paging...")
 
         # all_items = library.all()
-        self.logger.debug(f"finished getting all media items from library {library_title}, type={library.type}")
+        self.logger.debug(
+            f"finished getting all media items from library {library_title}, type={library.type}"
+        )
         for item in all_items:
             title_key = item.title
             year = item.year or ""
@@ -351,10 +370,14 @@ class Server:
             item_dict[library.type][library_title][title_name] = item
 
         if fetch_collections:
-            self.logger.debug(f"Getting all collections from library {library_title}, type={library.type}")
+            self.logger.debug(
+                f"Getting all collections from library {library_title}, type={library.type}"
+            )
             # hopefully this doesn't need to be paged as well?
             all_collections = library.collections()
-            self.logger.debug(f"Finished getting all collections from library {library_title}, type={library.type}")
+            self.logger.debug(
+                f"Finished getting all collections from library {library_title}, type={library.type}"
+            )
             for collection in all_collections:
                 collection_key = collection.title
                 item_dict["collections"][library_title][collection_key] = collection

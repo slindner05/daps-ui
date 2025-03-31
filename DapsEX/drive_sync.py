@@ -102,7 +102,9 @@ class DriveSync:
             except Exception as e:
                 self.logger.error(f"Problem rotating rclone log file: {e}")
                 self.logger.error(f"rclone log file full path: {rclone_full_log_path}")
-                self.logger.error(f"rclone log file rotated path: {rclone_full_log_path + rclone_rotated_log_suffix}")
+                self.logger.error(
+                    f"rclone log file rotated path: {rclone_full_log_path + rclone_rotated_log_suffix}"
+                )
 
         for drive in self.gdrives:
             drive_name = drive["drive_name"]
@@ -153,7 +155,6 @@ class DriveSync:
 
             if self.logger.isEnabledFor(logging.DEBUG):
                 rclone_command.append(f"--log-file={rclone_full_log_path}")
-
 
             # Initialize using OAuth
             if self.client_id and self.rclone_secret and self.rclone_token:
