@@ -440,7 +440,7 @@ def recieve_webhook():
             database.add_job_to_history(job_name, "failed", "webhook")
             database.update_scheduled_job(job_name, None)
             return jsonify({"message": "No data received"}), 400
-        daps_logger.debug(f"===== Webhook data =====\n{data}")
+        daps_logger.debug(f"===== Webhook data =====\n{pformat(data, indent=2)}")
 
         valid_event_types = ["Download", "Grab", "MovieAdded", "SeriesAdd"]
         webhook_event_type = data.get("eventType", "")
@@ -487,7 +487,7 @@ def recieve_webhook():
         if item_type == "movie":
             item_path = data.get(item_type, {}).get("folderPath", None)
         elif item_type == "series":
-            item_path = data.get(item_type, {}).get("destinationPath", None)
+            item_path = data.get("destinationPath", None)
 
         if not item_path:
             daps_logger.error("Item path missing from webhook data")
