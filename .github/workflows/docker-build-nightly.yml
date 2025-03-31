@@ -4,7 +4,17 @@ on:
   push:
     branches:
       - develop
-
+    paths:
+      - "daps_webui/**"
+      - "DapsEX/**"
+      - "Dockerfile"
+      - "**/package*.json"
+      - "migrations/**"
+      - "Payloads/**"
+      - "entrypoint.sh"
+      - "migrate_db.py"
+      - "progress.py"
+      - "scheduler.py"
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
