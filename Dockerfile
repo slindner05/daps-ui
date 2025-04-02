@@ -1,6 +1,6 @@
 # # syntax=docker/dockerfile:1
 
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 RUN groupadd --gid 1000 appgroup && \
     useradd --create-home --shell /bin/bash --uid 1000 --gid 1000 appuser
