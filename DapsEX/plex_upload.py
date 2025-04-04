@@ -3,7 +3,6 @@ import logging
 import re
 import time
 import traceback
-
 from collections.abc import Callable
 from pathlib import Path
 from pprint import pformat
@@ -160,10 +159,10 @@ class PlexUploaderr:
         file_info: dict,
     ) -> bool:
         if self.asset_folders:
-            season_match = re.match(r"^Season(\d{2})", file_info["file_name"])
+            season_match = re.match(r"^Season(\d+)", file_info["file_name"])
         else:
             season_match = re.match(
-                r"^(.*\s\(\d{4}\)\s.*)_Season(\d{2}).*$", file_info["file_name"]
+                r"^(.*\s\(\d{4}\)\s.*)_Season(\d+).*$", file_info["file_name"]
             )
         if not season_match:
             return False
@@ -626,13 +625,13 @@ class PlexUploaderr:
         for file_path, cached_item in cached_files.items():
             if self.asset_folders:
                 title = Path(file_path).parent.name.lower()
-                season_pattern = re.match(r"(Season\d{2})", cached_item["file_name"])
+                season_pattern = re.match(r"(Season\d+)", cached_item["file_name"])
                 season = season_pattern.group(1).lower() if season_pattern else None
             else:
                 full_name = cached_item.get("file_name").lower()
-                title_pattern = re.match(r"(.*)_season\d{2}$", full_name)
+                title_pattern = re.match(r"(.*)_season\d+$", full_name)
                 title = title_pattern.group(1) if title_pattern else full_name
-                season_pattern = re.match(r".*_(season\d{2})$", full_name)
+                season_pattern = re.match(r".*_(season\d+)$", full_name)
                 season = season_pattern.group(1).lower() if season_pattern else None
 
             media_type = cached_item.get("media_type")
