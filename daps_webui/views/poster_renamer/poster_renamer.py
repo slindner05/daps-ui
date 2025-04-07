@@ -487,7 +487,24 @@ def recieve_webhook():
         if item_type == "movie":
             item_path = data.get(item_type, {}).get("folderPath", None)
         elif item_type == "series":
-            item_path = data.get("destinationPath", None)
+            item_path = data.get(item_type, {}).get("path", None)
+            episodes = data.get("episodes", [])
+            if episodes:
+                episode = episodes[0]
+                season_number = episode.get("seasonNumber", None)
+                if season_number:
+                    item_path = f"{item_path}-Season{season_number}"
+                    daps_logger.debug(
+                        f"Found episodes, updating item_path to '{item_path}'"
+                    )
+                else:
+                    daps_logger.debug(
+                        f"No season number found, sticking with item_path= '{item_path}'"
+                    )
+            else:
+                daps_logger.debug(
+                    f"No episode info found, sticking with item_path= '{item_path}'"
+                )
 
         if not item_path:
             daps_logger.error("Item path missing from webhook data")
