@@ -13,13 +13,7 @@ class WebhookManager:
         self.logger = logger
 
     def is_duplicate_webhook(self, new_item, cache_duration=600) -> bool:
-        if new_item.get("type") == "series":
-            item_path = Path(new_item["item_path"])
-            season = item_path.name
-            series_name = item_path.parent.name
-            item_name = f"{series_name} - {season}"
-        else:
-            item_name = Path(new_item["item_path"]).stem
+        item_name = Path(new_item["item_path"]).stem
 
         now = datetime.now(timezone.utc)
         cutoff = now - timedelta(seconds=cache_duration)
