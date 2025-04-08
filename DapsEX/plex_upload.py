@@ -65,7 +65,7 @@ class PlexUploaderr:
             for item in plex_media_objects:
                 try:
                     library = getattr(item, "librarySectionTitle", "Unknown Library")
-                    edition = getattr(item, "editionTitle", None)
+                    edition = getattr(item, "editionTitle", "default_no_edition_specified")
                     # this is where we should remove the overlay label in plex that kometa added
                     labels = getattr(item, "labels", None)
                     hasKometaOverlayLabel = False
@@ -235,7 +235,7 @@ class PlexUploaderr:
                 if isinstance(plex_object, list):
                     for item in plex_object:
                         if file_name == item_name:
-                            edition_title = getattr(item, "editionTitle", "")
+                            edition_title = getattr(item, "editionTitle", "default_no_edition_specified")
                             if edition_title:
                                 if edition_title in uploaded_editions:
                                     self.logger.debug(
@@ -257,7 +257,7 @@ class PlexUploaderr:
                             library_has_match = True
                 else:
                     if file_name == item_name:
-                        edition_title = getattr(plex_object, "editionTitle", "")
+                        edition_title = getattr(plex_object, "editionTitle", "default_no_edition_specified")
                         if edition_title:
                             if edition_title in uploaded_editions:
                                 self.logger.debug(
