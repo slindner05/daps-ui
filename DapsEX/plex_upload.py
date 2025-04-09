@@ -15,6 +15,8 @@ from progress import ProgressState
 
 
 class PlexUploaderr:
+    DEFAULT_EDITION_MOVIE = "dapsui_edition"
+
     def __init__(
         self,
         payload,
@@ -64,7 +66,7 @@ class PlexUploaderr:
             for item in plex_media_objects:
                 try:
                     library = getattr(item, "librarySectionTitle", "Unknown Library")
-                    edition = getattr(item, "editionTitle", None)
+                    edition = self.get_edition_title_from_plex_object(item)
                     # this is where we should remove the overlay label in plex that kometa added
                     labels = getattr(item, "labels", None)
                     hasKometaOverlayLabel = False
@@ -131,6 +133,7 @@ class PlexUploaderr:
                     plex_dict[item_type],
                     uploaded_to_libraries,
                     uploaded_editions,
+                    file_path,
                 )
                 if not item_matches:
                     self.logger.debug(
@@ -178,7 +181,11 @@ class PlexUploaderr:
         uploaded_to_libraries = file_info.get("uploaded_to_libraries", [])
         uploaded_editions = file_info.get("uploaded_editions", [])
         show_matches = self.find_match(
-            file_name, plex_show_dict["show"], uploaded_to_libraries, uploaded_editions
+            file_name,
+            plex_show_dict["show"],
+            uploaded_to_libraries,
+            uploaded_editions,
+            file_path,
         )
 
         if not show_matches:
@@ -222,64 +229,114 @@ class PlexUploaderr:
         plex_items: dict,
         uploaded_to_libraries: list,
         uploaded_editions: list,
+        file_path: str,
     ):
         matches = []
         self.logger.debug(f"looking for a match for {file_name}")
         for library_name, item_dict in plex_items.items():
-            library_has_match = False
             self.logger.debug(f"looking for match in library '{library_name}'")
             for title, plex_object in item_dict.items():
                 item_name = utils.remove_chars(title)
-                # if "moana 2" in file_name: self.logger.debug(f"file: {file_name} --> item: {item_name}")
                 if isinstance(plex_object, list):
                     for item in plex_object:
                         if file_name == item_name:
-                            edition_title = getattr(item, "editionTitle", "")
-                            if edition_title:
+                            if item.type == "movie":
+                                edition_title = self.get_edition_title_from_plex_object(
+                                    item
+                                )
                                 if edition_title in uploaded_editions:
                                     self.logger.debug(
                                         f"Edition '{edition_title}' already uploaded to library '{library_name}' for '{item_name}', skipping."
                                     )
                                     continue
+                                if self.add_default_edition_if_needed(
+                                    uploaded_to_libraries,
+                                    uploaded_editions,
+                                    file_path,
+                                    library_name,
+                                    item_name,
+                                    edition_title,
+                                ):
+                                    continue
+
+                                # if we found a match for the file... why do we keep looping both the inner and outer loop?
+                                # this implies this file could match multiple items in the same library?
                             else:
                                 if library_name in uploaded_to_libraries:
                                     self.logger.debug(
                                         f"File already uploaded to library '{library_name}' for '{item_name}', skipping."
                                     )
                                     continue
-                            # if we found a match for the file... why do we keep looping both the inner and outer loop?
-                            # this implies this file could match multiple items in the same library?
+
                             self.logger.debug(
-                                f"match found '{library_name}': file:{file_name} --> plex:{item_name}"
+                                f"match found (list) '{library_name}': file:{file_name} --> plex:{item_name}"
                             )
                             matches.append((library_name, item))
-                            library_has_match = True
                 else:
                     if file_name == item_name:
-                        edition_title = getattr(plex_object, "editionTitle", "")
-                        if edition_title:
+                        if plex_object.type == "movie":
+                            edition_title = self.get_edition_title_from_plex_object(
+                                plex_object
+                            )
                             if edition_title in uploaded_editions:
                                 self.logger.debug(
                                     f"Edition '{edition_title}' already uploaded to library '{library_name}' for '{item_name}', skipping."
                                 )
                                 continue
-                        else:
-                            if (
-                                library_name in uploaded_to_libraries
-                                and not library_has_match
+                            if self.add_default_edition_if_needed(
+                                uploaded_to_libraries,
+                                uploaded_editions,
+                                file_path,
+                                library_name,
+                                item_name,
+                                edition_title,
                             ):
+                                continue
+                        else:
+                            if library_name in uploaded_to_libraries:
                                 self.logger.debug(
-                                    f"File already uploaded to library '{library_name}', skipping."
+                                    f"File already uploaded to library '{library_name}' for '{item_name}', skipping."
                                 )
                                 continue
-                        # if we found a match for the file... why do we keep looping both the inner and outer loop?
-                        # this implies this file could match multiple items in the same library?
+                            # if we found a match for the file... why do we keep looping both the inner and outer loop?
+                            # this implies this file could match multiple items in the same library?
                         self.logger.debug(
-                            f"match found '{library_name}': file:{file_name} --> plex:{item_name}"
+                            f"match found (item) '{library_name}': file:{file_name} --> plex:{item_name}"
                         )
                         matches.append((library_name, plex_object))
-                        library_has_match = True
         return matches
+
+    def get_edition_title_from_plex_object(self, plex_object):
+        edition_title = getattr(plex_object, "editionTitle", None)
+        if not edition_title and plex_object.type == "movie":
+            edition_title = PlexUploaderr.DEFAULT_EDITION_MOVIE
+        return edition_title
+
+    def add_default_edition_if_needed(
+        self,
+        uploaded_to_libraries,
+        uploaded_editions,
+        file_path,
+        library_name,
+        item_name,
+        edition_title,
+    ):
+        if (
+            edition_title == PlexUploaderr.DEFAULT_EDITION_MOVIE
+            and not uploaded_editions
+            and library_name in uploaded_to_libraries
+        ):
+            self.logger.debug(
+                f"File already uploaded to library '{library_name}' for '{item_name}', skipping."
+            )
+            uploaded_editions.append(edition_title)
+            self.logger.debug(
+                f"Appending default edition {edition_title} to edition list"
+            )
+            self.db.update_uploaded_editions(file_path, uploaded_editions)
+            return True
+
+        return False
 
     def upload_poster(
         self,
@@ -320,7 +377,7 @@ class PlexUploaderr:
                 combined_collections["collections"][library_name].update(
                     collections_dict
                 )
-        self.logger.debug(f"processing all plex movie items")
+        self.logger.debug("Processing all plex movie items")
         if plex_movie_dict:
             self.process_files(
                 processed_files,
@@ -328,7 +385,7 @@ class PlexUploaderr:
                 plex_movie_dict,
                 "movie",
             )
-        self.logger.debug(f"processing all plex show items")
+        self.logger.debug("Processing all plex show items")
         if plex_show_dict:
             for file_path, file_info in shows_only.items():
                 if file_path in processed_files:
@@ -348,7 +405,7 @@ class PlexUploaderr:
                         plex_show_dict,
                         "show",
                     )
-        self.logger.debug(f"processing all plex collection items")
+        self.logger.debug("Processing all plex collection items")
         if combined_collections:
             self.process_files(
                 processed_files,
