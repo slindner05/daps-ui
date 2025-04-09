@@ -49,9 +49,12 @@ class PlexUploaderr:
             self.logger.exception("Failed to initialize PlexUploaderr")
             raise e
 
-    def _log_banner(self):
+    def _log_banner(self, webhook_run=False):
         self.logger.info("\n" + "#" * 80)
-        self.logger.info("### New PlexUploaderr Run")
+        if webhook_run:
+            self.logger.info("### New Plexuploaderr Run (Webhook)")
+        else:
+            self.logger.info("### New PlexUploaderr Run")
         self.logger.info("\n" + "#" * 80)
 
     def add_poster_to_plex(
@@ -655,6 +658,8 @@ class PlexUploaderr:
             if job_id and cb:
                 cb(job_id, 100, ProgressState.COMPLETED)
 
+        self.logger.info("Finished plex upload.")
+
     def update_cached_files(self, cached_files: dict):
         media_dict = utils.get_combined_media_dict(
             self.radarr_instances, self.sonarr_instances
@@ -746,7 +751,7 @@ class PlexUploaderr:
     def upload_posters_webhook(
         self,
     ):
-        self._log_banner()
+        self._log_banner(webhook_run=True)
         if self.reapply_posters:
             self.db.clear_uploaded_to_libraries_and_editions(webhook_run=True)
             self.logger.info(
@@ -845,7 +850,6 @@ class PlexUploaderr:
                             item_title,
                             webhook_cached_files,
                         )
-
                 else:
                     _, updated_show_dict = self.convert_plex_dict_titles_to_paths(
                         plex_movie_dict=None,
@@ -886,3 +890,4 @@ class PlexUploaderr:
                             item_title,
                             webhook_cached_files,
                         )
+        self.logger.info("Finished plex upload (webhook).")
