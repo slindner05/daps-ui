@@ -192,9 +192,9 @@ class PosterRenamerr:
 
         return matches
 
-    def _log_banner(self):
+    def _log_banner(self, job_id):
         self.logger.info("\n" + "#" * 80)
-        self.logger.info("### New PosterRenamerr Run")
+        self.logger.info(f"### New PosterRenamerr Run - Job ID: '{job_id}'")
         self.logger.info("\n" + "#" * 80)
 
     def clean_cache(self) -> None:
@@ -1709,7 +1709,7 @@ class PosterRenamerr:
             unmatched_collections_dict = {}
             media_dict = {}
             collections_dict = {}
-            self._log_banner()
+            self._log_banner(job_id)
             if single_item:
                 self.logger.info("Run triggered for a single item via webhook")
                 asset_type = single_item.get("type", "")

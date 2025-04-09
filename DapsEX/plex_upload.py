@@ -49,12 +49,14 @@ class PlexUploaderr:
             self.logger.exception("Failed to initialize PlexUploaderr")
             raise e
 
-    def _log_banner(self, webhook_run=False):
+    def _log_banner(self, job_id, webhook_run=False):
         self.logger.info("\n" + "#" * 80)
         if webhook_run:
-            self.logger.info("### New Plexuploaderr Run (Webhook)")
+            self.logger.info(
+                f"### New Plexuploaderr Run (Webhook) -- Job ID: '{job_id}'"
+            )
         else:
-            self.logger.info("### New PlexUploaderr Run")
+            self.logger.info(f"### New PlexUploaderr Run -- Job ID: '{job_id}'")
         self.logger.info("\n" + "#" * 80)
 
     def add_poster_to_plex(
@@ -564,7 +566,7 @@ class PlexUploaderr:
     ):
         plex_media_dict = {}
 
-        self._log_banner()
+        self._log_banner(job_id)
         if self.reapply_posters:
             self.db.clear_uploaded_to_libraries_and_editions()
             self.logger.info(
@@ -750,8 +752,9 @@ class PlexUploaderr:
 
     def upload_posters_webhook(
         self,
+        job_id: str,
     ):
-        self._log_banner(webhook_run=True)
+        self._log_banner(job_id, webhook_run=True)
         if self.reapply_posters:
             self.db.clear_uploaded_to_libraries_and_editions(webhook_run=True)
             self.logger.info(

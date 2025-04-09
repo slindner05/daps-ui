@@ -1,7 +1,7 @@
 import json
 import logging
-import subprocess
 import os
+import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
@@ -29,6 +29,11 @@ class DriveSync:
         except Exception as e:
             self.logger.exception("Failed to initialize DriveSync")
             raise e
+
+    def _log_banner(self, job_id):
+        self.logger.info("\n" + "#" * 80)
+        self.logger.info(f"### New DriveSync Run -- Job ID: '{job_id}'")
+        self.logger.info("\n" + "#" * 80)
 
     def remote_exists(self, remote_name: str) -> bool:
         try:
@@ -71,6 +76,7 @@ class DriveSync:
         cb: Callable[[str, int, ProgressState], None] | None = None,
         job_id: str | None = None,
     ):
+        self._log_banner(job_id)
         self.create_remote()
         total_drives = len(self.gdrives)
 
