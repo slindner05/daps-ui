@@ -19,6 +19,7 @@ class JobProgress:
 
 class Progress:
     def __init__(self, manager) -> None:
+        self._lock = manager.Lock()
         self.progress_map = manager.dict()
         self.progress_value = 0
         self.counters = manager.dict(
@@ -39,12 +40,15 @@ class Progress:
 
         Returns: str(job_id)
         """
-        job_name = job_name.lower().strip()
-        if job_name not in self.counters:
-            raise ValueError(f"Unknown job type: {job_name}")
+        if not job_name or not isinstance(job_name, str):
+            raise ValueError("job_name must be a non-empty string")
 
-        self.counters[job_name] += 1
-        job_id = f"{job_name}_{self.counters[job_name]:04d}"
+        job_name = job_name.lower().strip()
+        with self._lock:
+            if job_name not in self.counters:
+                raise ValueError(f"Unknown job type: {job_name}")
+            self.counters[job_name] += 1
+            job_id = f"{job_name}_{self.counters[job_name]:04d}"
 
         self.progress_map[job_id] = {
             "state": ProgressState.PENDING.value,
