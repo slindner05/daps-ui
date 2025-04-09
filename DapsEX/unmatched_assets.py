@@ -44,9 +44,9 @@ class UnmatchedAssets:
 
     image_exts = {".png", ".jpg", ".jpeg"}
 
-    def _log_banner(self):
+    def _log_banner(self, job_id):
         self.logger.info("\n" + "#" * 80)
-        self.logger.info("### New UnmatchedAssets Run")
+        self.logger.info(f"### New UnmatchedAssets Run -- Job ID: '{job_id}'")
         self.logger.info("\n" + "#" * 80)
 
     def get_assets_from_db(self):
@@ -505,7 +505,7 @@ class UnmatchedAssets:
         from DapsEX import utils
 
         try:
-            self._log_banner()
+            self._log_banner(job_id)
             if job_id and cb:
                 cb(job_id, 20, ProgressState.IN_PROGRESS)
 

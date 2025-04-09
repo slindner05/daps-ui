@@ -36,9 +36,9 @@ class BorderReplacerr:
         else:
             self.custom_color = custom_color
 
-    def _log_banner(self):
+    def _log_banner(self, job_id):
         self.logger.info("\n" + "#" * 80)
-        self.logger.info("### New BorderReplacerr Run")
+        self.logger.info(f"### New BorderReplacerr Run -- Job ID: '{job_id}'")
         self.logger.info("\n" + "#" * 80)
 
     def remove_border(self, image_path: Path):
@@ -70,7 +70,7 @@ class BorderReplacerr:
         job_id: str | None = None,
     ):
         try:
-            self._log_banner()
+            self._log_banner(job_id)
             original_poster_paths = [
                 poster for poster in self.backup_path.rglob("*") if poster.is_file()
             ]

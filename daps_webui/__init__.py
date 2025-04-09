@@ -15,6 +15,7 @@ from DapsEX.border_replacerr import BorderReplacerr
 from DapsEX.drive_sync import DriveSync
 from DapsEX.plex_upload import PlexUploaderr
 from DapsEX.poster_renamerr import PosterRenamerr
+from DapsEX.settings import Settings
 from DapsEX.unmatched_assets import UnmatchedAssets
 from progress import ProgressState, progress_instance
 
@@ -73,7 +74,7 @@ def run_renamer_task(webhook_item: dict | None = None):
         daps_logger.debug("Poster Renamerr Payload:")
         daps_logger.debug(pformat(poster_renamer_payload))
 
-        job_id = progress_instance.add_job()
+        job_id = progress_instance.add_job(job_name=Settings.POSTER_RENAMERR.value)
         daps_logger.info(f"Job Poster Renamerr: '{job_id}' added.")
 
         renamer = PosterRenamerr(poster_renamer_payload)
@@ -97,11 +98,11 @@ def run_renamer_task(webhook_item: dict | None = None):
             try:
                 progress_instance(job_id, 100, ProgressState.COMPLETED)
             except Exception as e:
-                daps_logger.error(f"Error removing job {job_id}: {e}")
+                daps_logger.error(f"Error removing job '{job_id}': {e}")
             finally:
                 sleep(2)
                 progress_instance.remove_job(job_id)
-                daps_logger.info(f"Poster Renamerr Job: {job_id} has been removed")
+                daps_logger.info(f"Poster Renamerr Job: '{job_id}' has been removed")
 
         def run_renamerr_callback(fut):
             try:
@@ -276,11 +277,11 @@ def run_border_replacer_task(chained: bool = False) -> dict:
             try:
                 fut.result()
             except Exception as e:
-                daps_logger.error(f"Error removing job {job_id}: {e}")
+                daps_logger.error(f"Error removing job '{job_id}': {e}")
             finally:
                 sleep(2)
                 progress_instance.remove_job(job_id)
-                daps_logger.info(f"Border Replacer Job: {job_id} has been removed")
+                daps_logger.info(f"Border Replacer Job: '{job_id}' has been removed")
 
         if first_file_settings:
             current_border_setting = first_file_settings.get("border_setting")
@@ -299,7 +300,7 @@ def run_border_replacer_task(chained: bool = False) -> dict:
                     "job_id": None,
                 }
 
-        job_id = progress_instance.add_job()
+        job_id = progress_instance.add_job(Settings.BORDER_REPLACERR.value)
         daps_logger.debug(f"Job Border Replacerr: '{job_id}' added.")
         daps_logger.debug("Border Replacerr Payload:")
         daps_logger.debug(pformat(border_replacerr_payload))
@@ -309,7 +310,7 @@ def run_border_replacer_task(chained: bool = False) -> dict:
         if chained:
             border_replacerr.replace_current_assets(progress_instance, job_id)
             progress_instance.remove_job(job_id)
-            daps_logger.info(f"Border Replacer Job: {job_id} has been removed")
+            daps_logger.info(f"Border Replacer Job: '{job_id}' has been removed")
         else:
             daps_logger.debug("Submitting border replacerr task to thread pool")
             future = executor.submit(
@@ -336,7 +337,7 @@ def handle_unmatched_assets_task(radarr, sonarr, plex, chained: bool = False) ->
             )
             daps_logger.debug("Unmatched Assets Payload:")
             daps_logger.debug(pformat(unmatched_assets_payload))
-            job_id = progress_instance.add_job()
+            job_id = progress_instance.add_job(Settings.UNMATCHED_ASSETS.value)
             daps_logger.info(f"Job Unmatched Assets: '{job_id}' added.")
             unmatched_assets = UnmatchedAssets(unmatched_assets_payload)
 
@@ -344,16 +345,18 @@ def handle_unmatched_assets_task(radarr, sonarr, plex, chained: bool = False) ->
                 try:
                     fut.result()
                 except Exception as e:
-                    daps_logger.error(f"Error removing job {job_id}: {e}")
+                    daps_logger.error(f"Error removing job '{job_id}': {e}")
                 finally:
                     sleep(2)
                     progress_instance.remove_job(job_id)
-                    daps_logger.info(f"Unmatched Assets Job: {job_id} has been removed")
+                    daps_logger.info(
+                        f"Unmatched Assets Job: '{job_id}' has been removed"
+                    )
 
             if chained:
                 unmatched_assets.run(progress_instance, job_id)
                 progress_instance.remove_job(job_id)
-                daps_logger.info(f"Unmatched Assets Job: {job_id} has been removed")
+                daps_logger.info(f"Unmatched Assets Job: '{job_id}' has been removed")
             else:
                 daps_logger.debug("Submitting unmatched assets task to thread pool")
                 future = executor.submit(
@@ -390,18 +393,18 @@ def handle_plex_uploaderr_task(
         daps_logger.debug("Plex Uploaderr Payload:")
         daps_logger.debug(pformat(plex_uploader_payload))
 
-        job_id = progress_instance.add_job()
+        job_id = progress_instance.add_job(Settings.PLEX_UPLOADERR.value)
         daps_logger.info(f"Job Plex Uploaderr: '{job_id}' added.")
 
         def remove_job_cb(fut):
             try:
                 fut.result()
             except Exception as e:
-                daps_logger.debug(f"Error removing job {job_id}: {e}")
+                daps_logger.debug(f"Error removing job '{job_id}': {e}")
             finally:
                 sleep(2)
                 progress_instance.remove_job(job_id)
-                daps_logger.info(f"Plex uploaderr: {job_id} has been removed")
+                daps_logger.info(f"Plex uploaderr: '{job_id}' has been removed")
 
         if webhook_item and media_dict:
             plex_uploaderr = PlexUploaderr(
@@ -410,9 +413,7 @@ def handle_plex_uploaderr_task(
                 media_dict=media_dict,
             )
             daps_logger.debug("Submitting webhook plex uploaderr task to thread pool")
-            future = executor.submit(
-                plex_uploaderr.upload_posters_webhook,
-            )
+            future = executor.submit(plex_uploaderr.upload_posters_webhook, job_id)
             daps_logger.debug("Task submitted successfully")
         else:
             plex_uploaderr = PlexUploaderr(plex_uploader_payload)
@@ -420,7 +421,7 @@ def handle_plex_uploaderr_task(
             if chained:
                 plex_uploaderr.upload_posters_full(progress_instance, job_id)
                 progress_instance.remove_job(job_id)
-                daps_logger.info(f"Plex uploaderr: {job_id} has been removed")
+                daps_logger.info(f"Plex uploaderr: '{job_id}' has been removed")
             else:
                 daps_logger.debug("Submitting plex uploaderr task to thread pool")
                 future = executor.submit(
@@ -469,7 +470,7 @@ def run_drive_sync_task(chained: bool = False) -> dict:
         payload = webui_utils.create_drive_sync_payload()
         daps_logger.debug("Drive Sync Payload:")
         daps_logger.debug(pformat(payload))
-        job_id = progress_instance.add_job()
+        job_id = progress_instance.add_job(Settings.DRIVE_SYNC.value)
         daps_logger.info(f"Job Drive Sync: '{job_id}' added.")
         drive_sync = DriveSync(payload)
 
@@ -478,17 +479,17 @@ def run_drive_sync_task(chained: bool = False) -> dict:
                 fut.result()
                 progress_instance(job_id, 100, ProgressState.COMPLETED)
             except Exception as e:
-                daps_logger.debug(f"Error removing job {job_id}: {e}")
+                daps_logger.debug(f"Error removing job '{job_id}': {e}")
             finally:
                 sleep(2)
                 progress_instance.remove_job(job_id)
-                daps_logger.info(f"Drive Sync: {job_id} has been removed")
+                daps_logger.info(f"Drive Sync: '{job_id}' has been removed")
 
         if chained:
             try:
                 drive_sync.sync_all_drives(progress_instance, job_id)
                 progress_instance.remove_job(job_id)
-                daps_logger.info(f"Drive Sync: {job_id} has been removed")
+                daps_logger.info(f"Drive Sync: '{job_id}' has been removed")
             except Exception as e:
                 daps_logger.error(f"Drive sync failed: {e}")
         else:
