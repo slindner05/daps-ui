@@ -1,7 +1,7 @@
-import re, plexapi
 from logging import Logger
 from pathlib import Path
 
+import plexapi
 from arrapi import RadarrAPI, SonarrAPI
 from arrapi.apis.sonarr import Series
 from arrapi.exceptions import ConnectionFailure
@@ -47,7 +47,9 @@ class Media:
                     )
                     dict_with_seasons["alternate_titles"] = alternate_titles
             except Exception as e:
-                logger.error(f"Error fetching series data for ID {series_id}: {e}")
+                logger.error(
+                    f"Error fetching series data for ID {series_id}, title={title}: {e}"
+                )
 
             for season in season_object:  # type: ignore
                 season_dict = {
@@ -76,13 +78,6 @@ class Media:
         self, all_movie_objects: list[Movie], instance_name: str, logger
     ) -> list[dict[str, str | list[str]]]:
         titles_with_years = []
-        release_years = re.compile(r"^\d{4}")
-
-        def extract_year(date_string):
-            match = release_years.match(str(date_string))
-            if match:
-                return match.group(0)
-            return None
 
         for media_object in all_movie_objects:
             dict_with_years = {
@@ -114,7 +109,9 @@ class Media:
                 if secondary_year:
                     dict_with_years["years"].append(str(secondary_year))
             except Exception as e:
-                logger.error(f"Error fetching movie data for ID {movie_id}: {e}")
+                logger.error(
+                    f"Error fetching movie data for ID {movie_id}, title={title}: {e}"
+                )
             dict_with_years["title"] = title
             dict_with_years["status"] = status
             dict_with_years["has_file"] = has_file
@@ -350,9 +347,9 @@ class Server:
             f"Getting all media items from library {library_title}, type={library.type}"
         )
 
-        self.logger.debug(f"doing paging...")
+        self.logger.debug("doing paging...")
         all_items = self.get_all_with_paging(library)
-        self.logger.debug(f"done doing paging...")
+        self.logger.debug("done doing paging...")
 
         # all_items = library.all()
         self.logger.debug(
