@@ -11,7 +11,7 @@ ENV PATH="$POETRY_HOME/bin:$PATH"
 ENV POETRY_VIRTUALENVS_CREATE=false
 
 RUN apt-get update && apt-get upgrade -y && \
-    apt-get install -y rclone curl gosu && \
+    apt-get install -y rclone curl gosu tzdata && \
     curl -sSL https://install.python-poetry.org | python3 - && \
     chown -R appuser:appgroup "$POETRY_HOME" && \
     apt-get clean && rm -rf /var/lib/apt/lists/*

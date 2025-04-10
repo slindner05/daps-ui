@@ -3,6 +3,25 @@
 PUID=${PUID:-1000}
 PGID=${PGID:-1000}
 
+if [ -n "$TZ" ]; then
+    echo "Using configured timezone from TZ variable: $TZ"
+else
+    echo "Attempting geo-detection for timezone..."
+    TZ=$(curl -s --max-time 3 https://ipapi.co/timezone || echo "Etc/UTC")
+    echo "Selected timezone: $TZ"
+fi
+
+if [ -f "/usr/share/zoneinfo/$TZ" ]; then
+    ln -sf "/usr/share/zoneinfo/$TZ" /etc/localtime
+    echo "$TZ" >/etc/timezone
+    echo "Configured timezone: $TZ"
+else
+    echo "Warning: Invalid timezone '$TZ', falling back to UTC"
+    ln -sf /usr/share/zoneinfo/Etc/UTC /etc/localtime
+    echo "Etc/UTC" >/etc/timezone
+    export TZ="Etc/UTC"
+fi
+
 if [ "$(getent group appgroup | cut -d: -f3)" != "$PGID" ]; then
     echo "Updating group appgroup GID to $PGID"
     groupmod -o -g "$PGID" appgroup
