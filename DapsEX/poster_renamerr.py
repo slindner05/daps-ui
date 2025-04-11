@@ -88,7 +88,7 @@ class PosterRenamerr:
     # length to use as a prefix.  anything shorter than this will be used as-is
     prefix_length = 3
 
-    asset_list_file = "asset_list.json"
+    ALL_SEASONS_NO_EPISODES = "ALL_SEASONS_NO_EPISODES"
 
     def preprocess_name(self, name: str) -> str:
         """
@@ -211,7 +211,10 @@ class PosterRenamerr:
             self.logger.error(f"Error cleaning cache: {e}")
 
     def clean_asset_dir(self, media_dict, collections_dict) -> None:
+        global ALL_SEASONS_NO_EPISODES
         try:
+            cached_file_data = self.db.return_all_files()
+            cached_file_paths = list(cached_file_data.keys())
             directories_to_clean = [self.target_path, self.backup_dir]
             asset_files = (
                 item
@@ -219,17 +222,35 @@ class PosterRenamerr:
                 for item in dir_path.rglob("*")
                 if item.is_file()
             )
+
+            show_titles = set()
+            title_to_seasons_without_files = {}
+            for show in media_dict.get("shows", []):
+                title = utils.remove_chars(show["folder"])
+                show_titles.add(title)
+                matched_seasons = show.get("matched_season_info", [])
+                if matched_seasons:
+                    seasons_without_files = title_to_seasons_without_files.setdefault(
+                        title, []
+                    )
+                    has_at_least_one_season_with_episodes = False
+                    for season in matched_seasons:
+                        season_str = season.get("season", "")
+                        has_episodes = season.get("has_episodes", False)
+                        if has_episodes:
+                            has_at_least_one_season_with_episodes = True
+                            continue
+                        seasons_without_files.append(season_str)
+                    # if no seasons have episodes, mark this for the poster file as well
+                    if not has_at_least_one_season_with_episodes:
+                        seasons_without_files.append(ALL_SEASONS_NO_EPISODES)
+
             titles = (
                 set(
                     utils.remove_chars(movie["folder"])
                     for movie in media_dict.get("movies", [])
                 )
-                .union(
-                    set(
-                        utils.remove_chars(show["folder"])
-                        for show in media_dict.get("shows", [])
-                    )
-                )
+                .union(show_titles)
                 .union(
                     set(
                         utils.remove_chars(collection.replace("/", ""))
@@ -243,6 +264,7 @@ class PosterRenamerr:
                     )
                 )
             )
+
             removed_asset_count = 0
             directories_to_remove = []
 
@@ -266,6 +288,16 @@ class PosterRenamerr:
                         if asset_title not in titles:
                             directories_to_remove.append(parent_dir)
                             removed_asset_count += 1
+                        else:
+                            if asset_title in title_to_seasons_without_files:
+                                self.remove_upload_data_for_orphaned_asset(
+                                    cached_file_data,
+                                    cached_file_paths,
+                                    title_to_seasons_without_files,
+                                    item,
+                                    asset_title,
+                                )
+
                 else:
                     asset_pattern = re.search(r"^(.*?)(?:_.*)?$", item.stem)
                     if asset_pattern:
@@ -274,6 +306,15 @@ class PosterRenamerr:
                             self.logger.info(f"Removing orphaned asset file --> {item}")
                             item.unlink()
                             removed_asset_count += 1
+                        else:
+                            if asset_title in title_to_seasons_without_files:
+                                self.remove_upload_data_for_orphaned_asset(
+                                    cached_file_data,
+                                    cached_file_paths,
+                                    title_to_seasons_without_files,
+                                    item,
+                                    asset_title,
+                                )
 
             for directory in directories_to_remove:
                 self._remove_directory(directory)
@@ -289,6 +330,30 @@ class PosterRenamerr:
 
         except Exception as e:
             self.logger.error(f"Error cleaning assets: {e}")
+
+    def remove_upload_data_for_orphaned_asset(
+        self,
+        cached_file_data,
+        cached_file_paths,
+        title_to_seasons_without_files,
+        item,
+        asset_title,
+    ):
+        global ALL_SEASONS_NO_EPISODES
+
+        if asset_title in title_to_seasons_without_files:
+            for season in title_to_seasons_without_files[asset_title][:]:
+                if (
+                    item.stem.lower().endswith(season.lower())
+                    or season == ALL_SEASONS_NO_EPISODES
+                ) and str(item) in cached_file_paths:
+                    file_cache_data = cached_file_data[str(item)]
+                    if file_cache_data.get("uploaded_to_libraries", []):
+                        self.logger.debug(
+                            f"Removing upload data for data for orphaned asset file --> {item}"
+                        )
+                        self.db.remove_upload_data_for_file(str(item))
+                        title_to_seasons_without_files[asset_title].remove(season)
 
     def _remove_directory(self, directory: Path):
         if directory.exists() and directory.is_dir():
@@ -992,6 +1057,10 @@ class PosterRenamerr:
                                     show_seasons,
                                 )
                                 matched_season = True
+                                matched_season_info = show_data.setdefault(
+                                    "matched_season_info", []
+                                )
+                                matched_season_info.append(season)
                                 search_match["previously_matched"] = (
                                     f"shows: {show_name}"
                                 )
@@ -1565,7 +1634,7 @@ class PosterRenamerr:
                                 backup_dir,
                                 file_name_format,
                                 self.replace_border,
-                                webhook_run=webhook_run
+                                webhook_run=webhook_run,
                             )
                         else:
                             self.logger.warning(
