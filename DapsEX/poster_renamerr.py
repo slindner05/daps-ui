@@ -334,18 +334,19 @@ class PosterRenamerr:
         item,
         asset_title,
     ):
-        for season in title_to_seasons_without_files[asset_title]:
-            if (
-                item.stem.lower().startswith(season.lower())
-                and str(item) in cached_file_paths
-            ):
-                file_cache_data = cached_file_data[str(item)]
-                if file_cache_data.get("uploaded_to_libraries", []):
-                    self.logger.debug(
-                        f"Removing upload data for data for orphaned asset file --> {item}"
-                    )
-                    self.db.remove_upload_data_for_file(str(item))
-                    break
+        if asset_title in title_to_seasons_without_files:
+            for season in title_to_seasons_without_files[asset_title]:
+                if (
+                    item.stem.lower().startswith(season.lower())
+                    and str(item) in cached_file_paths
+                ):
+                    file_cache_data = cached_file_data[str(item)]
+                    if file_cache_data.get("uploaded_to_libraries", []):
+                        self.logger.debug(
+                            f"Removing upload data for data for orphaned asset file --> {item}"
+                        )
+                        self.db.remove_upload_data_for_file(str(item))
+                        break
 
     def _remove_directory(self, directory: Path):
         if directory.exists() and directory.is_dir():
