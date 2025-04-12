@@ -348,7 +348,7 @@ if __name__ == "__main__":
                 f"schedule_run_time={event.scheduled_run_time}, retval={event.retval}, exception={event.exception}, traceback={event.traceback}"
             )
         if isinstance(event, apscheduler.events.JobSubmissionEvent):
-            daps_logger.debug(f"schedule_rune_times={event.scheduled_run_times}")
+            daps_logger.debug(f"schedule_run_times={event.scheduled_run_times}")
         if isinstance(event, apscheduler.events.SchedulerEvent):
             daps_logger.debug(f"code={event.code}")
 
