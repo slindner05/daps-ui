@@ -34,7 +34,7 @@ def init_logger(
 
     # format the logger
     formatter = logging.Formatter(
-        "[%(name)s][%(asctime)s][%(levelname)s] = %(message)s"
+        "[%(name)s][%(threadName)s][%(asctime)s][%(levelname)s] = %(message)s"
     )
 
     if log_level == logging.DEBUG:

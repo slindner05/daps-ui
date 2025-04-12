@@ -1,5 +1,6 @@
 import os
 import socket
+import apscheduler
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -299,6 +300,59 @@ def run_drive_sync_scheduled(scheduler):
 
 if __name__ == "__main__":
     scheduler = BackgroundScheduler()
+
+    def dapsui_scheduler_listener(event):
+        code = event.code
+        code_string = ""
+        if code == apscheduler.events.EVENT_SCHEDULER_START:
+            code_string = "EVENT_SCHEDULER_START"
+        elif code == apscheduler.events.EVENT_SCHEDULER_SHUTDOWN:
+            code_string = "EVENT_SCHEDULER_SHUTDOWN"
+        elif code == apscheduler.events.EVENT_EXECUTOR_ADDED:
+            code_string = "EVENT_EXECUTOR_ADDED"
+        elif code == apscheduler.events.EVENT_EXECUTOR_REMOVED:
+            code_string = "EVENT_EXECUTOR_REMOVED"
+        elif code == apscheduler.events.EVENT_JOBSTORE_ADDED:
+            code_string = "EVENT_JOBSTORE_ADDED"
+        elif code == apscheduler.events.EVENT_JOBSTORE_REMOVED:
+            code_string = "EVENT_JOBSTORE_REMOVED"
+        elif code == apscheduler.events.EVENT_ALL_JOBS_REMOVED:
+            code_string = "EVENT_ALL_JOBS_REMOVED"
+        elif code == apscheduler.events.EVENT_JOB_ADDED:
+            code_string = "EVENT_JOB_ADDED"
+        elif code == apscheduler.events.EVENT_JOB_REMOVED:
+            code_string = "EVENT_JOB_REMOVED"
+        elif code == apscheduler.events.EVENT_JOB_MODIFIED:
+            code_string = "EVENT_JOB_MODIFIED"
+        elif code == apscheduler.events.EVENT_JOB_EXECUTED:
+            code_string = "EVENT_JOB_EXECUTED"
+        elif code == apscheduler.events.EVENT_JOB_ERROR:
+            code_string = "EVENT_JOB_ERROR"
+        elif code == apscheduler.events.EVENT_JOB_MISSED:
+            code_string = "EVENT_JOB_MISSED"
+
+        daps_logger.debug(
+            f"Received {event.__class__.__name__}, code_string={code_string}"
+        )
+        jobs = scheduler.get_jobs()
+        daps_logger.debug("Current scheduled jobs:")
+        for job in jobs:
+            job_id = job.id
+            next_run = job.next_run_time
+            daps_logger.debug(f"\t{job_id} --> {next_run}")
+
+        if isinstance(event, apscheduler.events.JobEvent):
+            daps_logger.debug(f"code={event.code}, job_id={event.job_id}")
+        if isinstance(event, apscheduler.events.JobExecutionEvent):
+            daps_logger.debug(
+                f"schedule_run_time={event.scheduled_run_time}, retval={event.retval}, exception={event.exception}, traceback={event.traceback}"
+            )
+        if isinstance(event, apscheduler.events.JobSubmissionEvent):
+            daps_logger.debug(f"schedule_rune_times={event.scheduled_run_times}")
+        if isinstance(event, apscheduler.events.SchedulerEvent):
+            daps_logger.debug(f"code={event.code}")
+
+    scheduler.add_listener(dapsui_scheduler_listener)
     start_scheduler(scheduler)
 
     reload_jobs_worker(scheduler)
