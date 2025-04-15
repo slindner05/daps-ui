@@ -806,7 +806,9 @@ class PlexUploaderr:
                     self.logger.error(
                         f"Error retrieving media for Plex instance '{name}': {e}"
                     )
+                    self.logger.error(traceback.print_exc)
                     plex_media_dict[name] = {}
+                    raise e # purposely crash if this happens vs. silently going forward to make it obvious
 
             self.logger.debug("Attempting to get updated media dict")
             for server_name, item_dict in plex_media_dict.items():
