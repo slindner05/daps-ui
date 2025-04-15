@@ -44,11 +44,11 @@ class BorderReplacerr:
     def remove_border(self, image_path: Path):
         image = Image.open(image_path)
         width, height = image.size
-        crop_area = (25, 25, width - 25, height)
+        crop_area = (26, 26, width - 26, height)
 
         final_image = image.crop(crop_area)
-        bottom_border = Image.new("RGB", (width - 2 * 25, 25), color="black")
-        bottom_border_position = (0, final_image.size[1] - 25)
+        bottom_border = Image.new("RGB", (width - 2 * 26, 26), color="black")
+        bottom_border_position = (0, final_image.size[1] - 26)
         final_image.paste(bottom_border, bottom_border_position)
         final_image = final_image.resize((1000, 1500)).convert("RGB")
 
@@ -57,10 +57,10 @@ class BorderReplacerr:
     def replace_border(self, image_path: Path):
         image = Image.open(image_path)
         width, height = image.size
-        crop_area = (25, 25, width - 25, height - 25)
+        crop_area = (26, 26, width - 26, height - 26)
         cropped_image = image.crop(crop_area)
         new_image = Image.new("RGB", (width, height), color=self.custom_color)
-        new_image.paste(cropped_image, (25, 25))
+        new_image.paste(cropped_image, (26, 26))
         final_image = new_image.resize((1000, 1500)).convert("RGB")
         return final_image
 
