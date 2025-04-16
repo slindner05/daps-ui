@@ -63,8 +63,10 @@ def init_logger(
 def get_daps_logger():
     global_config = Config()
     logger = logging.getLogger("daps-web")
+    ap_scheduler_logger = logging.getLogger("apscheduler")
     if not logger.hasHandlers():
         log_level_str = getattr(global_config, "MAIN_LOG_LEVEL", "INFO")
         log_level = getattr(logging, log_level_str, logging.INFO)
         init_logger(logger, global_config.logs / "web-ui", "web_ui", log_level)
+        init_logger(ap_scheduler_logger, global_config.logs / "web-ui", "ap_scheduler", log_level)
     return logger
