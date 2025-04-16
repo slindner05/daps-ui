@@ -306,8 +306,16 @@ if __name__ == "__main__":
         code_string = ""
         if code == apscheduler.events.EVENT_SCHEDULER_START:
             code_string = "EVENT_SCHEDULER_START"
+        elif code == apscheduler.events.EVENT_JOB_SUBMITTED:
+            code_string = "EVENT_JOB_SUBMITTED"
+        elif code == apscheduler.events.EVENT_JOB_MAX_INSTANCES:
+            code_string = "EVENT_JOB_MAX_INSTANCES"
         elif code == apscheduler.events.EVENT_SCHEDULER_SHUTDOWN:
             code_string = "EVENT_SCHEDULER_SHUTDOWN"
+        elif code == apscheduler.events.EVENT_SCHEDULER_PAUSED:
+            code_string = "EVENT_SCHEDULER_PAUSED"
+        elif code == apscheduler.events.EVENT_SCHEDULER_RESUMED:
+            code_string = "EVENT_SCHEDULER_RESUMED"
         elif code == apscheduler.events.EVENT_EXECUTOR_ADDED:
             code_string = "EVENT_EXECUTOR_ADDED"
         elif code == apscheduler.events.EVENT_EXECUTOR_REMOVED:
@@ -348,7 +356,7 @@ if __name__ == "__main__":
                 f"schedule_run_time={event.scheduled_run_time}, retval={event.retval}, exception={event.exception}, traceback={event.traceback}"
             )
         if isinstance(event, apscheduler.events.JobSubmissionEvent):
-            daps_logger.debug(f"schedule_rune_times={event.scheduled_run_times}")
+            daps_logger.debug(f"schedule_run_times={event.scheduled_run_times}")
         if isinstance(event, apscheduler.events.SchedulerEvent):
             daps_logger.debug(f"code={event.code}")
 
