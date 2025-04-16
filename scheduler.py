@@ -306,8 +306,16 @@ if __name__ == "__main__":
         code_string = ""
         if code == apscheduler.events.EVENT_SCHEDULER_START:
             code_string = "EVENT_SCHEDULER_START"
+        elif code == apscheduler.events.EVENT_JOB_SUBMITTED:
+            code_string = "EVENT_JOB_SUBMITTED"
+        elif code == apscheduler.events.EVENT_JOB_MAX_INSTANCES:
+            code_string = "EVENT_JOB_MAX_INSTANCES"
         elif code == apscheduler.events.EVENT_SCHEDULER_SHUTDOWN:
             code_string = "EVENT_SCHEDULER_SHUTDOWN"
+        elif code == apscheduler.events.EVENT_SCHEDULER_PAUSED:
+            code_string = "EVENT_SCHEDULER_PAUSED"
+        elif code == apscheduler.events.EVENT_SCHEDULER_RESUMED:
+            code_string = "EVENT_SCHEDULER_RESUMED"
         elif code == apscheduler.events.EVENT_EXECUTOR_ADDED:
             code_string = "EVENT_EXECUTOR_ADDED"
         elif code == apscheduler.events.EVENT_EXECUTOR_REMOVED:
