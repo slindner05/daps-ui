@@ -346,7 +346,10 @@ if __name__ == "__main__":
         daps_logger.debug("Current scheduled jobs:")
         for job in jobs:
             job_id = job.id
-            next_run = job.next_run_time
+            if scheduler.running:
+                next_run = job.next_run_time
+            else:
+                next_run = "pending: scheduler not started yet"
             daps_logger.debug(f"\t{job_id} --> {next_run}")
 
         if isinstance(event, apscheduler.events.JobEvent):
