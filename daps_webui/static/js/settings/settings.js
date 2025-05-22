@@ -602,7 +602,7 @@ let availableDrives = [
   { name: "zarox", id: "1wOhY88zc0wdQU-QQmhm4FzHL9QiCQnpu" },
   { name: "solen", id: "1YEuS1pulJAfhKm4L8U9z5-EMtGl-d2s7" },
   { name: "bz", id: "1Xg9Huh7THDbmjeanW0KyRbEm6mGn_jm8" },
-  { name: "iamspartacus", id: "1aRngLdC9yO93gvSrTI2LQ_I9BSoGD-7o" },
+  { name: "iamspartacus", id: "1HjwMWfI6XpQVYH36VBzYiJA4UWfoqcQ9" },
   { name: "lioncitygaming", id: "1alseEnUBjH6CjXh77b5L4R-ZDGdtOMFr" },
   { name: "majorgiant", id: "1ZfvUgN0qz4lJYkC_iMRjhH-fZ0rDN_Yu" },
   { name: "sahara", id: "1KnwxzwBUQzQyKF1e24q_wlFqcER9xYHM" },
@@ -623,6 +623,8 @@ let availableDrives = [
   { name: "majorgiant_2", id: "15sNlcFZmeDox2OQJyGjVxRwtigtd82Ru" },
   { name: "iamspartacus_2", id: "1-WhCVwRLfV6hxyKF7W5IuzIHIYicCdAv" },
   { name: "solen_2", id: "1zWY-ORtJkOLcQChV--oHquxW3JCow1zm" },
+  { name: "darkkazul", id: "1ejgRXwX6opexs8oAX8CnpSpKQt7Hrf00" },
+  { name: "dweagle76", id: "1XXZL-TpqWqfbKBWCifN2-MRdGDbSzHTj" },
 ];
 
 availableDrives.sort((a, b) => a.name.localeCompare(b.name));
