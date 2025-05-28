@@ -31,16 +31,26 @@ class Media:
             }
             series_id = media_object.id
             path = Path(media_object.path)  # type: ignore
-            title = path.name
+            title = media_object.title
+            year = str(media_object.year)
+            tvdb_id = str(media_object.tvdbId)
+            imdb_id = str(media_object.imdbId)
+            tmdb_id = "0"
             series_status = media_object.status
             season_object = media_object.seasons
-            dict_with_seasons["title"] = title
+            dict_with_seasons["arr_title"] = title
             dict_with_seasons["status"] = series_status
             dict_with_seasons["id"] = series_id
-
+            dict_with_seasons["media_year"] = year
+            dict_with_seasons["tvdb_id"] = tvdb_id
+            dict_with_seasons["imdb_id"] = imdb_id
+            dict_with_seasons["path"] = media_object.path
+            dict_with_seasons["folder"] = path.name
             try:
                 raw_api = media_object._raw
                 series_data = raw_api.get_series_id(series_id)
+                tmdb_id = str(series_data.get("tmdbId", 0))
+                dict_with_seasons["tmdb_id"] = tmdb_id
                 if series_data:
                     alternate_titles = self.extract_alternate_titles(
                         series_data.get("alternateTitles", [])
@@ -50,6 +60,13 @@ class Media:
                 logger.error(
                     f"Error fetching series data for ID {series_id}, title={title}: {e}"
                 )
+            dict_with_seasons["title"] = f"{dict_with_seasons['arr_title']} ({dict_with_seasons['media_year']})"
+            if tmdb_id != "0":
+                dict_with_seasons["title"] = f"{dict_with_seasons['title']} {{tmdb-{tmdb_id}}}"
+            if tvdb_id != "0":
+                dict_with_seasons["title"] = f"{dict_with_seasons['title']} {{tvdb-{tvdb_id}}}"
+            if imdb_id != "0":
+                dict_with_seasons["title"] = f"{dict_with_seasons['title']} {{imdb-{imdb_id}}}"
 
             for season in season_object:  # type: ignore
                 season_dict = {
@@ -92,10 +109,12 @@ class Media:
             }
             path = Path(media_object.path)  # type: ignore
             movie_id = media_object.id
-            title = path.name
+            title = media_object.title
             title_year = str(media_object.year)
             status = media_object.status
             has_file = media_object.hasFile
+            imdb_id = str(media_object.imdbId)
+            tmdb_id = str(media_object.tmdbId)
 
             # get raw
             try:
@@ -112,11 +131,20 @@ class Media:
                 logger.error(
                     f"Error fetching movie data for ID {movie_id}, title={title}: {e}"
                 )
-            dict_with_years["title"] = title
+            dict_with_years["arr_title"] = title
             dict_with_years["status"] = status
             dict_with_years["has_file"] = has_file
             dict_with_years["id"] = movie_id
             dict_with_years["media_year"] = title_year
+            dict_with_years["imdb_id"] = imdb_id
+            dict_with_years["tmdb_id"] = tmdb_id
+            dict_with_years["path"] = media_object.path
+            dict_with_years["folder"] = path.name
+            dict_with_years["title"] = f"{dict_with_years['arr_title']} ({dict_with_years['media_year']})"
+            if tmdb_id != "0":
+                dict_with_years["title"] = f"{dict_with_years['title']} {{tmdb-{tmdb_id}}}"
+            if imdb_id != "0":
+                dict_with_years["title"] = f"{dict_with_years['title']} {{imdb-{imdb_id}}}"
 
             titles_with_years.append(dict_with_years)
         return titles_with_years

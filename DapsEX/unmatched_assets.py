@@ -122,7 +122,7 @@ class UnmatchedAssets:
         season_assets = self.extract_assets("shows", assets, is_series_asset=True)
 
         for movie in movies_list_dict:
-            if movie["title"].lower() not in movie_assets:
+            if movie["folder"].lower() not in movie_assets:
                 if show_all_unmatched:
                     unmatched_assets["movies"].append(utils.strip_id(movie["title"]))
                     self.db.add_unmatched_movie(
@@ -157,7 +157,7 @@ class UnmatchedAssets:
             }
 
             show_id = None
-            if item["title"].lower() not in show_assets:
+            if item["folder"].lower() not in show_assets:
                 if show_all_unmatched or item.get("has_episodes", False):
                     show_id = self.db.add_unmatched_show(
                         title=show_title,
@@ -170,7 +170,7 @@ class UnmatchedAssets:
                     self.logger.debug(f"Skipping {item['title']} -> No file on disk")
 
             for season in item.get("seasons", []):
-                season_name = item["title"].lower()
+                season_name = item["folder"].lower()
                 season_number = season["season"]
                 season_asset = (season_name, season_number)
 
@@ -179,7 +179,7 @@ class UnmatchedAssets:
                         if show_all_unmatched or season.get("has_episodes", False):
                             unmatched_show["seasons"].append(season["season"])
                             if show_id is None:
-                                series_parent_path = self.assets_dir / item["title"]
+                                series_parent_path = self.assets_dir / item["folder"]
                                 main_series_poster = None
                                 for ext in self.image_exts:
                                     potential_poster = (
