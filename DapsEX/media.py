@@ -35,7 +35,6 @@ class Media:
             year = str(media_object.year)
             tvdb_id = str(media_object.tvdbId)
             imdb_id = str(media_object.imdbId)
-            tmdb_id = "0"
             series_status = media_object.status
             season_object = media_object.seasons
             dict_with_seasons["arr_title"] = title
@@ -49,8 +48,6 @@ class Media:
             try:
                 raw_api = media_object._raw
                 series_data = raw_api.get_series_id(series_id)
-                tmdb_id = str(series_data.get("tmdbId", 0))
-                dict_with_seasons["tmdb_id"] = tmdb_id
                 if series_data:
                     alternate_titles = self.extract_alternate_titles(
                         series_data.get("alternateTitles", [])
@@ -61,8 +58,6 @@ class Media:
                     f"Error fetching series data for ID {series_id}, title={title}: {e}"
                 )
             dict_with_seasons["title"] = f"{dict_with_seasons['arr_title']} ({dict_with_seasons['media_year']})"
-            if tmdb_id != "0":
-                dict_with_seasons["title"] = f"{dict_with_seasons['title']} {{tmdb-{tmdb_id}}}"
             if tvdb_id != "0":
                 dict_with_seasons["title"] = f"{dict_with_seasons['title']} {{tvdb-{tvdb_id}}}"
             if imdb_id != "0":
