@@ -221,12 +221,12 @@ class PosterRenamerr:
             )
             titles = (
                 set(
-                    utils.remove_chars(movie["title"])
+                    utils.remove_chars(movie["folder"])
                     for movie in media_dict.get("movies", [])
                 )
                 .union(
                     set(
-                        utils.remove_chars(show["title"])
+                        utils.remove_chars(show["folder"])
                         for show in media_dict.get("shows", [])
                     )
                 )
@@ -1522,8 +1522,9 @@ class PosterRenamerr:
                     for file_path, data in items.items():
                         movie_data = data["match"]
                         movie_title = movie_data["title"]
+                        movie_folder = movie_data["folder"]
                         target_dir, backup_dir, file_name_format = self.setup_dirs(
-                            "movie", movie_title, file_path
+                            "movie", movie_folder, file_path
                         )
                         if target_dir and file_name_format:
                             self._copy_file(
@@ -1581,6 +1582,7 @@ class PosterRenamerr:
                     for file_path, data in items.items():
                         show_data = data["match"]
                         show_name = show_data["title"]
+                        show_folder = show_data["folder"]
 
                         match_season = re.match(r"(.+?) - Season (\d+)", file_path.stem)
                         match_specials = re.match(r"(.+?) - Specials", file_path.stem)
@@ -1590,7 +1592,7 @@ class PosterRenamerr:
                             formatted_season_num = f"Season{season_num:02}"
                             target_dir, backup_dir, file_name_format = self.setup_dirs(
                                 "season",
-                                show_name,
+                                show_folder,
                                 file_path,
                                 formatted_season_num,
                                 "_",
@@ -1598,14 +1600,14 @@ class PosterRenamerr:
                         elif match_specials:
                             target_dir, backup_dir, file_name_format = self.setup_dirs(
                                 "special",
-                                show_name,
+                                show_folder,
                                 file_path,
                                 "Season00",
                                 "_",
                             )
                         else:
                             target_dir, backup_dir, file_name_format = self.setup_dirs(
-                                "series", show_name, file_path
+                                "series", show_folder, file_path
                             )
 
                         if target_dir and file_name_format:
