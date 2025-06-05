@@ -667,7 +667,7 @@ class PlexUploaderr:
             self.radarr_instances, self.sonarr_instances
         )
         movies_lookup = {
-            movie["title"].lower(): movie["has_file"]
+            movie["folder"].lower(): movie["has_file"]
             for movie in media_dict.get("movies", [])
         }
         # self.logger.debug("Movies lookup:")
@@ -675,7 +675,7 @@ class PlexUploaderr:
 
         shows_lookup = {}
         for show in media_dict.get("shows", []):
-            show_title = show["title"].lower()
+            show_title = show["folder"].lower()
             shows_lookup[show_title] = {
                 "has_episodes": show.get("has_episodes", False),
                 "seasons": {
@@ -779,7 +779,7 @@ class PlexUploaderr:
         else:
             item_type = "show"
             item = next((item for item in self.media_dict.get("shows", [])))
-        item_title = item["title"]
+        item_title = item["folder"]
 
         webhook_cached_files = self.db.return_all_files(webhook_run=True)
         self.logger.debug(
