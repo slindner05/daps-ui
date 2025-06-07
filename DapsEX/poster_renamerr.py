@@ -211,7 +211,6 @@ class PosterRenamerr:
             self.logger.error(f"Error cleaning cache: {e}")
 
     def clean_asset_dir(self, media_dict, collections_dict) -> None:
-        global ALL_SEASONS_NO_EPISODES
         try:
             cached_file_data = self.db.return_all_files()
             cached_file_paths = list(cached_file_data.keys())
@@ -243,7 +242,7 @@ class PosterRenamerr:
                         seasons_without_files.append(season_str)
                     # if no seasons have episodes, mark this for the poster file as well
                     if not has_at_least_one_season_with_episodes:
-                        seasons_without_files.append(ALL_SEASONS_NO_EPISODES)
+                        seasons_without_files.append(self.ALL_SEASONS_NO_EPISODES)
 
             titles = (
                 set(
@@ -339,13 +338,11 @@ class PosterRenamerr:
         item,
         asset_title,
     ):
-        global ALL_SEASONS_NO_EPISODES
-
         if asset_title in title_to_seasons_without_files:
             for season in title_to_seasons_without_files[asset_title][:]:
                 if (
                     item.stem.lower().endswith(season.lower())
-                    or season == ALL_SEASONS_NO_EPISODES
+                    or season == self.ALL_SEASONS_NO_EPISODES
                 ) and str(item) in cached_file_paths:
                     file_cache_data = cached_file_data[str(item)]
                     if file_cache_data.get("uploaded_to_libraries", []):
