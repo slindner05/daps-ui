@@ -150,9 +150,9 @@ def remove_chars(file_name: str) -> str:
     )
     file_name = remove_emojis(file_name)
     file_name = file_name.replace("&", "and")
-    file_name = re.sub(r"/", " ", file_name)
-    file_name = re.sub(r"\++", " ", file_name)
-    file_name = re.sub(r"\-+", " ", file_name)
+    file_name = re.sub(r"/", "", file_name)
+    file_name = re.sub(r"\++", "", file_name)
+    file_name = re.sub(r"\-+", "", file_name)
     file_name = re.sub(r"\s+", " ", file_name).strip()
     file_name = file_name.lower()
     return file_name
