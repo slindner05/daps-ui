@@ -598,7 +598,7 @@ function setupRenamerrRemoveButtons() {
 let driveSelectCounter = 0;
 
 let availableDrives = [
-  { name: "drazzilb", id: "1VeeQ_frBFpp6AZLimaJSSr0Qsrl6Tb7z" },
+  { name: "drazzilb", id: "1fKRkx4Yine5cqkH411FmShdd-wHRMBIF" },
   { name: "zarox", id: "1wOhY88zc0wdQU-QQmhm4FzHL9QiCQnpu" },
   { name: "solen", id: "1YEuS1pulJAfhKm4L8U9z5-EMtGl-d2s7" },
   { name: "bz", id: "1Xg9Huh7THDbmjeanW0KyRbEm6mGn_jm8" },
