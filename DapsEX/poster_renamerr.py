@@ -85,6 +85,9 @@ class PosterRenamerr:
     poster_id_pattern = re.compile(r"[\[\{](imdb|tmdb|tvdb)-([a-zA-Z0-9]+)[\}\]]")
     year_pattern = re.compile(r"\b(19|20)\d{2}\b")
 
+    MEDIA_SOURCE_ID_INDEX = "media_source_ids"
+    ID_INDEX_SEPARATOR = ":"
+
     # length to use as a prefix.  anything shorter than this will be used as-is
     prefix_length = 3
 
@@ -117,6 +120,14 @@ class PosterRenamerr:
         Returns both the index and preprocessed forms
         """
         asset_type_processed_forms = prefix_index[asset_type]
+        id_index = asset_type_processed_forms.setdefault(self.MEDIA_SOURCE_ID_INDEX, {})
+        all_item_ids = self.poster_id_pattern.findall(title.lower())
+        for item_id_match in all_item_ids:
+            key = f"{item_id_match[0]}{self.ID_INDEX_SEPARATOR}{item_id_match[1]}"
+            # self.logger.debug(f"setting {key} --> {asset}")
+            asset_list = id_index.setdefault(key, [])
+            asset_list.append(asset)
+
         processed = self.preprocess_name(title)
         debug_build_index = (
             debug_items and len(debug_items) > 0 and processed in debug_items
@@ -136,7 +147,6 @@ class PosterRenamerr:
         # only need to do the first word here
         # also - store add to a prefix to expand possible matches
         for word in words:
-            # if len(word) > 2 or len(words)==1:  # Only index words longer than 2 chars unless it's the only word
             if word not in asset_type_processed_forms:
                 asset_type_processed_forms[word] = (
                     list()
@@ -155,12 +165,12 @@ class PosterRenamerr:
 
         return
 
-    def search_matches(self, prefix_index, movie_title, asset_type, debug_search=False):
+    def search_matches(self, prefix_index, title, asset_type, debug_search=False):
         """search for matches in the index"""
         matches = list()
 
-        processed_filename = self.preprocess_name(movie_title)
         asset_type_processed_forms = prefix_index[asset_type]
+        processed_filename = self.preprocess_name(title)
 
         if debug_search:
             self.logger.info("debug_search_matches")
@@ -189,6 +199,19 @@ class PosterRenamerr:
             if debug_search:
                 self.logger.info(matches)
             break
+
+        # for now we can add ID-based matches to the end of the list.  This is only a fallback if none of the name-based
+        # candidates actually matched
+        id_index = asset_type_processed_forms.get(self.MEDIA_SOURCE_ID_INDEX, None)
+        if id_index:
+            all_item_ids = self.poster_id_pattern.findall(title.lower())
+            for item_id_match in all_item_ids:
+                key = f"{item_id_match[0]}{self.ID_INDEX_SEPARATOR}{item_id_match[1]}"
+                # self.logger.debug(f"setting {key} --> {asset}")
+                matched_asset_list_by_id = id_index.get(key, None)
+                if matched_asset_list_by_id:
+                    self.logger.debug(f"found matches by ID {{{key}}} for {title} --> {matched_asset_list_by_id}")
+                    matches.extend(matched_asset_list_by_id)
 
         return matches
 
@@ -460,16 +483,13 @@ class PosterRenamerr:
                 id_match = (
                     asset["media_ids"][id_source] == media["media_ids"][id_source]
                 )
-                self.logger.debug(
-                    f"both sides shared a common id! do they match? {id_match} ... asset_ids= {asset['media_ids']}, media_ids= {media['media_ids']}"
-                )
                 # if the current source existed but didn't match, but there are still other IDs to consider - keep looping
                 if id_match:
+                    self.logger.debug(
+                        f"matched based on id! do they match? asset_ids= {asset['media_ids']}, media_ids= {media['media_ids']}"
+                    )
                     return True
             # at this point we know there were common sources and if any had matched we would have short circuited above.
-            self.logger.debug(
-                f"both sides shared a common id! but none matched ... asset_ids= {asset['media_ids']}, media_ids= {media['media_ids']}"
-            )
             return False
 
         has_year_match = (
