@@ -33,6 +33,44 @@ class Database:
             self.db.session.rollback()
             return False
 
+    def delete_file_cache_by_arr_item(
+        self, media_type: str, instance: str, arr_id: int
+    ) -> int:
+        try:
+            deleted = (
+                self.db.session.query(models.FileCache)
+                .filter_by(media_type=media_type, instance=instance, arr_id=arr_id)
+                .delete(synchronize_session=False)
+            )
+            self.db.session.commit()
+            return deleted
+        except SQLAlchemyError as e:
+            self.logger.error("Error deleting file cache by arr item: %s", e)
+            self.db.session.rollback()
+            return 0
+
+    def delete_file_cache_for_season(
+        self, instance: str, arr_id: int, season_number: int
+    ) -> int:
+        season_token = f"Season{int(season_number):02d}"
+        try:
+            deleted = (
+                self.db.session.query(models.FileCache)
+                .filter(
+                    models.FileCache.media_type == "shows",
+                    models.FileCache.instance == instance,
+                    models.FileCache.arr_id == arr_id,
+                    models.FileCache.file_path.like(f"%{season_token}%"),
+                )
+                .delete(synchronize_session=False)
+            )
+            self.db.session.commit()
+            return deleted
+        except SQLAlchemyError as e:
+            self.logger.error("Error deleting file cache for season: %s", e)
+            self.db.session.rollback()
+            return 0
+
     def add_unmatched_item(
         self,
         item_type: str,

@@ -5,6 +5,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+import requests
 from flask import (
     Blueprint,
     jsonify,
@@ -527,6 +528,137 @@ def fetch_unmatched_assets():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+def _season_has_files_in_sonarr(
+    url: str, api_key: str, series_id: int, season_number: int
+) -> bool | None:
+    try:
+        response = requests.get(
+            f"{url.rstrip('/')}/api/v3/episodefile",
+            params={"seriesId": series_id},
+            headers={"X-Api-Key": api_key},
+            timeout=5,
+        )
+        response.raise_for_status()
+        files = response.json() or []
+        return any(f.get("seasonNumber") == season_number for f in files)
+    except requests.RequestException as e:
+        postarr_logger.error(
+            "Sonarr API call failed for series %s, season %s: %s",
+            series_id,
+            season_number,
+            e,
+        )
+        return None
+
+
+def _handle_episode_file_delete(data: dict):
+    if (data.get("deleteReason") or "").lower() == "upgrade":
+        postarr_logger.debug("Ignoring EpisodeFileDelete with deleteReason=upgrade")
+        return jsonify({"message": "Skipped (upgrade)"}), 200
+
+    series = data.get("series") or {}
+    series_id = series.get("id")
+    title = series.get("title", "")
+    instance = data.get("instanceName", "")
+    episodes = data.get("episodes") or []
+
+    if not series_id or not instance or not episodes:
+        postarr_logger.error(
+            "EpisodeFileDelete missing required fields (series.id=%s, instanceName=%s, episodes=%d)",
+            series_id,
+            instance,
+            len(episodes),
+        )
+        return jsonify({"message": "Invalid webhook data"}), 400
+
+    sonarr = models.SonarrInstance.query.filter_by(instance_name=instance).first()
+    if not sonarr or not sonarr.url or not sonarr.api_key:
+        postarr_logger.error(
+            "No Sonarr instance configured for instanceName='%s' — cannot verify season state",
+            instance,
+        )
+        return jsonify({"message": "Sonarr instance not configured"}), 400
+
+    seasons = {ep.get("seasonNumber") for ep in episodes if ep.get("seasonNumber") is not None}
+    total_cleared = 0
+
+    for season_number in seasons:
+        has_files = _season_has_files_in_sonarr(
+            sonarr.url, sonarr.api_key, int(series_id), int(season_number)
+        )
+        if has_files is None:
+            postarr_logger.info(
+                "Skipping season %s of '%s' — Sonarr lookup failed",
+                season_number,
+                title,
+            )
+            continue
+        if has_files:
+            postarr_logger.debug(
+                "Season %s of '%s' still has files in Sonarr; leaving cache row in place",
+                season_number,
+                title,
+            )
+            continue
+
+        cleared = database.delete_file_cache_for_season(
+            instance=instance, arr_id=int(series_id), season_number=int(season_number)
+        )
+        total_cleared += cleared
+        postarr_logger.info(
+            "Cleared %d file_cache row(s) for '%s' Season%02d (arr_id=%s, instance=%s)",
+            cleared,
+            title,
+            int(season_number),
+            series_id,
+            instance,
+        )
+
+    return (
+        jsonify({"message": "Episode file delete processed", "rows_cleared": total_cleared}),
+        200,
+    )
+
+
+def _handle_arr_delete(data: dict, event_type: str):
+    item_type = "movie" if event_type == "MovieDelete" else "series"
+    media_type = "movies" if item_type == "movie" else "shows"
+
+    arr_item = data.get(item_type) or {}
+    arr_id = arr_item.get("id")
+    instance = data.get("instanceName", "")
+    title = arr_item.get("title", "")
+
+    if not arr_id:
+        postarr_logger.error(
+            "Item ID not found for %s in delete webhook", item_type
+        )
+        return jsonify({"message": "Invalid webhook data"}), 400
+    if not instance:
+        postarr_logger.error(
+            "Instance name missing from delete webhook, please configure in arr settings"
+        )
+        return jsonify({"message": "Invalid webhook data"}), 400
+
+    deleted = database.delete_file_cache_by_arr_item(
+        media_type=media_type,
+        instance=instance,
+        arr_id=int(arr_id),
+    )
+    postarr_logger.info(
+        "Cleared %d file_cache row(s) for %s '%s' (arr_id=%s, instance=%s)",
+        deleted,
+        item_type,
+        title,
+        arr_id,
+        instance,
+    )
+    return (
+        jsonify({"message": "Delete processed", "rows_cleared": deleted}),
+        200,
+    )
+
+
 @poster_renamer.route("/arr-webhook", methods=["POST"])
 def recieve_webhook():
     from postarr import app as flask_app
@@ -566,11 +698,20 @@ def recieve_webhook():
             return jsonify({"message": "Unsupported webhook source"}), 400
 
         valid_event_types = ["Download", "Grab", "MovieAdded", "SeriesAdd"]
+        delete_event_types = ["MovieDelete", "SeriesDelete"]
         webhook_event_type = data.get("eventType", "")
 
         if webhook_event_type == "Test":
             postarr_logger.info("Test event received successfully")
             return jsonify({"message": "OK"}), 200
+
+        if webhook_event_type in delete_event_types:
+            database.update_scheduled_job(job_name, None)
+            return _handle_arr_delete(data, webhook_event_type)
+
+        if webhook_event_type == "EpisodeFileDelete":
+            database.update_scheduled_job(job_name, None)
+            return _handle_episode_file_delete(data)
 
         if webhook_event_type not in valid_event_types:
             postarr_logger.debug(
